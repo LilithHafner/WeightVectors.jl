@@ -1,11 +1,23 @@
 using DynamicDiscreteSamplers
+using Random
 using Test
 using Aqua
 
-@testset "DynamicDiscreteSamplers.jl" begin
-    @testset "Code quality (Aqua.jl)" begin
-        Aqua.test_all(DynamicDiscreteSamplers, deps_compat=false)
-        Aqua.test_deps_compat(DynamicDiscreteSamplers, check_extras=false)
+@testset "basic end to end tests" begin
+    ds = DynamicDiscreteSampler()
+    x = randperm(100)
+    y = exp.(10*rand(100).-5);
+    push!.((ds,), x, y)
+    for _ in 1:100
+        rand(ds)
     end
-    # Write your tests here.
+    # for i in randperm(99)
+    #     delete!(ds, i)
+    # end
+    # @test rand(ds) == 100
+end
+
+@testset "Code quality (Aqua.jl)" begin
+    Aqua.test_all(DynamicDiscreteSamplers, deps_compat=false, persistent_tasks=false)
+    Aqua.test_deps_compat(DynamicDiscreteSamplers, check_extras=false)
 end
