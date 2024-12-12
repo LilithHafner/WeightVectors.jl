@@ -5,6 +5,16 @@ using Aqua
 
 @testset "basic end to end tests" begin
     ds = DynamicDiscreteSampler()
+    push!(ds, 1, 1.0)
+    push!(ds, 2, 2.0)
+    push!(ds, 3, 4.0)
+    delete!(ds, 1)
+    delete!(ds, 2)
+    @test rand(ds) == 3
+end
+
+@testset "randomized end to end tests" begin
+    ds = DynamicDiscreteSampler()
     x = randperm(100)
     y = exp.(10*rand(100).-5);
     push!.((ds,), x, y)

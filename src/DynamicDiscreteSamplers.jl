@@ -334,6 +334,14 @@ function Base.push!(ns::NestedSampler5, i::Int, x::Float64)
     ns
 end
 
+function swap_delete!(collection, index)
+    if index == lastindex(collection)
+        pop!(collection)
+    else
+        collection[index] = pop!(collection)
+    end
+end
+
 function Base.delete!(ns::NestedSampler5, i::Int)
     if i <= 0 || i > lastindex(ns.entry_info)
         throw(ArgumentError("Element $i is not present"))
@@ -342,11 +350,12 @@ function Base.delete!(ns::NestedSampler5, i::Int)
     j == 0 && throw(ArgumentError("Element $i is not present"))
     ns.entry_info[i] = (0, 0)
 
-    j, k = ns.level_set_map[level]
-    w, level_sampler = ns.all_levels[j]
-    moved_entry,significand = level_sampler.data[i]
+    l, k = ns.level_set_map[level]
+    w, level_sampler = ns.all_levels[l]
+    moved_entry,significand = level_sampler.data[j]
     delete!(level_sampler, j)
     if moved_entry != i
+        @show ns.entry_info[moved_entry] (level, length(level_sampler)+1)
         @assert ns.entry_info[moved_entry] == (level, length(level_sampler)+1)
         ns.entry_info[moved_entry] = (level, j)
     end
@@ -360,11 +369,18 @@ function Base.delete!(ns::NestedSampler5, i::Int)
             replacement = findprev(ns.level_set, level)
             ns.level_set_map[level] = (j, 0)
             if replacement === nothing # We'll now have fewer than 64 sampled levels
-                ns.sampled_levels[k] = pop!(ns.sampled_levels)
-                ns.sampled_level_weights[k] = pop!(ns.sampled_level_weights)
-                moved_level = ns.sampled_level_numbers[k] = pop!(ns.sampled_level_numbers)
-                all_index = ns.level_set_map[moved_level]
-                ns.level_set_map[moved_level] = (all_index, k)
+                moved_level = pop!(ns.sampled_level_numbers)
+                if moved_level == level
+                    pop!(ns.sampled_levels)
+                    pop!(ns.sampled_level_weights)
+                else
+                    ns.sampled_level_numbers[k] = moved_level
+                    ns.sampled_levels[k] = pop!(ns.sampled_levels)
+                    ns.sampled_level_weights[k] = pop!(ns.sampled_level_weights)
+                    all_index, _length_sampled_levels_plus_one = ns.level_set_map[moved_level]
+                    @assert _length_sampled_levels_plus_one == length(ns.sampled_levels)+1
+                    ns.level_set_map[moved_level] = (all_index, k)
+                end
                 set_weights!(ns.distribution_over_levels, NTuple{64, Float64}(vcat(ns.sampled_level_weights, fill(0.0, 64-length(ns.sampled_level_weights)))))
             else # Replace the removed level with the replacement
                 all_index, _zero = ns.level_set_map[replacement]
