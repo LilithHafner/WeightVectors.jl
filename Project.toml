@@ -1,4 +1,4 @@
-name = "DynamicDiscreteSampler"
+name = "DynamicDiscreteSamplers"
 uuid = "02edb123-fbf3-4025-abe6-bed5b7376cdf"
 authors = ["Lilith Orion Hafner <lilithhafner@gmail.com> and contributors"]
 version = "0.0.0"

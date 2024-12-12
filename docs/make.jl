@@ -1,14 +1,14 @@
-using DynamicDiscreteSampler
+using DynamicDiscreteSamplers
 using Documenter
 
-DocMeta.setdocmeta!(DynamicDiscreteSampler, :DocTestSetup, :(using DynamicDiscreteSampler); recursive=true)
+DocMeta.setdocmeta!(DynamicDiscreteSamplers, :DocTestSetup, :(using DynamicDiscreteSamplers); recursive=true)
 
 makedocs(;
-    modules=[DynamicDiscreteSampler],
+    modules=[DynamicDiscreteSamplers],
     authors="Lilith Orion Hafner <lilithhafner@gmail.com> and contributors",
-    sitename="DynamicDiscreteSampler.jl",
+    sitename="DynamicDiscreteSamplers.jl",
     format=Documenter.HTML(;
-        canonical="https://LilithHafner.github.io/DynamicDiscreteSampler.jl",
+        canonical="https://LilithHafner.github.io/DynamicDiscreteSamplers.jl",
         edit_link="main",
         assets=String[],
     ),
@@ -18,6 +18,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/LilithHafner/DynamicDiscreteSampler.jl",
+    repo="github.com/LilithHafner/DynamicDiscreteSamplers.jl",
     devbranch="main",
 )

@@ -1,14 +1,14 @@
 ```@meta
-CurrentModule = DynamicDiscreteSampler
+CurrentModule = DynamicDiscreteSamplers
 ```
 
-# DynamicDiscreteSampler
+# DynamicDiscreteSamplers
 
-Documentation for [DynamicDiscreteSampler](https://github.com/LilithHafner/DynamicDiscreteSampler.jl).
+Documentation for [DynamicDiscreteSamplers](https://github.com/LilithHafner/DynamicDiscreteSamplers.jl).
 
 ```@index
 ```
 
 ```@autodocs
-Modules = [DynamicDiscreteSampler]
+Modules = [DynamicDiscreteSamplers]
 ```

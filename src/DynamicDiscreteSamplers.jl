@@ -1,4 +1,6 @@
-module DynamicDiscreteSampler
+module DynamicDiscreteSamplers
+
+export DynamicDiscreteSampler
 
 #=
 julia> @b AliasTable(rand(6)) AliasTables.set_weights!(_, rand!(X))
@@ -383,7 +385,7 @@ function Base.delete!(ns::NestedSampler5, i::Int)
     ns
 end
 
-
+const DynamicDiscreteSampler = NestedSampler5
 
 # ------------------------------
 
