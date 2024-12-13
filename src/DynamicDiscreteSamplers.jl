@@ -316,7 +316,8 @@ function Base.push!(ns::NestedSampler5, i::Int, x::Float64)
                     ns.least_significant_sampled_level[] = findnext(ns.level_set, ns.least_significant_sampled_level[]+1)
                 end
             else # Replace the least significant sampled level with the new level
-                j = ns.level_set_map[ns.least_significant_sampled_level[]][2]
+                k, j = ns.level_set_map[ns.least_significant_sampled_level[]]
+                ns.level_set_map[ns.least_significant_sampled_level[]] = (k, 0)
                 ns.sampled_levels[j] = level_sampler
                 ns.sampled_level_weights[j] = x
                 ns.sampled_level_numbers[j] = level
@@ -338,14 +339,6 @@ function Base.push!(ns::NestedSampler5, i::Int, x::Float64)
         end
     end
     ns
-end
-
-function swap_delete!(collection, index)
-    if index == lastindex(collection)
-        pop!(collection)
-    else
-        collection[index] = pop!(collection)
-    end
 end
 
 function Base.delete!(ns::NestedSampler5, i::Int)
@@ -372,7 +365,7 @@ function Base.delete!(ns::NestedSampler5, i::Int)
         delete!(ns.level_set, level)
         ns.all_levels[l] = (0, level_sampler) # Fixup for rounding error
         if k != 0 # Remove a sampled level
-            replacement = findprev(ns.level_set, ns.least_significant_sampled_level[])
+            replacement = findprev(ns.level_set, ns.least_significant_sampled_level[]-1)
             ns.level_set_map[level] = (l, 0)
             if replacement === nothing # We'll now have fewer than 64 sampled levels
                 ns.least_significant_sampled_level[] = -1075

@@ -36,6 +36,7 @@ using Aqua
     for i in 1:65
         push!(ds, i, 2.0^i)
     end
+    delete!(ds, 65)
 end
 
 @testset "randomized end to end tests" begin
