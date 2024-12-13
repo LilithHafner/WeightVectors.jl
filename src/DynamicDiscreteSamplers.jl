@@ -290,15 +290,17 @@ function Base.push!(ns::NestedSampler5, i::Int, x::Float64)
         # Create a new level (or revive an empty level)
         push!(ns.level_set, level)
         existing_level_indices = get(ns.level_set_map, level, (0, 0))
-        if existing_level_indices == (0, 0)
+        all_levels_index = if existing_level_indices == (0, 0)
             level_sampler = RejectionSampler3(i, significand(x)/2)
             push!(ns.all_levels, (x, level_sampler))
+            length(ns.all_levels)
         else
             w, level_sampler = ns.all_levels[existing_level_indices[1]]
             @assert w == 0
             @assert isempty(level_sampler)
             push!(level_sampler, i, significand(x)/2)
             ns.all_levels[existing_level_indices[1]] = (x, level_sampler)
+            existing_level_indices[1]
         end
 
         # Update the sampled levels if needed
@@ -308,14 +310,14 @@ function Base.push!(ns::NestedSampler5, i::Int, x::Float64)
                 push!(ns.sampled_level_weights, x)
                 push!(ns.sampled_level_numbers, level)
                 set_weights!(ns.distribution_over_levels, NTuple{64, Float64}(vcat(ns.sampled_level_weights, fill(0.0, 64-length(ns.sampled_level_weights)))))
-                ns.level_set_map[level] = (length(ns.all_levels), length(ns.sampled_levels))
+                ns.level_set_map[level] = (all_levels_index, length(ns.sampled_levels))
             else # Replace the least significant sampled level with the new level
                 j = ns.level_set_map[ns.least_significant_sampled_level[]][2]
                 ns.sampled_levels[j] = level_sampler
                 ns.sampled_level_weights[j] = x
                 ns.sampled_level_numbers[j] = level
                 set_weights!(ns.distribution_over_levels, NTuple{64, Float64}(ns.sampled_level_weights))
-                ns.level_set_map[level] = (length(ns.all_levels), j)
+                ns.level_set_map[level] = (all_levels_index, j)
                 ns.least_significant_sampled_level[] = findnext(ns.level_set, ns.least_significant_sampled_level[]+1)
             end
         end
@@ -360,14 +362,14 @@ function Base.delete!(ns::NestedSampler5, i::Int)
         ns.entry_info[moved_entry] = (level, j)
     end
     x = significand*2*2.0^level
-    ns.all_levels[j] = (w-x, level_sampler) # TODO: eliminate rounding error here.
+    ns.all_levels[l] = (w-x, level_sampler) # TODO: eliminate rounding error here.
 
     if isempty(level_sampler) # Remove a level
         delete!(ns.level_set, level)
-        ns.all_levels[j] = (0, level_sampler) # Fixup for rounding error
+        ns.all_levels[l] = (0, level_sampler) # Fixup for rounding error
         if k != 0 # Remove a sampled level
             replacement = findprev(ns.level_set, level)
-            ns.level_set_map[level] = (j, 0)
+            ns.level_set_map[level] = (l, 0)
             if replacement === nothing # We'll now have fewer than 64 sampled levels
                 moved_level = pop!(ns.sampled_level_numbers)
                 if moved_level == level
