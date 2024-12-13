@@ -80,7 +80,9 @@ end
 end
 
 # These tests are too slow:
-@testset "Code quality (Aqua.jl)" begin
-    Aqua.test_all(DynamicDiscreteSamplers, deps_compat=false, persistent_tasks=false)
-    Aqua.test_deps_compat(DynamicDiscreteSamplers, check_extras=false)
+if "CI" in keys(ENV)
+    @testset "Code quality (Aqua.jl)" begin
+        Aqua.test_all(DynamicDiscreteSamplers, deps_compat=false)
+        Aqua.test_deps_compat(DynamicDiscreteSamplers, check_extras=false)
+    end
 end
