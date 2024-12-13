@@ -276,6 +276,8 @@ function Base.rand(ns::NestedSampler5)
     rand(ns.sampled_levels[level])
 end
 
+expand_to_NTuple64(vec::Vector{Float64}) = SVector(Base.@ntuple 64 i -> i <= length(vec) ? vec[i] : 0.0)
+
 function Base.push!(ns::NestedSampler5, i::Int, x::Float64)
     i <= 0 && throw(ArgumentError("Elements must be positive"))
     if i > lastindex(ns.entry_info)
@@ -310,7 +312,7 @@ function Base.push!(ns::NestedSampler5, i::Int, x::Float64)
                 push!(ns.sampled_levels, level_sampler)
                 push!(ns.sampled_level_weights, x)
                 push!(ns.sampled_level_numbers, level)
-                set_weights!(ns.distribution_over_levels, NTuple{64, Float64}(vcat(ns.sampled_level_weights, fill(0.0, 64-length(ns.sampled_level_weights)))))
+                set_weights!(ns.distribution_over_levels, expand_to_NTuple64(ns.sampled_level_weights))
                 ns.level_set_map[level] = (all_levels_index, length(ns.sampled_levels))
                 if length(ns.sampled_levels) == 64
                     ns.least_significant_sampled_level[] = findnext(ns.level_set, ns.least_significant_sampled_level[]+1)
@@ -337,7 +339,7 @@ function Base.push!(ns::NestedSampler5, i::Int, x::Float64)
 
         if k != 0 # level is sampled
             ns.sampled_level_weights[k] += x # TODO: eliminate rounding error here.
-            set_weights!(ns.distribution_over_levels, NTuple{64, Float64}(vcat(ns.sampled_level_weights, fill(0.0, 64-length(ns.sampled_level_weights)))))
+            set_weights!(ns.distribution_over_levels, expand_to_NTuple64(ns.sampled_level_weights))
         end
     end
     ns
@@ -383,7 +385,7 @@ function Base.delete!(ns::NestedSampler5, i::Int)
                     @assert _length_sampled_levels_plus_one == length(ns.sampled_levels)+1
                     ns.level_set_map[moved_level] = (all_index, k)
                 end
-                set_weights!(ns.distribution_over_levels, NTuple{64, Float64}(vcat(ns.sampled_level_weights, fill(0.0, 64-length(ns.sampled_level_weights)))))
+                set_weights!(ns.distribution_over_levels, expand_to_NTuple64(ns.sampled_level_weights))
             else # Replace the removed level with the replacement
                 ns.least_significant_sampled_level[] = replacement
                 all_index, _zero = ns.level_set_map[replacement]
@@ -398,7 +400,7 @@ function Base.delete!(ns::NestedSampler5, i::Int)
         end
     elseif k != 0
         ns.sampled_level_weights[k] -= x # TODO: eliminate rounding error here.
-        set_weights!(ns.distribution_over_levels, NTuple{64, Float64}(vcat(ns.sampled_level_weights, fill(0.0, 64-length(ns.sampled_level_weights))))) # TODO: remove horrible perf here and similar
+        set_weights!(ns.distribution_over_levels, expand_to_NTuple64(ns.sampled_level_weights))
     end
 
     ns
