@@ -157,6 +157,7 @@ function Base.push!(rs::RejectionSampler3, i, x)
 end
 function Base.delete!(rs::RejectionSampler3, i) # Return the value that is moved to the deleted index
     len = rs.length[]
+    rs.data[i] = rs.data[len]
     rs.data[len] = (0, UInt64(0))
     rs.length[] -= 1
 end
@@ -354,7 +355,7 @@ function Base.delete!(ns::NestedSampler5, i::Int)
 
     l, k = ns.level_set_map[level]
     w, level_sampler = ns.all_levels[l]
-    moved_entry,significand = level_sampler.data[j]
+    moved_entry,significand = level_sampler.data[level_sampler.length[]] # TODO: simplify this and consider manually inlining the delete! call
     delete!(level_sampler, j)
     if moved_entry != i
         @show ns.entry_info[moved_entry] (level, length(level_sampler)+1)

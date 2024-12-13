@@ -14,6 +14,12 @@ using Aqua
     push!(ds, 1, 3.0)
     delete!(ds, 1)
     @test rand(ds) == 3
+
+    ds = DynamicDiscreteSampler()
+    push!(ds, 1, 5.0)
+    push!(ds, 2, 6.0)
+    delete!(ds, 1)
+    delete!(ds, 2)
 end
 
 @testset "randomized end to end tests" begin
