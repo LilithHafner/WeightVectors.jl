@@ -217,7 +217,7 @@ For each level, maintain a distribution over the elements of that level
 Also, maintain a distribution over the 64 most significant levels.
 To facilitate updating, but unused during sampling, also maintain,
 A linked list set (supports push!, delete!, in, findnext, and findprev) of levels
-A pointer to the least significant tracked level (typemin(Int) if there are fewer than 64 levels)
+A pointer to the least significant tracked level (-1075 if there are fewer than 64 levels)
 A vector that maps elements (integers) to their level and index in the level
 
 To sample,
@@ -267,7 +267,7 @@ NestedSampler5() = NestedSampler5(
     RejectionSampler3[],
     LinkedListSet3(),
     Dict{Int, Tuple{Int, Int}}(),
-    Ref(typemin(Int)),
+    Ref(-1075),
     Tuple{Int, Int}[]
 )
 
@@ -358,7 +358,7 @@ function Base.delete!(ns::NestedSampler5, i::Int)
     moved_entry,significand = level_sampler.data[level_sampler.length[]] # TODO: simplify this and consider manually inlining the delete! call
     delete!(level_sampler, j)
     if moved_entry != i
-        @show ns.entry_info[moved_entry] (level, length(level_sampler)+1)
+        # @show ns.entry_info[moved_entry] (level, length(level_sampler)+1)
         @assert ns.entry_info[moved_entry] == (level, length(level_sampler)+1)
         ns.entry_info[moved_entry] = (level, j)
     end
@@ -369,7 +369,7 @@ function Base.delete!(ns::NestedSampler5, i::Int)
         delete!(ns.level_set, level)
         ns.all_levels[l] = (0, level_sampler) # Fixup for rounding error
         if k != 0 # Remove a sampled level
-            replacement = findprev(ns.level_set, level)
+            replacement = findprev(ns.level_set, ns.least_significant_sampled_level[])
             ns.level_set_map[level] = (l, 0)
             if replacement === nothing # We'll now have fewer than 64 sampled levels
                 moved_level = pop!(ns.sampled_level_numbers)

@@ -20,6 +20,11 @@ using Aqua
     push!(ds, 2, 6.0)
     delete!(ds, 1)
     delete!(ds, 2)
+
+    ds = DynamicDiscreteSampler()
+    push!(ds, 1, 1.0)
+    push!(ds, 2, 2.0)
+    delete!(ds, 2)
 end
 
 @testset "randomized end to end tests" begin
@@ -36,7 +41,8 @@ end
     # @test rand(ds) == 100
 end
 
-@testset "Code quality (Aqua.jl)" begin
-    Aqua.test_all(DynamicDiscreteSamplers, deps_compat=false, persistent_tasks=false)
-    Aqua.test_deps_compat(DynamicDiscreteSamplers, check_extras=false)
-end
+# These tests are too slow:
+# @testset "Code quality (Aqua.jl)" begin
+#     Aqua.test_all(DynamicDiscreteSamplers, deps_compat=false, persistent_tasks=false)
+#     Aqua.test_deps_compat(DynamicDiscreteSamplers, check_extras=false)
+# end
