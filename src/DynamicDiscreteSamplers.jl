@@ -261,7 +261,7 @@ struct NestedSampler5
 end
 
 NestedSampler5() = NestedSampler5(
-    SelectionSampler2(ntuple(i -> 0.0, 64)),
+    SelectionSampler2(Base.@ntuple 64 i -> 0.0),
     Tuple{Float64, RejectionSampler3}[],
     Float64[],
     Int[],
