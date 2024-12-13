@@ -187,7 +187,7 @@ struct LinkedListSet3
 end
 Base.in(i::Int, x::LinkedListSet3) = x.data[i >> 6 + 18] & (UInt64(1) << (0x3f - (i & 0x3f))) != 0
 Base.push!(x::LinkedListSet3, i::Int) = (x.data[i >> 6 + 18] |= UInt64(1) << (0x3f - (i & 0x3f)); x)
-Base.delete!(x::LinkedListSet3, i::Int) = (x.data[i >> 6 + 18] &= ~UInt64(1) << (0x3f - (i & 0x3f)); x)
+Base.delete!(x::LinkedListSet3, i::Int) = (x.data[i >> 6 + 18] &= ~(UInt64(1) << (0x3f - (i & 0x3f))); x)
 function Base.findnext(x::LinkedListSet3, i::Int)
     j = i >> 6 + 18
     k = i & 0x3f

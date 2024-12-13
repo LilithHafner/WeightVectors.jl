@@ -25,6 +25,12 @@ using Aqua
     push!(ds, 1, 1.0)
     push!(ds, 2, 2.0)
     delete!(ds, 2)
+
+    lls = DynamicDiscreteSamplers.LinkedListSet3()
+    push!(lls, 2)
+    push!(lls, 3)
+    delete!(lls, 2)
+    @test 3 in lls
 end
 
 @testset "randomized end to end tests" begin
