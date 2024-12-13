@@ -136,6 +136,32 @@ end
 # julia> @b SelectionSampler2(rand(NTuple{64, Float64})) set_weights!(_, rand(NTuple{64, Float64}))
 # 135.489 ns
 
+
+struct SelectionSampler3{N}
+    p::MVector{N, Float64}
+end
+function Base.rand(ss::SelectionSampler3)
+    u = rand()*last(ss.p)
+    count(<(u), ss.p) + 1
+end
+set_weights!(ss::SelectionSampler3, p) = set_weights!(ss, SVector(p))
+function set_weights!(ss::SelectionSampler3, p::SVector)
+    cumsum!(ss.p, p)
+    ss
+end
+
+# julia> @b SelectionSampler3(rand(NTuple{6, Float64})) rand
+# 2.838 ns
+
+# julia> @b SelectionSampler3(rand(NTuple{6, Float64})) set_weights!(_, rand(NTuple{6, Float64}))
+# 10.133 ns
+
+# julia> @b SelectionSampler3(rand(NTuple{64, Float64})) rand
+# 19.213 ns
+
+# julia> @b SelectionSampler3(rand(NTuple{64, Float64})) set_weights!(_, rand(NTuple{64, Float64}))
+# 86.549 ns
+
 struct RejectionSampler3
     length::Base.RefValue{Int}
     data::Vector{Tuple{Int, Float64}}
@@ -247,7 +273,7 @@ Otherwise, update the least significant tracked level and add an element to the 
 
 struct NestedSampler5
     # Used in sampling
-    distribution_over_levels::SelectionSampler2{63} # A distribution over 1:64
+    distribution_over_levels::SelectionSampler3{64} # A distribution over 1:64
     sampled_levels::Vector{RejectionSampler3} # The top up to 64 levels TODO: consider making an MVector or SVector
 
     # Not used in sampling
@@ -261,7 +287,7 @@ struct NestedSampler5
 end
 
 NestedSampler5() = NestedSampler5(
-    SelectionSampler2(Base.@ntuple 64 i -> 0.0),
+    SelectionSampler3(zero(MVector{64, Float64})),
     Tuple{Float64, RejectionSampler3}[],
     zero(MVector{64, Float64}),
     zero(MVector{64, Int}),
