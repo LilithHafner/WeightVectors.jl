@@ -147,7 +147,7 @@ function Random.rand(rs::RejectionSampler3)
         u = rand(UInt)
         i = u & mask + 1
         res, x = rs.data[i]
-        rand() < x && return res # TODO: reuse random bits from u
+        rand() < x && return res # TODO: consider reusing random bits from u; a previous test revealed no perf improvement from doing this
     end
 end
 function Base.push!(rs::RejectionSampler3, i, x)
