@@ -35,10 +35,10 @@ end
     for _ in 1:100
         rand(ds)
     end
-    # for i in randperm(99)
-    #     delete!(ds, i)
-    # end
-    # @test rand(ds) == 100
+    for i in randperm(99)
+        delete!(ds, i)
+    end
+    @test rand(ds) == 100
 end
 
 # These tests are too slow:
