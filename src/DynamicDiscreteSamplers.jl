@@ -312,6 +312,9 @@ function Base.push!(ns::NestedSampler5, i::Int, x::Float64)
                 push!(ns.sampled_level_numbers, level)
                 set_weights!(ns.distribution_over_levels, NTuple{64, Float64}(vcat(ns.sampled_level_weights, fill(0.0, 64-length(ns.sampled_level_weights)))))
                 ns.level_set_map[level] = (all_levels_index, length(ns.sampled_levels))
+                if length(ns.sampled_levels) == 64
+                    ns.least_significant_sampled_level[] = findnext(ns.level_set, ns.least_significant_sampled_level[]+1)
+                end
             else # Replace the least significant sampled level with the new level
                 j = ns.level_set_map[ns.least_significant_sampled_level[]][2]
                 ns.sampled_levels[j] = level_sampler
@@ -372,6 +375,7 @@ function Base.delete!(ns::NestedSampler5, i::Int)
             replacement = findprev(ns.level_set, ns.least_significant_sampled_level[])
             ns.level_set_map[level] = (l, 0)
             if replacement === nothing # We'll now have fewer than 64 sampled levels
+                ns.least_significant_sampled_level[] = -1075
                 moved_level = pop!(ns.sampled_level_numbers)
                 if moved_level == level
                     pop!(ns.sampled_levels)
@@ -386,6 +390,7 @@ function Base.delete!(ns::NestedSampler5, i::Int)
                 end
                 set_weights!(ns.distribution_over_levels, NTuple{64, Float64}(vcat(ns.sampled_level_weights, fill(0.0, 64-length(ns.sampled_level_weights)))))
             else # Replace the removed level with the replacement
+                ns.least_significant_sampled_level[] = replacement
                 all_index, _zero = ns.level_set_map[replacement]
                 @assert _zero == 0
                 ns.level_set_map[replacement] = (all_index, k)

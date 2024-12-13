@@ -31,6 +31,11 @@ using Aqua
     push!(lls, 3)
     delete!(lls, 2)
     @test 3 in lls
+
+    ds = DynamicDiscreteSampler()
+    for i in 1:65
+        push!(ds, i, 2.0^i)
+    end
 end
 
 @testset "randomized end to end tests" begin
@@ -46,6 +51,29 @@ end
     end
     @test rand(ds) == 100
 end
+
+# @testset "interleaved randomized end to end tests" begin
+#     Random.seed!()
+#     ds = DynamicDiscreteSampler()
+#     elements = Set{Int}()
+#     for i in 1:10000
+#         if rand() < 0.5
+#             i = rand(1:10000)
+#             if i ∉ elements
+#                 push!(ds, i, exp(100randn()))
+#                 push!(elements, i)
+#             end
+#         elseif length(elements) > 0
+#             element = rand(elements)
+#             delete!(ds, element)
+#             delete!(elements, element)
+#         end
+
+#         if length(elements) > 0
+#             @test rand(ds) in elements
+#         end
+#     end
+# end
 
 # These tests are too slow:
 # @testset "Code quality (Aqua.jl)" begin
