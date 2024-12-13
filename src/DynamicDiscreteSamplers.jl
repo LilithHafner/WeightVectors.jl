@@ -325,6 +325,8 @@ function Base.push!(ns::NestedSampler5, i::Int, x::Float64)
                 ns.level_set_map[level] = (all_levels_index, j)
                 ns.least_significant_sampled_level[] = findnext(ns.level_set, ns.least_significant_sampled_level[]+1)
             end
+        else # created an unsampled level
+            ns.level_set_map[level] = (all_levels_index, 0)
         end
     else # Add to an existing level
         j, k = ns.level_set_map[level]

@@ -3,6 +3,14 @@ using Random
 using Test
 using Aqua
 
+@testset "unit tests" begin
+    lls = DynamicDiscreteSamplers.LinkedListSet3()
+    push!(lls, 2)
+    push!(lls, 3)
+    delete!(lls, 2)
+    @test 3 in lls
+end
+
 @testset "basic end to end tests" begin
     ds = DynamicDiscreteSampler()
     push!(ds, 1, 1.0)
@@ -26,17 +34,13 @@ using Aqua
     push!(ds, 2, 2.0)
     delete!(ds, 2)
 
-    lls = DynamicDiscreteSamplers.LinkedListSet3()
-    push!(lls, 2)
-    push!(lls, 3)
-    delete!(lls, 2)
-    @test 3 in lls
-
     ds = DynamicDiscreteSampler()
     for i in 1:65
         push!(ds, i, 2.0^i)
     end
     delete!(ds, 65)
+    push!(ds, 65, 1.0)
+    delete!(ds, 64)
 end
 
 @testset "randomized end to end tests" begin
@@ -57,7 +61,7 @@ end
 #     Random.seed!()
 #     ds = DynamicDiscreteSampler()
 #     elements = Set{Int}()
-#     for i in 1:10000
+#     for i in 1:30000
 #         if rand() < 0.5
 #             i = rand(1:10000)
 #             if i ∉ elements
