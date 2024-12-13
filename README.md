@@ -7,5 +7,7 @@
 [![PkgEval](https://JuliaCI.github.io/NanosoldierReports/pkgeval_badges/D/DynamicDiscreteSamplers.svg)](https://JuliaCI.github.io/NanosoldierReports/pkgeval_badges/D/DynamicDiscreteSamplers.html)
 [![Aqua](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
+WIP research prototype
+
 Inspired by https://github.com/Tortar/DynamicSampling.jl and [Optimal Algorithms for Generating Discrete
 Random Variables with Changing Distributions](https://www.researchgate.net/publication/250428390_Optimal_Algorithms_for_Generating_Discrete_Random_Variables_With)
