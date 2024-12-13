@@ -49,8 +49,8 @@ end
 
 all_but_last(x) = x[begin:end-1]
 all_but_last(x::SVector) = pop(x)
-all_but_last(x::NTuple) = all_but_last(SVector(x))
 
+normalize(x::NTuple) = normalize(SVector(x))
 function normalize(p)
     c = cumsum(Float64.(p))
     all_but_last(c) ./ c[end]
