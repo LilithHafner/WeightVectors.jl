@@ -116,7 +116,7 @@ function Base.rand(ss::SelectionSampler2)
     u = rand()
     count(<(u), ss.p) + 1
 end
-set_weights!(ss::SelectionSampler2, p::NTuple) = set_weights!(ss, SVector(p))
+set_weights!(ss::SelectionSampler2, p) = set_weights!(ss, SVector(p))
 function set_weights!(ss::SelectionSampler2{T}, p::SVector{U}) where {T, U}
     # cumsum!(ss.p, pop(p))
     # ss.p ./= ss.p[end]+p[end]
@@ -251,8 +251,8 @@ struct NestedSampler5
     sampled_levels::Vector{RejectionSampler3} # The top up to 64 levels TODO: consider making an MVector or SVector
 
     # Not used in sampling
-    sampled_level_weights::Vector{Float64} # The weights of the top up to 64 levels TODO: consider making an MVector or SVector
-    sampled_level_numbers::Vector{Int} # The level numbers of the top up to 64 levels TODO: consider making an MVector or SVector, and merging with sampled_levels_weights
+    sampled_level_weights::MVector{64, Float64} # The weights of the top up to 64 levels
+    sampled_level_numbers::MVector{64, Int} # The level numbers of the top up to 64 levels TODO: consider merging with sampled_levels_weights or reducing elsize
     all_levels::Vector{Tuple{Float64, RejectionSampler3}} # All the levels, in insertion order, along with their total weights
     level_set::LinkedListSet3 # A set of which levels are present (named by level number)
     level_set_map::Dict{Int, Tuple{Int, Int}} # A mapping from level number to index in all_levels and index in sampled_levels (or 0 if not in sampled_levels)
@@ -263,8 +263,8 @@ end
 NestedSampler5() = NestedSampler5(
     SelectionSampler2(Base.@ntuple 64 i -> 0.0),
     Tuple{Float64, RejectionSampler3}[],
-    Float64[],
-    Int[],
+    zero(MVector{64, Float64}),
+    zero(MVector{64, Int}),
     RejectionSampler3[],
     LinkedListSet3(),
     Dict{Int, Tuple{Int, Int}}(),
@@ -276,8 +276,6 @@ function Base.rand(ns::NestedSampler5)
     level = rand(ns.distribution_over_levels)
     rand(ns.sampled_levels[level])
 end
-
-expand_to_NTuple64(vec::Vector{Float64}) = SVector(Base.@ntuple 64 i -> i <= length(vec) ? vec[i] : 0.0)
 
 function Base.push!(ns::NestedSampler5, i::Int, x::Float64)
     i <= 0 && throw(ArgumentError("Elements must be positive"))
@@ -311,9 +309,10 @@ function Base.push!(ns::NestedSampler5, i::Int, x::Float64)
         if level > ns.least_significant_sampled_level[] # we just created a sampled level
             if length(ns.sampled_levels) < 64 # Add the new level to the top 64
                 push!(ns.sampled_levels, level_sampler)
-                push!(ns.sampled_level_weights, x)
-                push!(ns.sampled_level_numbers, level)
-                set_weights!(ns.distribution_over_levels, expand_to_NTuple64(ns.sampled_level_weights))
+                sl_length = length(ns.sampled_levels)
+                ns.sampled_level_weights[sl_length] = x
+                ns.sampled_level_numbers[sl_length] = level
+                set_weights!(ns.distribution_over_levels, ns.sampled_level_weights)
                 ns.level_set_map[level] = (all_levels_index, length(ns.sampled_levels))
                 if length(ns.sampled_levels) == 64
                     ns.least_significant_sampled_level[] = findnext(ns.level_set, ns.least_significant_sampled_level[]+1)
@@ -324,7 +323,7 @@ function Base.push!(ns::NestedSampler5, i::Int, x::Float64)
                 ns.sampled_levels[j] = level_sampler
                 ns.sampled_level_weights[j] = x
                 ns.sampled_level_numbers[j] = level
-                set_weights!(ns.distribution_over_levels, NTuple{64, Float64}(ns.sampled_level_weights))
+                set_weights!(ns.distribution_over_levels, ns.sampled_level_weights)
                 ns.level_set_map[level] = (all_levels_index, j)
                 ns.least_significant_sampled_level[] = findnext(ns.level_set, ns.least_significant_sampled_level[]+1)
             end
@@ -340,7 +339,7 @@ function Base.push!(ns::NestedSampler5, i::Int, x::Float64)
 
         if k != 0 # level is sampled
             ns.sampled_level_weights[k] += x # TODO: eliminate rounding error here.
-            set_weights!(ns.distribution_over_levels, expand_to_NTuple64(ns.sampled_level_weights))
+            set_weights!(ns.distribution_over_levels, ns.sampled_level_weights)
         end
     end
     ns
@@ -374,19 +373,22 @@ function Base.delete!(ns::NestedSampler5, i::Int)
             ns.level_set_map[level] = (l, 0)
             if replacement === nothing # We'll now have fewer than 64 sampled levels
                 ns.least_significant_sampled_level[] = -1075
-                moved_level = pop!(ns.sampled_level_numbers)
+                sl_length = length(ns.sampled_levels)
+                moved_level = ns.sampled_level_numbers[sl_length]
                 if moved_level == level
                     pop!(ns.sampled_levels)
-                    pop!(ns.sampled_level_weights)
+                    ns.sampled_level_weights[sl_length] = 0
+                    # sampled_level_numbers can have unclean trailing values
                 else
                     ns.sampled_level_numbers[k] = moved_level
                     ns.sampled_levels[k] = pop!(ns.sampled_levels)
-                    ns.sampled_level_weights[k] = pop!(ns.sampled_level_weights)
+                    ns.sampled_level_weights[k] = ns.sampled_level_weights[sl_length]
+                    ns.sampled_level_weights[sl_length] = 0
                     all_index, _length_sampled_levels_plus_one = ns.level_set_map[moved_level]
                     @assert _length_sampled_levels_plus_one == length(ns.sampled_levels)+1
                     ns.level_set_map[moved_level] = (all_index, k)
                 end
-                set_weights!(ns.distribution_over_levels, expand_to_NTuple64(ns.sampled_level_weights))
+                set_weights!(ns.distribution_over_levels, ns.sampled_level_weights)
             else # Replace the removed level with the replacement
                 ns.least_significant_sampled_level[] = replacement
                 all_index, _zero = ns.level_set_map[replacement]
@@ -396,12 +398,12 @@ function Base.delete!(ns::NestedSampler5, i::Int)
                 ns.sampled_levels[k] = replacement_level
                 ns.sampled_level_weights[k] = w
                 ns.sampled_level_numbers[k] = replacement
-                set_weights!(ns.distribution_over_levels, NTuple{64, Float64}(ns.sampled_level_weights))
+                set_weights!(ns.distribution_over_levels, ns.sampled_level_weights)
             end
         end
     elseif k != 0
         ns.sampled_level_weights[k] -= x # TODO: eliminate rounding error here.
-        set_weights!(ns.distribution_over_levels, expand_to_NTuple64(ns.sampled_level_weights))
+        set_weights!(ns.distribution_over_levels, ns.sampled_level_weights)
     end
 
     ns
