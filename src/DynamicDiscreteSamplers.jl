@@ -170,7 +170,7 @@ function Base.rand(ss::SelectionSampler4, lastfull::Int)
     @inbounds for i in 1:lastfull
         ss.p[i] > u && return i
     end
-    return ss.lastfull[]
+    return lastfull
 end
 function set_weights!(ss::SelectionSampler4, p, lastfull)
     ss.p[1] = p[1]
