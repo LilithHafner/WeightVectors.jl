@@ -284,7 +284,7 @@ struct NestedSampler5
     level_set_map::Dict{Int, Tuple{Int, Int}} # A mapping from level number to index in all_levels and index in sampled_levels (or 0 if not in sampled_levels)
     least_significant_sampled_level::Base.RefValue{Int} # The level number of the least significant tracked level
     entry_info::Vector{Tuple{Int, Int}} # A mapping from element to level number and index in that level (index in level is 0 if entry is not present)
-    reset_distribution::Ref{Bool}
+    reset_distribution::Base.RefValue{Bool}
 end
 
 NestedSampler5() = NestedSampler5(
@@ -296,7 +296,8 @@ NestedSampler5() = NestedSampler5(
     LinkedListSet3(),
     Dict{Int, Tuple{Int, Int}}(),
     Ref(-1075),
-    Tuple{Int, Int}[]
+    Tuple{Int, Int}[],
+    Ref(true)
 )
 
 function Base.rand(ns::NestedSampler5)
