@@ -416,7 +416,6 @@ function Base.delete!(ns::NestedSampler5, i::Int)
                     @assert _length_sampled_levels_plus_one == length(ns.sampled_levels)+1
                     ns.level_set_map[moved_level] = (all_index, k)
                 end
-                set_weights!(ns.distribution_over_levels, ns.sampled_level_weights)
             else # Replace the removed level with the replacement
                 ns.least_significant_sampled_level[] = replacement
                 all_index, _zero = ns.level_set_map[replacement]
