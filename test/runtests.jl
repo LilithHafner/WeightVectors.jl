@@ -113,7 +113,7 @@ end
 
     samples_counts = countmap([rand(ds1) for _ in 1:10^5])
     counts_est = [samples_counts[i] for i in (b ÷ 2 + 1):b]
-    ps_exact = [i/((b ÷ 2)*(b+1) - (b ÷ 4)*(b ÷ 2 + 1)) for i in 51:b]
+    ps_exact = [i/((b ÷ 2)*(b+1) - (b ÷ 4)*(b ÷ 2 + 1)) for i in (b ÷ 2 + 1):b]
 
     chisq_test = ChisqTest(counts_est, ps_exact)
     @test pvalue(chisq_test) > 0.05
