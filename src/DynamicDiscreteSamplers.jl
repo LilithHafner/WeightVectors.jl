@@ -284,6 +284,7 @@ struct NestedSampler5
     level_set_map::Dict{Int, Tuple{Int, Int}} # A mapping from level number to index in all_levels and index in sampled_levels (or 0 if not in sampled_levels)
     least_significant_sampled_level::Base.RefValue{Int} # The level number of the least significant tracked level
     entry_info::Vector{Tuple{Int, Int}} # A mapping from element to level number and index in that level (index in level is 0 if entry is not present)
+    reset_distribution::Base.RefValue{Bool}
 end
 
 NestedSampler5() = NestedSampler5(
@@ -295,15 +296,19 @@ NestedSampler5() = NestedSampler5(
     LinkedListSet3(),
     Dict{Int, Tuple{Int, Int}}(),
     Ref(-1075),
-    Tuple{Int, Int}[]
+    Tuple{Int, Int}[],
+    Ref(true)
 )
 
 function Base.rand(ns::NestedSampler5)
+    ns.reset_distribution[] && set_weights!(ns.distribution_over_levels, ns.sampled_level_weights)
+    ns.reset_distribution[] = false
     level = rand(ns.distribution_over_levels)
     rand(ns.sampled_levels[level])
 end
 
 function Base.push!(ns::NestedSampler5, i::Int, x::Float64)
+    ns.reset_distribution[] = true
     i <= 0 && throw(ArgumentError("Elements must be positive"))
     if i > lastindex(ns.entry_info)
         append!(ns.entry_info, Iterators.repeated((0, 0), i - lastindex(ns.entry_info)))
@@ -338,7 +343,6 @@ function Base.push!(ns::NestedSampler5, i::Int, x::Float64)
                 sl_length = length(ns.sampled_levels)
                 ns.sampled_level_weights[sl_length] = x
                 ns.sampled_level_numbers[sl_length] = level
-                set_weights!(ns.distribution_over_levels, ns.sampled_level_weights)
                 ns.level_set_map[level] = (all_levels_index, length(ns.sampled_levels))
                 if length(ns.sampled_levels) == 64
                     ns.least_significant_sampled_level[] = findnext(ns.level_set, ns.least_significant_sampled_level[]+1)
@@ -349,7 +353,6 @@ function Base.push!(ns::NestedSampler5, i::Int, x::Float64)
                 ns.sampled_levels[j] = level_sampler
                 ns.sampled_level_weights[j] = x
                 ns.sampled_level_numbers[j] = level
-                set_weights!(ns.distribution_over_levels, ns.sampled_level_weights)
                 ns.level_set_map[level] = (all_levels_index, j)
                 ns.least_significant_sampled_level[] = findnext(ns.level_set, ns.least_significant_sampled_level[]+1)
             end
@@ -365,13 +368,13 @@ function Base.push!(ns::NestedSampler5, i::Int, x::Float64)
 
         if k != 0 # level is sampled
             ns.sampled_level_weights[k] += x # TODO: eliminate rounding error here.
-            set_weights!(ns.distribution_over_levels, ns.sampled_level_weights)
         end
     end
     ns
 end
 
 function Base.delete!(ns::NestedSampler5, i::Int)
+    ns.reset_distribution[] = true
     if i <= 0 || i > lastindex(ns.entry_info)
         throw(ArgumentError("Element $i is not present"))
     end
@@ -414,7 +417,6 @@ function Base.delete!(ns::NestedSampler5, i::Int)
                     @assert _length_sampled_levels_plus_one == length(ns.sampled_levels)+1
                     ns.level_set_map[moved_level] = (all_index, k)
                 end
-                set_weights!(ns.distribution_over_levels, ns.sampled_level_weights)
             else # Replace the removed level with the replacement
                 ns.least_significant_sampled_level[] = replacement
                 all_index, _zero = ns.level_set_map[replacement]
@@ -424,12 +426,10 @@ function Base.delete!(ns::NestedSampler5, i::Int)
                 ns.sampled_levels[k] = replacement_level
                 ns.sampled_level_weights[k] = w
                 ns.sampled_level_numbers[k] = replacement
-                set_weights!(ns.distribution_over_levels, ns.sampled_level_weights)
             end
         end
     elseif k != 0
         ns.sampled_level_weights[k] -= x # TODO: eliminate rounding error here.
-        set_weights!(ns.distribution_over_levels, ns.sampled_level_weights)
     end
 
     ns
@@ -450,7 +450,6 @@ function set_weight!(rs::RejectionSampler, i, p)
     rs.maximum[] = maximum(p)
     rs
 end
-
 
 struct Reducer0{T}
     group_p::T
