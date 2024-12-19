@@ -301,7 +301,7 @@ NestedSampler5() = NestedSampler5(
 )
 
 function Base.rand(ns::NestedSampler5)
-    ns.reset_distribution && set_weights!(ns.distribution_over_levels, ns.sampled_level_weights)
+    ns.reset_distribution[] && set_weights!(ns.distribution_over_levels, ns.sampled_level_weights)
     ns.reset_distribution[] = false
     level = rand(ns.distribution_over_levels)
     rand(ns.sampled_levels[level])
