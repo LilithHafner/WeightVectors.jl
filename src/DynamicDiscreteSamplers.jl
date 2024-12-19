@@ -185,21 +185,25 @@ end
 struct RejectionSampler3
     length::Base.RefValue{Int}
     data::Vector{Tuple{Int, Float64}}
-    RejectionSampler3(i, v) = new(Ref(1), [(i, v)])
+    maxw::Base.RefValue{Float64}
+    RejectionSampler3(i, v) = new(Ref(1), [(i, v)], Ref(v))
 end
 function Random.rand(rs::RejectionSampler3)
     mask = UInt64(1) << Base.top_set_bit(rs.length[] - 1) - 1 # assumes length(data) is the power of two next after (or including) rs.length[]
+    maxw = rs.maxw[]
     while true
         u = rand(UInt)
         i = u & mask + 1
         res, x = rs.data[i]
-        rand() < x && return res # TODO: consider reusing random bits from u; a previous test revealed no perf improvement from doing this
+        rand() < x/maxw && return res # TODO: consider reusing random bits from u; a previous test revealed no perf improvement from doing this
     end
 end
 function Base.push!(rs::RejectionSampler3, i, x)
     len = rs.length[] += 1
     len > length(rs.data) && append!(rs.data, Iterators.repeated((0, UInt64(0)), len-1))
     rs.data[len] = (i, x)
+    maxwn = rs.maxw[]
+    rs.maxw[] = x > maxwn ? x : maxwn
     rs
 end
 function Base.delete!(rs::RejectionSampler3, i) # Return the value that is moved to the deleted index
