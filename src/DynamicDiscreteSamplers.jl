@@ -206,12 +206,6 @@ function Base.push!(rs::RejectionSampler3, i, x)
     rs.maxw[] = x > maxwn ? x : maxwn
     rs
 end
-function Base.delete!(rs::RejectionSampler3, i) # Return the value that is moved to the deleted index
-    len = rs.length[]
-    rs.data[i] = rs.data[len]
-    rs.data[len] = (0, UInt64(0))
-    rs.length[] -= 1
-end
 Base.isempty(rs::RejectionSampler3) = length(rs) == 0 # For testing only
 Base.length(rs::RejectionSampler3) = rs.length[] # For testing only
 
@@ -409,10 +403,12 @@ function Base.delete!(ns::NestedSampler5, i::Int)
 
     l, k = ns.level_set_map[level]
     w, level_sampler = ns.all_levels[l]
-    moved_entry,significand = level_sampler.data[level_sampler.length[]] # TODO: simplify this and consider manually inlining the delete! call
-    delete!(level_sampler, j)
+    _i, significand = level_sampler.data[j]
+    @assert _i == i
+    moved_entry, _ = level_sampler.data[j] = level_sampler.data[level_sampler.length[]]
+    level_sampler.data[level_sampler.length[]] = (0, UInt64(0))
+    level_sampler.length[] -= 1
     if moved_entry != i
-        # @show ns.entry_info[moved_entry] (level, length(level_sampler)+1)
         @assert ns.entry_info[moved_entry] == (level, length(level_sampler)+1)
         ns.entry_info[moved_entry] = (level, j)
     end
