@@ -20,7 +20,7 @@ mutable struct RejectionSampler8
     RejectionSampler8(p) = new(get_weights(p))
 end
 
-function Random.rand(rs::RejectionSampler8)
+function Random.rand(rng::AbstractRNG, rs::RejectionSampler8)
     while true
         u = rand(UInt64)
         i = u & 0x07 + 1
@@ -59,7 +59,7 @@ mutable struct SelectionSampler6
     p::NTuple{5, Float64}
     SelectionSampler6(p) = new(normalize(p))
 end
-function Base.rand(ss::SelectionSampler6)
+function Base.rand(rng::AbstractRNG, ss::SelectionSampler6)
     u = rand()
     count(<(u), ss.p) + 1
 end
@@ -87,7 +87,7 @@ mutable struct SelectionSampler{N}
     p::NTuple{N, Float64}
     SelectionSampler(p::NTuple{N, <:Any}) where N = new{N-1}(normalize(p))
 end
-function Base.rand(ss::SelectionSampler)
+function Base.rand(rng::AbstractRNG, ss::SelectionSampler)
     u = rand()
     count(<(u), ss.p) + 1
 end
@@ -112,7 +112,7 @@ struct SelectionSampler2{N}
     p::MVector{N, Float64}
     SelectionSampler2(p) = new{length(p)-1}(normalize(p))
 end
-function Base.rand(ss::SelectionSampler2)
+function Base.rand(rng::AbstractRNG, ss::SelectionSampler2)
     u = rand()
     count(<(u), ss.p) + 1
 end
@@ -140,7 +140,7 @@ end
 struct SelectionSampler3{N}
     p::MVector{N, Float64}
 end
-function Base.rand(ss::SelectionSampler3)
+function Base.rand(rng::AbstractRNG, ss::SelectionSampler3)
     u = rand()*last(ss.p)
     count(<(u), ss.p) + 1
 end
@@ -165,7 +165,7 @@ end
 struct SelectionSampler4{N}
     p::MVector{N, Float64}
 end
-function Base.rand(ss::SelectionSampler4, lastfull::Int)
+function Base.rand(rng::AbstractRNG, ss::SelectionSampler4, lastfull::Int)
     u = rand()*ss.p[lastfull]
     @inbounds for i in 1:lastfull
         ss.p[i] > u && return i
@@ -188,7 +188,7 @@ struct RejectionSampler3
     maxw::Base.RefValue{Float64}
     RejectionSampler3(i, v) = new(Ref(1), [(i, v)], Ref(v))
 end
-function Random.rand(rs::RejectionSampler3)
+function Random.rand(rng::AbstractRNG, rs::RejectionSampler3)
     mask = UInt64(1) << Base.top_set_bit(rs.length[] - 1) - 1 # assumes length(data) is the power of two next after (or including) rs.length[]
     maxw = rs.maxw[]
     while true
@@ -318,12 +318,13 @@ NestedSampler5() = NestedSampler5(
     Ref(true)
 )
 
-function Base.rand(ns::NestedSampler5)
+Base.rand(ns::NestedSampler5) = rand(Random.default_rng(), ns)
+function Base.rand(rng::AbstractRNG, ns::NestedSampler5)
     lastfull = length(ns.sampled_levels)
     ns.reset_distribution[] && set_weights!(ns.distribution_over_levels, ns.sampled_level_weights, lastfull)
     ns.reset_distribution[] = false
-    level = rand(ns.distribution_over_levels, lastfull)
-    rand(ns.sampled_levels[level])
+    level = rand(rng, ns.distribution_over_levels, lastfull)
+    rand(rng, ns.sampled_levels[level])
 end
 
 function Base.push!(ns::NestedSampler5, i::Int, x::Float64)
