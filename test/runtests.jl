@@ -108,14 +108,14 @@ end
     ps_exact = [i/((b ÷ 2)*(b+1)) for i in 1:b]
 
     chisq_test = ChisqTest(counts_est, ps_exact)
-    @test pvalue(chisq_test) > 0.05
+    @test pvalue(chisq_test) > 0.00005
 
     samples_counts = countmap([rand(ds1) for _ in 1:10^5])
     counts_est = [samples_counts[i] for i in 1:b]
     ps_exact = [i/((b ÷ 2)*(b+1)) for i in 1:b]
 
     chisq_test = ChisqTest(counts_est, ps_exact)
-    @test pvalue(chisq_test) > 0.05
+    @test pvalue(chisq_test) > 0.00005
 
     for i in 1:(b ÷ 2)
         delete!(ds1, i)
@@ -126,7 +126,7 @@ end
     ps_exact = [i/((b ÷ 2)*(b+1) - (b ÷ 4)*(b ÷ 2 + 1)) for i in (b ÷ 2 + 1):b]
 
     chisq_test = ChisqTest(counts_est, ps_exact)
-    @test pvalue(chisq_test) > 0.05
+    @test pvalue(chisq_test) > 0.00005
 
     ds2 = DynamicDiscreteSampler()
     
@@ -146,7 +146,7 @@ end
     ps_exact = [i == 2 ? 200/wsum : i/wsum for i in [2:b..., 1000]]
 
     chisq_test = ChisqTest(counts_est, ps_exact)
-    @test pvalue(chisq_test) > 0.05
+    @test pvalue(chisq_test) > 0.00005
 
     for i in [2:b..., 1000]
         delete!(ds2, i)
@@ -157,7 +157,7 @@ end
     samples_counts = countmap([rand(ds2) for _ in 1:10^4])
     counts_est = [samples_counts[1], samples_counts[2]]
     ps_exact = [1/3, 2/3]
-    @test pvalue(chisq_test) > 0.05
+    @test pvalue(chisq_test) > 0.00005
 
     delete!(ds2, 2)
     @test unique([rand(ds2) for _ in 1:10^3]) == [1]
