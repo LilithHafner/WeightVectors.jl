@@ -82,7 +82,17 @@ end
     end
 end
 
-@testset "statistical tests" begin
+@testset "Targeted statistical tests" begin
+    #Issue 8
+    ds = DynamicDiscreteSampler()
+    for i in 1:3
+        push!(ds, i, float(i))
+    end
+    delete!(ds, 2)
+    @test count(rand(ds) == 1 for _ in 1:4000) < 1200 # False positivity rate < 4e-13
+end
+  
+@testset "Randomized statistical tests" begin
     Random.seed!(42)
     b = 100
     range = 1:b

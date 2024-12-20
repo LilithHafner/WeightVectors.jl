@@ -185,28 +185,26 @@ end
 struct RejectionSampler3
     length::Base.RefValue{Int}
     data::Vector{Tuple{Int, Float64}}
-    RejectionSampler3(i, v) = new(Ref(1), [(i, v)])
+    maxw::Base.RefValue{Float64}
+    RejectionSampler3(i, v) = new(Ref(1), [(i, v)], Ref(v))
 end
 function Random.rand(rs::RejectionSampler3)
     mask = UInt64(1) << Base.top_set_bit(rs.length[] - 1) - 1 # assumes length(data) is the power of two next after (or including) rs.length[]
+    maxw = rs.maxw[]
     while true
         u = rand(UInt)
         i = u & mask + 1
         res, x = rs.data[i]
-        rand() < x && return res # TODO: consider reusing random bits from u; a previous test revealed no perf improvement from doing this
+        rand() < x/maxw && return res # TODO: consider reusing random bits from u; a previous test revealed no perf improvement from doing this
     end
 end
 function Base.push!(rs::RejectionSampler3, i, x)
     len = rs.length[] += 1
     len > length(rs.data) && append!(rs.data, Iterators.repeated((0, UInt64(0)), len-1))
     rs.data[len] = (i, x)
+    maxwn = rs.maxw[]
+    rs.maxw[] = x > maxwn ? x : maxwn
     rs
-end
-function Base.delete!(rs::RejectionSampler3, i) # Return the value that is moved to the deleted index
-    len = rs.length[]
-    rs.data[i] = rs.data[len]
-    rs.data[len] = (0, UInt64(0))
-    rs.length[] -= 1
 end
 Base.isempty(rs::RejectionSampler3) = length(rs) == 0 # For testing only
 Base.length(rs::RejectionSampler3) = rs.length[] # For testing only
@@ -405,10 +403,12 @@ function Base.delete!(ns::NestedSampler5, i::Int)
 
     l, k = ns.level_set_map[level]
     w, level_sampler = ns.all_levels[l]
-    moved_entry,significand = level_sampler.data[level_sampler.length[]] # TODO: simplify this and consider manually inlining the delete! call
-    delete!(level_sampler, j)
+    _i, significand = level_sampler.data[j]
+    @assert _i == i
+    moved_entry, _ = level_sampler.data[j] = level_sampler.data[level_sampler.length[]]
+    level_sampler.data[level_sampler.length[]] = (0, UInt64(0))
+    level_sampler.length[] -= 1
     if moved_entry != i
-        # @show ns.entry_info[moved_entry] (level, length(level_sampler)+1)
         @assert ns.entry_info[moved_entry] == (level, length(level_sampler)+1)
         ns.entry_info[moved_entry] = (level, j)
     end
