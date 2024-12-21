@@ -166,7 +166,7 @@ struct SelectionSampler4{N}
     p::MVector{N, Float64}
 end
 function Base.rand(rng::AbstractRNG, ss::SelectionSampler4, lastfull::Int)
-    u = rand()*ss.p[lastfull]
+    u = rand(rng)*ss.p[lastfull]
     @inbounds for i in 1:lastfull
         ss.p[i] > u && return i
     end
@@ -192,7 +192,7 @@ function Random.rand(rng::AbstractRNG, rs::RejectionSampler3)
     mask = UInt64(1) << Base.top_set_bit(rs.length[] - 1) - 1 # assumes length(data) is the power of two next after (or including) rs.length[]
     maxw = rs.maxw[]
     while true
-        u = rand(UInt)
+        u = rand(rng, UInt)
         i = u & mask + 1
         res, x = rs.data[i]
         rand() < x/maxw && return res # TODO: consider reusing random bits from u; a previous test revealed no perf improvement from doing this
