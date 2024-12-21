@@ -10,7 +10,7 @@ julia> @b AliasTable(rand(6)) rand
 6.329 ns
 =#
 
-using Random, StaticArrays
+using Distributions, Random, StaticArrays
 
 get_weights(p::NTuple{8, Float64}) = p .* typemax(UInt) ./ maximum(p)
 get_weights(p::NTuple{8, Any}) = get_weights(Float64.(p))
@@ -318,6 +318,24 @@ NestedSampler5() = NestedSampler5(
     Ref(true)
 )
 
+Base.rand(ns::NestedSampler5, n::Integer) = rand(Random.default_rng(), ns, n)
+function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
+    n < 100 && return [rand(rng, ns) for _ in 1:n]
+    lastfull = length(ns.sampled_levels)
+    full_level_weights = @view(ns.sampled_level_weights[1:lastfull])
+    n_each = rand(rng, Multinomial(n, full_level_weights ./ sum(full_level_weights)))
+    inds = Vector{Int}(undef, n)
+    q = 1
+    @inbounds for (level, k) in enumerate(n_each)
+        bucket = ns.sampled_levels[level]
+        for _ in 1:k
+            inds[q] = rand(rng, bucket)
+            q += 1
+        end
+    end
+    shuffle!(rng, inds)
+    return inds
+end
 Base.rand(ns::NestedSampler5) = rand(Random.default_rng(), ns)
 function Base.rand(rng::AbstractRNG, ns::NestedSampler5)
     lastfull = length(ns.sampled_levels)
