@@ -85,12 +85,14 @@ end
 
 @testset "Targeted statistical tests" begin
     #Issue 8
-    ds = DynamicDiscreteSampler()
-    for i in 1:3
-        push!(ds, i, float(i))
+    for N in [2, 4, 64, 128]
+        ds = DynamicDiscreteSampler(N)
+        for i in 1:3
+            push!(ds, i, float(i))
+        end
+        delete!(ds, 2)
+        @test count(rand(ds) == 1 for _ in 1:4000) < 1200 # False positivity rate < 4e-13
     end
-    delete!(ds, 2)
-    @test count(rand(ds) == 1 for _ in 1:4000) < 1200 # False positivity rate < 4e-13
 end
   
 @testset "Randomized statistical tests" begin
