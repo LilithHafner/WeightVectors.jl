@@ -170,11 +170,12 @@ end
         (t.rngState0, t.rngState1, t.rngState2, t.rngState3, t.rngState4)
     end
     ds = DynamicDiscreteSampler()
+    push!(ds, 1, 1.0)
     state1 = getstate_default_rng()
     rand(ds)
     state2 = getstate_default_rng()
     @test state1 != state2
-    rand(Xhosiro(42), ds)
+    rand(Xoshiro(42), ds)
     state3 = getstate_default_rng()
     @test state2 == state3
 end
