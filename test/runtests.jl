@@ -92,7 +92,7 @@ end
         end
         delete!(ds, 2)
         if N > 1
-            @test count(rand(ds) == 1 for _ in 1:4000) < 1200 # False positivity rate < 4e-13
+            @test 0 < count(rand(ds) == 1 for _ in 1:4000) < 1200 # False positivity rate < 4e-13
         else
             @test count(rand(ds) == 1 for _ in 1:4000) == 0
         end
