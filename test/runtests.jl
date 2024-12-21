@@ -164,6 +164,17 @@ end
     @test unique([rand(rng, ds2) for _ in 1:10^3]) == [1]
 end
 
+@testset "rng usage tests" begin
+    ds = DynamicDiscreteSampler()
+    state1 = Random.getstate(Random.default_rng())
+    rand(ds)
+    state2 = Random.getstate(Random.default_rng())
+    @test state1 != state2
+    rand(Xhosiro(42), ds)
+    state3 = Random.getstate(Random.default_rng())
+    @test state2 == state3
+end
+
 # These tests are too slow:
 if "CI" in keys(ENV)
     @testset "Code quality (Aqua.jl)" begin
