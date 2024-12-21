@@ -309,7 +309,7 @@ struct NestedSampler5{N}
 end
 
 NestedSampler5() = NestedSampler5{64}()
-NestedSampler5{N}() = NestedSampler5{N}(
+NestedSampler5{N}() where N = NestedSampler5{N}(
     SelectionSampler4(zero(MVector{N, Float64})),
     Tuple{Float64, RejectionSampler3}[],
     zero(MVector{N, Float64}),
