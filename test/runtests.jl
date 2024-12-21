@@ -86,7 +86,7 @@ end
 @testset "Targeted statistical tests" begin
     #Issue 8
     for N in [1, 2, 4, 64, 128]
-        ds = DynamicDiscreteSampler(N)
+        ds = DynamicDiscreteSampler{N}()
         for i in 1:3
             push!(ds, i, float(i))
         end
