@@ -165,13 +165,17 @@ end
 end
 
 @testset "rng usage tests" begin
+    function getstate_default_rng()
+        t = current_task()
+        (t.rngState0, t.rngState1, t.rngState2, t.rngState3, t.rngState4)
+    end
     ds = DynamicDiscreteSampler()
-    state1 = Random.getstate(Random.default_rng())
+    state1 = getstate_default_rng()
     rand(ds)
-    state2 = Random.getstate(Random.default_rng())
+    state2 = getstate_default_rng()
     @test state1 != state2
     rand(Xhosiro(42), ds)
-    state3 = Random.getstate(Random.default_rng())
+    state3 = getstate_default_rng()
     @test state2 == state3
 end
 
