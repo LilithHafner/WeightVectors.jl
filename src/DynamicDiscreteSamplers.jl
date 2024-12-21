@@ -308,7 +308,8 @@ struct NestedSampler5{N}
     reset_distribution::Base.RefValue{Bool}
 end
 
-NestedSampler5(N=64) = NestedSampler5{N}(
+NestedSampler5() = NestedSampler5{64}()
+NestedSampler5{N}() = NestedSampler5{N}(
     SelectionSampler4(zero(MVector{N, Float64})),
     Tuple{Float64, RejectionSampler3}[],
     zero(MVector{N, Float64}),
