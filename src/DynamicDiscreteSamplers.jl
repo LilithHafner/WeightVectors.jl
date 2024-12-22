@@ -1,6 +1,6 @@
 module DynamicDiscreteSamplers
 
-export DynamicDiscreteSampler, allinds
+export DynamicDiscreteSampler, SamplerIndices
 
 #=
 julia> @b AliasTable(rand(6)) AliasTables.set_weights!(_, rand!(X))
