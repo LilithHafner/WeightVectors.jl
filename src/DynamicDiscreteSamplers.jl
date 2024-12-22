@@ -10,7 +10,7 @@ julia> @b AliasTable(rand(6)) rand
 6.329 ns
 =#
 
-using Distributions, Random, StaticArrays
+using Dictionaries, Distributions, Random, StaticArrays
 
 get_weights(p::NTuple{8, Float64}) = p .* typemax(UInt) ./ maximum(p)
 get_weights(p::NTuple{8, Any}) = get_weights(Float64.(p))
@@ -308,7 +308,7 @@ struct NestedSampler5{N}
     sampled_level_numbers::MVector{N, Int} # The level numbers of the top up to N levels TODO: consider merging with sampled_levels_weights or reducing elsize
     all_levels::Vector{Tuple{Float64, RejectionSampler3}} # All the levels, in insertion order, along with their total weights
     level_set::LinkedListSet3 # A set of which levels are present (named by level number)
-    level_set_map::Dict{Int, Tuple{Int, Int}} # A mapping from level number to index in all_levels and index in sampled_levels (or 0 if not in sampled_levels)
+    level_set_map::Dictionary{Int, Tuple{Int, Int}} # A mapping from level number to index in all_levels and index in sampled_levels (or 0 if not in sampled_levels)
     least_significant_sampled_level::Base.RefValue{Int} # The level number of the least significant tracked level
     entry_info::Vector{Tuple{Int, Int}} # A mapping from element to level number and index in that level (index in level is 0 if entry is not present)
     reset_distribution::Base.RefValue{Bool}
@@ -322,7 +322,7 @@ NestedSampler5{N}() where N = NestedSampler5{N}(
     zero(MVector{N, Int}),
     RejectionSampler3[],
     LinkedListSet3(),
-    Dict{Int, Tuple{Int, Int}}(),
+    Dictionary{Int, Tuple{Int, Int}}(sizehint=16),
     Ref(-1075),
     Tuple{Int, Int}[],
     Ref(true)
@@ -391,7 +391,7 @@ function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
                 sl_length = length(ns.sampled_levels)
                 ns.sampled_level_weights[sl_length] = x
                 ns.sampled_level_numbers[sl_length] = level
-                ns.level_set_map[level] = (all_levels_index, length(ns.sampled_levels))
+                set!(ns.level_set_map, level, (all_levels_index, length(ns.sampled_levels)))
                 if length(ns.sampled_levels) == N
                     ns.least_significant_sampled_level[] = findnext(ns.level_set, ns.least_significant_sampled_level[]+1)
                 end
@@ -401,11 +401,11 @@ function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
                 ns.sampled_levels[j] = level_sampler
                 ns.sampled_level_weights[j] = x
                 ns.sampled_level_numbers[j] = level
-                ns.level_set_map[level] = (all_levels_index, j)
+                set!(ns.level_set_map, level, (all_levels_index, j))
                 ns.least_significant_sampled_level[] = findnext(ns.level_set, ns.least_significant_sampled_level[]+1)
             end
         else # created an unsampled level
-            ns.level_set_map[level] = (all_levels_index, 0)
+            set!(ns.level_set_map, level, (all_levels_index, 0))
         end
     else # Add to an existing level
         j, k = ns.level_set_map[level]
