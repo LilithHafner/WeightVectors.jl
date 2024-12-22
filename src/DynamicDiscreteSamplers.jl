@@ -1,6 +1,6 @@
 module DynamicDiscreteSamplers
 
-export DynamicDiscreteSampler
+export DynamicDiscreteSampler, allinds
 
 #=
 julia> @b AliasTable(rand(6)) AliasTables.set_weights!(_, rand!(X))
@@ -312,6 +312,7 @@ struct NestedSampler5{N}
     least_significant_sampled_level::Base.RefValue{Int} # The level number of the least significant tracked level
     entry_info::Vector{Tuple{Int, Int}} # A mapping from element to level number and index in that level (index in level is 0 if entry is not present)
     reset_distribution::Base.RefValue{Bool}
+    nvalues::Base.RefValue{Int}
 end
 
 NestedSampler5() = NestedSampler5{64}()
@@ -325,7 +326,8 @@ NestedSampler5{N}() where N = NestedSampler5{N}(
     Dictionary{Int, Tuple{Int, Int}}(sizehint=16),
     Ref(-1075),
     Tuple{Int, Int}[],
-    Ref(true)
+    Ref(true),
+    Ref(0)
 )
 
 Base.rand(ns::NestedSampler5, n::Integer) = rand(Random.default_rng(), ns, n)
@@ -357,6 +359,7 @@ end
 
 function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
     ns.reset_distribution[] = true
+    ns.nvalues[] += 1
     i <= 0 && throw(ArgumentError("Elements must be positive"))
     if i > lastindex(ns.entry_info)
         append!(ns.entry_info, Iterators.repeated((0, 0), i - lastindex(ns.entry_info)))
@@ -423,6 +426,7 @@ end
 
 function Base.delete!(ns::NestedSampler5, i::Int)
     ns.reset_distribution[] = true
+    ns.nvalues[] -= 1
     if i <= 0 || i > lastindex(ns.entry_info)
         throw(ArgumentError("Element $i is not present"))
     end
@@ -484,6 +488,10 @@ function Base.delete!(ns::NestedSampler5, i::Int)
 
     ns
 end
+
+allinds(ns::NestedSampler5) = collect(Iterators.Filter(x -> x != 0, Iterators.Flatten((Iterators.map(x -> x[1], b[2].data) for b in ns.all_levels))))
+
+Base.isempty(ns::NestedSampler5) = ns.nvalues[] == 0
 
 const DynamicDiscreteSampler = NestedSampler5
 
