@@ -441,7 +441,7 @@ function Base.delete!(ns::NestedSampler5, i::Int)
         @assert ns.entry_info[moved_entry] == (level, length(level_sampler)+1)
         ns.entry_info[moved_entry] = (level, j)
     end
-    x = significand*prec_2pow[level+1074]
+    x = significand*prec_2pow[level+1075]
     ns.all_levels[l] = (w-x, level_sampler) # TODO: eliminate rounding error here.
 
     if isempty(level_sampler) # Remove a level
