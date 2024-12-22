@@ -292,6 +292,12 @@ Otherwise, update the least significant tracked level and add an element to the
 distribution over the top N levels if possible
 =#
 
+if VERSION >= v"1.11.0"
+    const prec_2pow = Memory{Float64}([2.0^i for i in -1073:1022])
+else
+    const prec_2pow = [2.0^i for i in -1073:1022]
+end
+
 struct NestedSampler5{N}
     # Used in sampling
     distribution_over_levels::SelectionSampler4{N} # A distribution over 1:N
@@ -435,7 +441,7 @@ function Base.delete!(ns::NestedSampler5, i::Int)
         @assert ns.entry_info[moved_entry] == (level, length(level_sampler)+1)
         ns.entry_info[moved_entry] = (level, j)
     end
-    x = significand*2*2.0^level
+    x = significand*prec_2pow[level+1074]
     ns.all_levels[l] = (w-x, level_sampler) # TODO: eliminate rounding error here.
 
     if isempty(level_sampler) # Remove a level
