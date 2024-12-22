@@ -489,7 +489,18 @@ function Base.delete!(ns::NestedSampler5, i::Int)
     ns
 end
 
-allinds(ns::NestedSampler5) = collect(Iterators.Filter(x -> x != 0, Iterators.Flatten((Iterators.map(x -> x[1], b[2].data) for b in ns.all_levels))))
+struct SamplerIndices{I}
+    ns::NestedSampler5
+    iter::I
+end
+function SamplerIndices(ns::NestedSampler5)
+    iter =  Iterators.Filter(x -> x != 0, Iterators.Flatten((Iterators.map(x -> x[1], b[2].data) for b in ns.all_levels)))
+    SamplerIndices(ns, iter)
+end
+Base.iterate(inds::SamplerIndices) = Base.iterate(inds.iter)
+Base.iterate(inds::SamplerIndices, state) = Base.iterate(inds.iter, state)
+Base.eltype(::Type{<:SamplerIndices}) = Int
+Base.IteratorSize(ns::Type{<:SamplerIndices}) = ns.nvalues[]
 
 Base.isempty(ns::NestedSampler5) = ns.nvalues[] == 0
 
