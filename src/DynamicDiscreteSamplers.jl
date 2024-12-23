@@ -172,10 +172,12 @@ function Base.rand(rng::AbstractRNG, ss::SelectionSampler4, lastfull::Int)
     end
     return lastfull
 end
-function set_weights!(ss::SelectionSampler4, p, lastfull)
-    ss.p[1] = p[1]
+function set_weights!(ss::SelectionSampler4, ns)
+    p, lastfull = ns.sampled_level_weights, length(ns.sampled_levels)
+    slevels = ns.sampled_level_numbers
+    ss.p[1] = p[1]*prec_2pow[slevels[1]+1075]
     @inbounds for i in 2:lastfull
-        ss.p[i] = ss.p[i-1] + p[i]
+        ss.p[i] = ss.p[i-1] + p[i]*prec_2pow[slevels[i]+1075]
     end
     ss
 end
@@ -351,7 +353,7 @@ end
 Base.rand(ns::NestedSampler5) = rand(Random.default_rng(), ns)
 function Base.rand(rng::AbstractRNG, ns::NestedSampler5)
     lastfull = length(ns.sampled_levels)
-    ns.reset_distribution[] && set_weights!(ns.distribution_over_levels, ns.sampled_level_weights, lastfull)
+    ns.reset_distribution[] && set_weights!(ns.distribution_over_levels, ns)
     ns.reset_distribution[] = false
     level = rand(rng, ns.distribution_over_levels, lastfull)
     rand(rng, ns.sampled_levels[level])
@@ -367,6 +369,7 @@ function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
         throw(ArgumentError("Element $i is already present"))
     end
     level = exponent(x)
+    bucketw = significand(x)/2
     if level ∉ ns.level_set
         # Log the entry
         ns.entry_info[i] = (level, 1)
@@ -375,15 +378,15 @@ function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
         push!(ns.level_set, level)
         existing_level_indices = get(ns.level_set_map, level, (0, 0))
         all_levels_index = if existing_level_indices == (0, 0)
-            level_sampler = RejectionSampler3(i, significand(x)/2)
-            push!(ns.all_levels, (x, level_sampler))
+            level_sampler = RejectionSampler3(i, bucketw)
+            push!(ns.all_levels, (bucketw, level_sampler))
             length(ns.all_levels)
         else
             w, level_sampler = ns.all_levels[existing_level_indices[1]]
             @assert w == 0
             @assert isempty(level_sampler)
-            push!(level_sampler, i, significand(x)/2)
-            ns.all_levels[existing_level_indices[1]] = (x, level_sampler)
+            push!(level_sampler, i, bucketw)
+            ns.all_levels[existing_level_indices[1]] = (bucketw, level_sampler)
             existing_level_indices[1]
         end
 
@@ -392,7 +395,7 @@ function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
             if length(ns.sampled_levels) < N # Add the new level to the top 64
                 push!(ns.sampled_levels, level_sampler)
                 sl_length = length(ns.sampled_levels)
-                ns.sampled_level_weights[sl_length] = x
+                ns.sampled_level_weights[sl_length] = bucketw
                 ns.sampled_level_numbers[sl_length] = level
                 set!(ns.level_set_map, level, (all_levels_index, length(ns.sampled_levels)))
                 if length(ns.sampled_levels) == N
@@ -402,7 +405,7 @@ function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
                 k, j = ns.level_set_map[ns.least_significant_sampled_level[]]
                 ns.level_set_map[ns.least_significant_sampled_level[]] = (k, 0)
                 ns.sampled_levels[j] = level_sampler
-                ns.sampled_level_weights[j] = x
+                ns.sampled_level_weights[j] = bucketw
                 ns.sampled_level_numbers[j] = level
                 set!(ns.level_set_map, level, (all_levels_index, j))
                 ns.least_significant_sampled_level[] = findnext(ns.level_set, ns.least_significant_sampled_level[]+1)
@@ -413,12 +416,12 @@ function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
     else # Add to an existing level
         j, k = ns.level_set_map[level]
         w, level_sampler = ns.all_levels[j]
-        push!(level_sampler, i, significand(x)/2)
+        push!(level_sampler, i, bucketw)
         ns.entry_info[i] = (level, length(level_sampler))
-        ns.all_levels[j] = (w+x, level_sampler) # TODO: eliminate rounding error here.
+        ns.all_levels[j] = (w+bucketw, level_sampler)
 
         if k != 0 # level is sampled
-            ns.sampled_level_weights[k] += x # TODO: eliminate rounding error here.
+            ns.sampled_level_weights[k] += bucketw
         end
     end
     ns
@@ -445,8 +448,7 @@ function Base.delete!(ns::NestedSampler5, i::Int)
         @assert ns.entry_info[moved_entry] == (level, length(level_sampler)+1)
         ns.entry_info[moved_entry] = (level, j)
     end
-    x = significand*prec_2pow[level+1075]
-    ns.all_levels[l] = (w-x, level_sampler) # TODO: eliminate rounding error here.
+    ns.all_levels[l] = (w-significand, level_sampler)
 
     if isempty(level_sampler) # Remove a level
         delete!(ns.level_set, level)
@@ -483,7 +485,7 @@ function Base.delete!(ns::NestedSampler5, i::Int)
             end
         end
     elseif k != 0
-        ns.sampled_level_weights[k] -= x # TODO: eliminate rounding error here.
+        ns.sampled_level_weights[k] -= significand
     end
 
     ns
@@ -496,7 +498,7 @@ struct SamplerIndices{I}
     iter::I
 end
 function SamplerIndices(ns::NestedSampler5)
-    iter =  Iterators.Filter(x -> x != 0, Iterators.Flatten((Iterators.map(x -> x[1], b[2].data) for b in ns.all_levels)))
+    iter = Iterators.Filter(x -> x != 0, Iterators.Flatten((Iterators.map(x -> x[1], b[2].data) for b in ns.all_levels)))
     SamplerIndices(ns, iter)
 end
 Base.iterate(inds::SamplerIndices) = Base.iterate(inds.iter)
