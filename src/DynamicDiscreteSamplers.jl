@@ -489,6 +489,8 @@ function Base.delete!(ns::NestedSampler5, i::Int)
     ns
 end
 
+Base.isempty(ns::NestedSampler5) = ns.nvalues[] == 0
+
 struct SamplerIndices{I}
     ns::NestedSampler5
     iter::I
@@ -500,9 +502,8 @@ end
 Base.iterate(inds::SamplerIndices) = Base.iterate(inds.iter)
 Base.iterate(inds::SamplerIndices, state) = Base.iterate(inds.iter, state)
 Base.eltype(::Type{<:SamplerIndices}) = Int
-Base.IteratorSize(ns::Type{<:SamplerIndices}) = ns.nvalues[]
-
-Base.isempty(ns::NestedSampler5) = ns.nvalues[] == 0
+Base.IteratorSize(::Type{<:SamplerIndices}) = Base.HasLength()
+Base.length(inds::SamplerIndices) = inds.ns.nvalues[]
 
 const DynamicDiscreteSampler = NestedSampler5
 
