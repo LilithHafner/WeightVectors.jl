@@ -358,6 +358,7 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
 end
 Base.rand(ns::NestedSampler5) = rand(Random.default_rng(), ns)
 function Base.rand(rng::AbstractRNG, ns::NestedSampler5)
+    ns.reset_order[] += 1
     lastfull = length(ns.sampled_levels)
     ns.reset_distribution[] && set_weights!(ns.distribution_over_levels, ns)
     ns.reset_distribution[] = false
