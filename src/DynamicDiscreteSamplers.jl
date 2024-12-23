@@ -328,7 +328,7 @@ NestedSampler5() = NestedSampler5{64}()
 NestedSampler5{N}() where N = NestedSampler5{N}(
     SelectionSampler4(zero(MVector{N, Float64})),
     Tuple{Double64, RejectionSampler3}[],
-    zero(MVector{N, Double64}),
+    zero(MVector{N, Float64}),
     zero(MVector{N, Int}),
     RejectionSampler3[],
     LinkedListSet3(),
@@ -388,14 +388,14 @@ function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
         existing_level_indices = get(ns.level_set_map, level, (0, 0))
         all_levels_index = if existing_level_indices == (0, 0)
             level_sampler = RejectionSampler3(i, bucketw)
-            push!(ns.all_levels, (bucketw, level_sampler))
+            push!(ns.all_levels, (Double64(bucketw), level_sampler))
             length(ns.all_levels)
         else
             w, level_sampler = ns.all_levels[existing_level_indices[1]]
             @assert w == 0
             @assert isempty(level_sampler)
             push!(level_sampler, i, bucketw)
-            ns.all_levels[existing_level_indices[1]] = (bucketw, level_sampler)
+            ns.all_levels[existing_level_indices[1]] = (Double64(bucketw), level_sampler)
             existing_level_indices[1]
         end
 
@@ -427,11 +427,11 @@ function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
         w, level_sampler = ns.all_levels[j]
         push!(level_sampler, i, bucketw)
         ns.entry_info[i] = (level, length(level_sampler))
-        wn = w+bucketw
+        wn = w+Double64(bucketw)
         ns.all_levels[j] = (wn, level_sampler)
 
         if k != 0 # level is sampled
-            ns.sampled_level_weights[k] = wn
+            ns.sampled_level_weights[k] = Float64(wn)
         end
     end
     ns
@@ -458,7 +458,7 @@ function Base.delete!(ns::NestedSampler5, i::Int)
         @assert ns.entry_info[moved_entry] == (level, length(level_sampler)+1)
         ns.entry_info[moved_entry] = (level, j)
     end
-    wn = w-significand
+    wn = w-Double64(significand)
     ns.all_levels[l] = (wn, level_sampler)
 
     if isempty(level_sampler) # Remove a level
@@ -473,13 +473,13 @@ function Base.delete!(ns::NestedSampler5, i::Int)
                 moved_level = ns.sampled_level_numbers[sl_length]
                 if moved_level == level
                     pop!(ns.sampled_levels)
-                    ns.sampled_level_weights[sl_length] = 0
+                    ns.sampled_level_weights[sl_length] = 0.0
                     # sampled_level_numbers can have unclean trailing values
                 else
                     ns.sampled_level_numbers[k] = moved_level
                     ns.sampled_levels[k] = pop!(ns.sampled_levels)
                     ns.sampled_level_weights[k] = ns.sampled_level_weights[sl_length]
-                    ns.sampled_level_weights[sl_length] = 0
+                    ns.sampled_level_weights[sl_length] = 0.0
                     all_index, _length_sampled_levels_plus_one = ns.level_set_map[moved_level]
                     @assert _length_sampled_levels_plus_one == length(ns.sampled_levels)+1
                     ns.level_set_map[moved_level] = (all_index, k)
@@ -491,12 +491,12 @@ function Base.delete!(ns::NestedSampler5, i::Int)
                 ns.level_set_map[replacement] = (all_index, k)
                 w, replacement_level = ns.all_levels[all_index]
                 ns.sampled_levels[k] = replacement_level
-                ns.sampled_level_weights[k] = w
+                ns.sampled_level_weights[k] = Float64(w)
                 ns.sampled_level_numbers[k] = replacement
             end
         end
     elseif k != 0
-        ns.sampled_level_weights[k] = wn
+        ns.sampled_level_weights[k] = Float64(wn)
     end
 
     ns
