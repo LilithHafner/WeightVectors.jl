@@ -161,14 +161,18 @@ end
 
     push!(ds2, 1, 1.0)
     push!(ds2, 2, 2.0)
+
     samples_counts = countmap([rand(rng, ds2) for _ in 1:10^4])
     counts_est = [samples_counts[1], samples_counts[2]]
     ps_exact = [1/3, 2/3]
+
+    chisq_test = ChisqTest(counts_est, ps_exact)
     @test pvalue(chisq_test) > 0.002
 
     delete!(ds2, 2)
     @test unique([rand(rng, ds2) for _ in 1:10^3]) == [1]
 end
+
 
 @testset "rng usage tests" begin
     function getstate_default_rng()
