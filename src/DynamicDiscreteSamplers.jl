@@ -463,7 +463,7 @@ function Base.delete!(ns::NestedSampler5, i::Int)
 
     if isempty(level_sampler) # Remove a level
         delete!(ns.level_set, level)
-        ns.all_levels[l] = (0, level_sampler) # Fixup for rounding error
+        ns.all_levels[l] = (Double64(0), level_sampler) # Fixup for rounding error
         if k != 0 # Remove a sampled level
             replacement = findprev(ns.level_set, ns.least_significant_sampled_level[]-1)
             ns.level_set_map[level] = (l, 0)
