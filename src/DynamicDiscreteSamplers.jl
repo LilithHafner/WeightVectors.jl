@@ -172,7 +172,7 @@ function Base.rand(rng::AbstractRNG, ss::SelectionSampler4, lastfull::Int)
     end
     return lastfull
 end
-function set_weights!(ss::SelectionSampler4, ns)
+function set_cum_weights!(ss::SelectionSampler4, ns)
     p, lastfull = ns.sampled_level_weights, length(ns.sampled_levels)
     slevels = ns.sampled_level_numbers
     ss.p[1] = p[1]*prec_2pow[slevels[1]+1075]
@@ -180,6 +180,13 @@ function set_weights!(ss::SelectionSampler4, ns)
         ss.p[i] = ss.p[i-1] + p[i]*prec_2pow[slevels[i]+1075]
     end
     ss
+end
+function set_level_weights!(ss::SelectionSampler4, ns)
+    p, lastfull = ns.sampled_level_weights, length(ns.sampled_levels)
+    slevels = ns.sampled_level_numbers
+    @inbounds for i in 1:lastfull
+        ss.p[i] = p[i]*prec_2pow[slevels[i]+1075]
+    end
 end
 
 # TODO: add some benchmarks here of SelectionSampler4
@@ -335,8 +342,10 @@ NestedSampler5{N}() where N = NestedSampler5{N}(
 Base.rand(ns::NestedSampler5, n::Integer) = rand(Random.default_rng(), ns, n)
 function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
     n < 100 && return [rand(rng, ns) for _ in 1:n]
+    slevels = ns.sampled_level_numbers
     lastfull = length(ns.sampled_levels)
-    full_level_weights = @view(ns.sampled_level_weights[1:lastfull])
+    set_level_weights!(ns.distribution_over_levels, ns)
+    full_level_weights = @view(ns.distribution_over_levels.p[1:lastfull])
     n_each = rand(rng, Multinomial(n, full_level_weights ./ sum(full_level_weights)))
     inds = Vector{Int}(undef, n)
     q = 1
@@ -353,7 +362,7 @@ end
 Base.rand(ns::NestedSampler5) = rand(Random.default_rng(), ns)
 function Base.rand(rng::AbstractRNG, ns::NestedSampler5)
     lastfull = length(ns.sampled_levels)
-    ns.reset_distribution[] && set_weights!(ns.distribution_over_levels, ns)
+    ns.reset_distribution[] && set_cum_weights!(ns.distribution_over_levels, ns)
     ns.reset_distribution[] = false
     level = rand(rng, ns.distribution_over_levels, lastfull)
     rand(rng, ns.sampled_levels[level])
