@@ -163,7 +163,7 @@ end
 # 86.549 ns
 
 struct SelectionSampler4{N}
-    p::MVector{N, Double64}
+    p::MVector{N, Float64}
 end
 function Base.rand(rng::AbstractRNG, ss::SelectionSampler4, lastfull::Int)
     u = rand(rng)*ss.p[lastfull]
@@ -326,7 +326,7 @@ end
 
 NestedSampler5() = NestedSampler5{64}()
 NestedSampler5{N}() where N = NestedSampler5{N}(
-    SelectionSampler4(zero(MVector{N, Double64})),
+    SelectionSampler4(zero(MVector{N, Float64})),
     Tuple{Double64, RejectionSampler3}[],
     zero(MVector{N, Double64}),
     zero(MVector{N, Int}),
@@ -427,10 +427,11 @@ function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
         w, level_sampler = ns.all_levels[j]
         push!(level_sampler, i, bucketw)
         ns.entry_info[i] = (level, length(level_sampler))
-        ns.all_levels[j] = (w+bucketw, level_sampler)
+        wn = w+bucketw
+        ns.all_levels[j] = (wn, level_sampler)
 
         if k != 0 # level is sampled
-            ns.sampled_level_weights[k] += bucketw
+            ns.sampled_level_weights[k] = wn
         end
     end
     ns
@@ -457,7 +458,8 @@ function Base.delete!(ns::NestedSampler5, i::Int)
         @assert ns.entry_info[moved_entry] == (level, length(level_sampler)+1)
         ns.entry_info[moved_entry] = (level, j)
     end
-    ns.all_levels[l] = (w-significand, level_sampler)
+    wn = w-significand
+    ns.all_levels[l] = (wn, level_sampler)
 
     if isempty(level_sampler) # Remove a level
         delete!(ns.level_set, level)
@@ -494,7 +496,7 @@ function Base.delete!(ns::NestedSampler5, i::Int)
             end
         end
     elseif k != 0
-        ns.sampled_level_weights[k] -= significand
+        ns.sampled_level_weights[k] = wn
     end
 
     ns
