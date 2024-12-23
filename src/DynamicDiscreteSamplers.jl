@@ -360,15 +360,15 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
     return inds
 end
 Base.rand(ns::NestedSampler5) = rand(Random.default_rng(), ns)
-function Base.rand(rng::AbstractRNG, ns::NestedSampler5)
+@inline function Base.rand(rng::AbstractRNG, ns::NestedSampler5)
     lastfull = length(ns.sampled_levels)
     ns.reset_distribution[] && set_cum_weights!(ns.distribution_over_levels, ns)
     ns.reset_distribution[] = false
-    level = rand(rng, ns.distribution_over_levels, lastfull)
-    rand(rng, ns.sampled_levels[level])
+    level = @inline rand(rng, ns.distribution_over_levels, lastfull)
+    @inline rand(rng, ns.sampled_levels[level])
 end
 
-function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
+@inline function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
     ns.reset_distribution[] = true
     ns.nvalues[] += 1
     i <= 0 && throw(ArgumentError("Elements must be positive"))
@@ -437,7 +437,7 @@ function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
     ns
 end
 
-function Base.delete!(ns::NestedSampler5, i::Int)
+@inline function Base.delete!(ns::NestedSampler5, i::Int)
     ns.reset_distribution[] = true
     ns.nvalues[] -= 1
     if i <= 0 || i > lastindex(ns.entry_info)
