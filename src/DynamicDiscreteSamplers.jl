@@ -313,7 +313,7 @@ struct NestedSampler5{N}
     sampled_levels::Vector{RejectionSampler3} # The top up to 64 levels TODO: consider making an MVector or SVector
 
     # Not used in sampling
-    sampled_level_weights::MVector{N, Double64} # The weights of the top up to N levels
+    sampled_level_weights::MVector{N, Float64} # The weights of the top up to N levels
     sampled_level_numbers::MVector{N, Int} # The level numbers of the top up to N levels TODO: consider merging with sampled_levels_weights or reducing elsize
     all_levels::Vector{Tuple{Double64, RejectionSampler3}} # All the levels, in insertion order, along with their total weights
     level_set::LinkedListSet3 # A set of which levels are present (named by level number)
