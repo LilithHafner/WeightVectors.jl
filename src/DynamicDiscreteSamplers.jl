@@ -164,18 +164,24 @@ end
 
 struct SelectionSampler4{N}
     p::MVector{N, Float64}
+    o::MVector{N, Int} # TODO: consider reducing elsize
 end
 function Base.rand(rng::AbstractRNG, ss::SelectionSampler4, lastfull::Int)
     u = rand(rng)*ss.p[lastfull]
     @inbounds for i in 1:lastfull
-        ss.p[i] > u && return i
+        ss.p[i] > u && return ss.o[i]
     end
     return lastfull
 end
-function set_weights!(ss::SelectionSampler4, p, lastfull)
-    ss.p[1] = p[1]
+function set_weights!(ss::SelectionSampler4, ns)
+    p, lastfull, reorder = ns.sampled_level_weights, length(ns.sampled_levels), ns.reset_order[]
+    if reorder > 50*lastfull
+        sortperm!(ss.o, p; rev=true)
+        ns.reset_order[] = 0
+    end
+    ss.p[1] = p[ss.o[1]]
     @inbounds for i in 2:lastfull
-        ss.p[i] = ss.p[i-1] + p[i]
+        ss.p[i] = ss.p[i-1] + p[ss.o[i]]
     end
     ss
 end
@@ -312,12 +318,13 @@ struct NestedSampler5{N}
     least_significant_sampled_level::Base.RefValue{Int} # The level number of the least significant tracked level
     entry_info::Vector{Tuple{Int, Int}} # A mapping from element to level number and index in that level (index in level is 0 if entry is not present)
     reset_distribution::Base.RefValue{Bool}
+    reset_order::Base.RefValue{Int}
     nvalues::Base.RefValue{Int}
 end
 
 NestedSampler5() = NestedSampler5{64}()
 NestedSampler5{N}() where N = NestedSampler5{N}(
-    SelectionSampler4(zero(MVector{N, Float64})),
+    SelectionSampler4(zero(MVector{N, Float64}), MVector{N, Int}(1:N)),
     Tuple{Float64, RejectionSampler3}[],
     zero(MVector{N, Float64}),
     zero(MVector{N, Int}),
@@ -327,6 +334,7 @@ NestedSampler5{N}() where N = NestedSampler5{N}(
     Ref(-1075),
     Tuple{Int, Int}[],
     Ref(true),
+    Ref(0),
     Ref(0)
 )
 
@@ -351,7 +359,7 @@ end
 Base.rand(ns::NestedSampler5) = rand(Random.default_rng(), ns)
 function Base.rand(rng::AbstractRNG, ns::NestedSampler5)
     lastfull = length(ns.sampled_levels)
-    ns.reset_distribution[] && set_weights!(ns.distribution_over_levels, ns.sampled_level_weights, lastfull)
+    ns.reset_distribution[] && set_weights!(ns.distribution_over_levels, ns)
     ns.reset_distribution[] = false
     level = rand(rng, ns.distribution_over_levels, lastfull)
     rand(rng, ns.sampled_levels[level])
@@ -360,6 +368,7 @@ end
 function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
     ns.reset_distribution[] = true
     ns.nvalues[] += 1
+    ns.reset_order[] += 1
     i <= 0 && throw(ArgumentError("Elements must be positive"))
     if i > lastindex(ns.entry_info)
         append!(ns.entry_info, Iterators.repeated((0, 0), i - lastindex(ns.entry_info)))
@@ -367,6 +376,7 @@ function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
         throw(ArgumentError("Element $i is already present"))
     end
     level = exponent(x)
+    bucketw = significand(x)/2
     if level ∉ ns.level_set
         # Log the entry
         ns.entry_info[i] = (level, 1)
@@ -375,14 +385,14 @@ function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
         push!(ns.level_set, level)
         existing_level_indices = get(ns.level_set_map, level, (0, 0))
         all_levels_index = if existing_level_indices == (0, 0)
-            level_sampler = RejectionSampler3(i, significand(x)/2)
+            level_sampler = RejectionSampler3(i, bucketw)
             push!(ns.all_levels, (x, level_sampler))
             length(ns.all_levels)
         else
             w, level_sampler = ns.all_levels[existing_level_indices[1]]
             @assert w == 0
             @assert isempty(level_sampler)
-            push!(level_sampler, i, significand(x)/2)
+            push!(level_sampler, i, bucketw)
             ns.all_levels[existing_level_indices[1]] = (x, level_sampler)
             existing_level_indices[1]
         end
@@ -413,7 +423,7 @@ function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
     else # Add to an existing level
         j, k = ns.level_set_map[level]
         w, level_sampler = ns.all_levels[j]
-        push!(level_sampler, i, significand(x)/2)
+        push!(level_sampler, i, bucketw)
         ns.entry_info[i] = (level, length(level_sampler))
         ns.all_levels[j] = (w+x, level_sampler) # TODO: eliminate rounding error here.
 
@@ -427,6 +437,7 @@ end
 function Base.delete!(ns::NestedSampler5, i::Int)
     ns.reset_distribution[] = true
     ns.nvalues[] -= 1
+    ns.reset_order[] += 1
     if i <= 0 || i > lastindex(ns.entry_info)
         throw(ArgumentError("Element $i is not present"))
     end
@@ -496,7 +507,7 @@ struct SamplerIndices{I}
     iter::I
 end
 function SamplerIndices(ns::NestedSampler5)
-    iter =  Iterators.Filter(x -> x != 0, Iterators.Flatten((Iterators.map(x -> x[1], b[2].data) for b in ns.all_levels)))
+    iter = Iterators.Filter(x -> x != 0, Iterators.Flatten((Iterators.map(x -> x[1], b[2].data) for b in ns.all_levels)))
     SamplerIndices(ns, iter)
 end
 Base.iterate(inds::SamplerIndices) = Base.iterate(inds.iter)
