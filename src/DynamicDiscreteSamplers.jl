@@ -164,12 +164,12 @@ end
 
 struct SelectionSampler4{N}
     p::MVector{N, Float64}
-    o::MVector{N, Int} # TODO: consider reducing elsize
+    o::MVector{N, Int16}
 end
 function Base.rand(rng::AbstractRNG, ss::SelectionSampler4, lastfull::Int)
     u = rand(rng)*ss.p[lastfull]
     @inbounds for i in 1:lastfull
-        ss.p[i] > u && return ss.o[i]
+        ss.p[i] > u && return Int(ss.o[i])
     end
     return lastfull
 end
@@ -179,9 +179,9 @@ function set_weights!(ss::SelectionSampler4, ns)
         sortperm!(ss.o, p; rev=true)
         ns.reset_order[] = 0
     end
-    ss.p[1] = p[ss.o[1]]
+    ss.p[1] = p[Int(ss.o[1])]
     @inbounds for i in 2:lastfull
-        ss.p[i] = ss.p[i-1] + p[ss.o[i]]
+        ss.p[i] = ss.p[i-1] + p[Int(ss.o[i])]
     end
     ss
 end
@@ -324,7 +324,7 @@ end
 
 NestedSampler5() = NestedSampler5{64}()
 NestedSampler5{N}() where N = NestedSampler5{N}(
-    SelectionSampler4(zero(MVector{N, Float64}), MVector{N, Int}(1:N)),
+    SelectionSampler4(zero(MVector{N, Float64}), MVector{N, Int16}(1:N)),
     Tuple{Float64, RejectionSampler3}[],
     zero(MVector{N, Float64}),
     zero(MVector{N, Int}),
