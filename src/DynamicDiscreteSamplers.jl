@@ -10,7 +10,7 @@ julia> @b AliasTable(rand(6)) rand
 6.329 ns
 =#
 
-using Dictionaries, Distributions, Random, StaticArrays
+using Dictionaries, Distributions, DoubleFloats, Random, StaticArrays
 
 get_weights(p::NTuple{8, Float64}) = p .* typemax(UInt) ./ maximum(p)
 get_weights(p::NTuple{8, Any}) = get_weights(Float64.(p))
@@ -163,7 +163,7 @@ end
 # 86.549 ns
 
 struct SelectionSampler4{N}
-    p::MVector{N, Float64}
+    p::MVector{N, Double64}
 end
 function Base.rand(rng::AbstractRNG, ss::SelectionSampler4, lastfull::Int)
     u = rand(rng)*ss.p[lastfull]
@@ -313,9 +313,9 @@ struct NestedSampler5{N}
     sampled_levels::Vector{RejectionSampler3} # The top up to 64 levels TODO: consider making an MVector or SVector
 
     # Not used in sampling
-    sampled_level_weights::MVector{N, Float64} # The weights of the top up to N levels
+    sampled_level_weights::MVector{N, Double64} # The weights of the top up to N levels
     sampled_level_numbers::MVector{N, Int} # The level numbers of the top up to N levels TODO: consider merging with sampled_levels_weights or reducing elsize
-    all_levels::Vector{Tuple{Float64, RejectionSampler3}} # All the levels, in insertion order, along with their total weights
+    all_levels::Vector{Tuple{Double64, RejectionSampler3}} # All the levels, in insertion order, along with their total weights
     level_set::LinkedListSet3 # A set of which levels are present (named by level number)
     level_set_map::Dictionary{Int, Tuple{Int, Int}} # A mapping from level number to index in all_levels and index in sampled_levels (or 0 if not in sampled_levels)
     least_significant_sampled_level::Base.RefValue{Int} # The level number of the least significant tracked level
@@ -326,9 +326,9 @@ end
 
 NestedSampler5() = NestedSampler5{64}()
 NestedSampler5{N}() where N = NestedSampler5{N}(
-    SelectionSampler4(zero(MVector{N, Float64})),
-    Tuple{Float64, RejectionSampler3}[],
-    zero(MVector{N, Float64}),
+    SelectionSampler4(zero(MVector{N, Double64})),
+    Tuple{Double64, RejectionSampler3}[],
+    zero(MVector{N, Double64}),
     zero(MVector{N, Int}),
     RejectionSampler3[],
     LinkedListSet3(),
