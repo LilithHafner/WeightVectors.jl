@@ -180,9 +180,11 @@ function set_cum_weights!(ss::SelectionSampler4, ns)
         ns.reset_order[] = 0
     end
     slevels = ns.sampled_level_numbers
-    ss.p[1] = p[1]*prec_2pow[slevels[1]+1075]
+    j = ss.o[1]
+    ss.p[1] = p[j]*prec_2pow[slevels[j]+1075]
     @inbounds for i in 2:lastfull
-        ss.p[i] = ss.p[i-1] + p[i]*prec_2pow[slevels[i]+1075]
+        j = ss.o[i]
+        ss.p[i] = ss.p[i-1] + p[j]*prec_2pow[slevels[j]+1075]
     end
     ss
 end
