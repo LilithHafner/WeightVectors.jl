@@ -369,7 +369,7 @@ end
 Base.rand(ns::NestedSampler5) = rand(Random.default_rng(), ns)
 @inline function Base.rand(rng::AbstractRNG, ns::NestedSampler5)
     lastfull = length(ns.sampled_levels)
-    (ns.reset_distribution[] || ns.reset_order[] > 500*lastfull) && && set_cum_weights!(ns.distribution_over_levels, ns)
+    (ns.reset_distribution[] || ns.reset_order[] > 500*lastfull) && set_cum_weights!(ns.distribution_over_levels, ns)
     ns.reset_distribution[] = false
     level = @inline rand(rng, ns.distribution_over_levels, lastfull)
     @inline rand(rng, ns.sampled_levels[level])
