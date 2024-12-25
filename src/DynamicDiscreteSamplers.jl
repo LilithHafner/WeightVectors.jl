@@ -171,7 +171,7 @@ function Base.rand(rng::AbstractRNG, ss::SelectionSampler4, lastfull::Int)
     @inbounds for i in 1:lastfull
         ss.p[i] > u && return Int(ss.o[i])
     end
-    return lastfull
+    return ss.o[lastfull]
 end
 function set_cum_weights!(ss::SelectionSampler4, ns)
     p, lastfull, reorder = ns.sampled_level_weights, length(ns.sampled_levels), ns.reset_order[]
