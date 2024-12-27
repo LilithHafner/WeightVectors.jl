@@ -482,16 +482,11 @@ end
                 else
                     ns.sampled_level_numbers[k], ns.sampled_level_numbers[sl_length] = ns.sampled_level_numbers[sl_length], ns.sampled_level_numbers[k]
                     ns.sampled_levels[k], ns.sampled_levels[sl_length] = ns.sampled_levels[sl_length], ns.sampled_levels[k]
-
-                    #ns.sampled_levels[k] = pop!(ns.sampled_levels)
-
-
                     ns.sampled_level_weights[k] = ns.sampled_level_weights[sl_length]
                     ns.sampled_level_weights[sl_length] = 0.0
                     all_index, _length_sampled_levels_plus_one = ns.level_set_map[ns.sampled_level_numbers[k]]
                     @assert _length_sampled_levels_plus_one == ns.lastfull[]+1
                     ns.level_set_map[ns.sampled_level_numbers[k]] = (all_index, k)
-
                     all_index, _length_sampled_levels_plus_one = ns.level_set_map[ns.sampled_level_numbers[sl_length]]
                     ns.level_set_map[ns.sampled_level_numbers[sl_length]] = (all_index, sl_length)
                 end
