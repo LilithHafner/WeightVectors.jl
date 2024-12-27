@@ -310,7 +310,7 @@ end
 struct NestedSampler5{N}
     # Used in sampling
     distribution_over_levels::SelectionSampler4{N} # A distribution over 1:N
-    sampled_levels::SizedVector{64, RejectionSampler3} # The top up to 64 levels
+    sampled_levels::SizedVector{N, RejectionSampler3} # The top up to 64 levels
 
     # Not used in sampling
     sampled_level_weights::MVector{N, Float64} # The weights of the top up to N levels
@@ -328,7 +328,7 @@ end
 NestedSampler5() = NestedSampler5{64}()
 NestedSampler5{N}() where N = NestedSampler5{N}(
     SelectionSampler4(zero(MVector{N, Float64})),
-    SizedVector{64, RejectionSampler3}(undef),
+    SizedVector{N, RejectionSampler3}(undef),
     zero(MVector{N, Float64}),
     zero(MVector{N, Int}),
     Tuple{Double64, RejectionSampler3}[],
