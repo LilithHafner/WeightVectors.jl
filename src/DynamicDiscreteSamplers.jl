@@ -310,14 +310,14 @@ end
 struct NestedSampler5{N}
     # Used in sampling
     distribution_over_levels::SelectionSampler4{N} # A distribution over 1:N
-    sampled_levels::MVector{N, Int} # The top up to 64 levels indices
+    sampled_levels::MVector{N, Int16} # The top up to 64 levels indices
     all_levels::Vector{Tuple{Double64, RejectionSampler3}} # All the levels, in insertion order, along with their total weights
 
     # Not used in sampling
     sampled_level_weights::MVector{N, Float64} # The weights of the top up to N levels
-    sampled_level_numbers::MVector{N, Int} # The level numbers of the top up to N levels TODO: consider merging with sampled_levels_weights or reducing elsize
+    sampled_level_numbers::MVector{N, Int16} # The level numbers of the top up to N levels TODO: consider merging with sampled_levels_weights
     level_set::LinkedListSet3 # A set of which levels are present (named by level number)
-    level_set_map::Dictionary{Int, Tuple{Int, Int}} # A mapping from level number to index in all_levels and index in sampled_levels (or 0 if not in sampled_levels)
+    level_set_map::Dictionary{Int16, Tuple{Int, Int}} # A mapping from level number to index in all_levels and index in sampled_levels (or 0 if not in sampled_levels)
     entry_info::Vector{Tuple{Int16, Int}} # A mapping from element to level number and index in that level (index in level is 0 if entry is not present)
     least_significant_sampled_level::Base.RefValue{Int} # The level number of the least significant tracked level
     reset_distribution::Base.RefValue{Bool}
@@ -328,13 +328,13 @@ end
 NestedSampler5() = NestedSampler5{64}()
 NestedSampler5{N}() where N = NestedSampler5{N}(
     SelectionSampler4(zero(MVector{N, Float64})),
-    zero(MVector{N, Int}),
+    zero(MVector{N, Int16}),
     Tuple{Double64, RejectionSampler3}[],
     zero(MVector{N, Float64}),
-    zero(MVector{N, Int}),
+    zero(MVector{N, Int16}),
     LinkedListSet3(),
-    Dictionary{Int, Tuple{Int, Int}}(sizehint=16),
-    Tuple{Int, Int}[],
+    Dictionary{Int16, Tuple{Int, Int}}(sizehint=16),
+    Tuple{Int16, Int}[],
     Ref(-1075),
     Ref(true),
     Ref(0),
@@ -352,7 +352,7 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
     inds = Vector{Int}(undef, n)
     q = 1
     @inbounds for (level, k) in enumerate(n_each)
-        bucket = ns.all_levels[ns.sampled_levels[level]][2]
+        bucket = ns.all_levels[Int(ns.sampled_levels[level])][2]
         for _ in 1:k
             inds[q] = rand(rng, bucket)
             q += 1
@@ -367,7 +367,7 @@ Base.rand(ns::NestedSampler5) = rand(Random.default_rng(), ns)
     ns.reset_distribution[] && set_cum_weights!(ns.distribution_over_levels, ns)
     ns.reset_distribution[] = false
     level = @inline rand(rng, ns.distribution_over_levels, lastfull)
-    @inline rand(rng, ns.all_levels[ns.sampled_levels[level]][2])
+    @inline rand(rng, ns.all_levels[Int(ns.sampled_levels[level])][2])
 end
 
 @inline function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
@@ -380,14 +380,15 @@ end
         throw(ArgumentError("Element $i is already present"))
     end
     level = exponent(x)
+    level_b16 = Int16(level)
     bucketw = significand(x)/2
     if level ∉ ns.level_set
         # Log the entry
-        ns.entry_info[i] = (Int16(level), 1)
+        ns.entry_info[i] = (level_b16, 1)
 
         # Create a new level (or revive an empty level)
         push!(ns.level_set, level)
-        existing_level_indices = get(ns.level_set_map, level, (0, 0))
+        existing_level_indices = get(ns.level_set_map, level_b16, (0, 0))
         all_levels_index = if existing_level_indices == (0, 0)
             level_sampler = RejectionSampler3(i, bucketw)
             push!(ns.all_levels, (Double64(bucketw), level_sampler))
@@ -406,30 +407,30 @@ end
             if ns.lastfull[] < N # Add the new level to the top 64
                 ns.lastfull[] += 1
                 sl_length = ns.lastfull[]
-                ns.sampled_levels[sl_length] = all_levels_index
+                ns.sampled_levels[sl_length] = Int16(all_levels_index)
                 ns.sampled_level_weights[sl_length] = bucketw
-                ns.sampled_level_numbers[sl_length] = level
-                set!(ns.level_set_map, level, (all_levels_index, sl_length))
+                ns.sampled_level_numbers[sl_length] = level_b16
+                set!(ns.level_set_map, level_b16, (all_levels_index, sl_length))
                 if sl_length == N
                     ns.least_significant_sampled_level[] = findnext(ns.level_set, ns.least_significant_sampled_level[]+1)
                 end
             else # Replace the least significant sampled level with the new level
-                k, j = ns.level_set_map[ns.least_significant_sampled_level[]]
-                ns.level_set_map[ns.least_significant_sampled_level[]] = (k, 0)
-                ns.sampled_levels[j] = all_levels_index
+                k, j = ns.level_set_map[Int16(ns.least_significant_sampled_level[])]
+                ns.level_set_map[Int16(ns.least_significant_sampled_level[])] = (k, 0)
+                ns.sampled_levels[j] = Int16(all_levels_index)
                 ns.sampled_level_weights[j] = bucketw
-                ns.sampled_level_numbers[j] = level
-                set!(ns.level_set_map, level, (all_levels_index, j))
+                ns.sampled_level_numbers[j] = level_b16
+                set!(ns.level_set_map, level_b16, (all_levels_index, j))
                 ns.least_significant_sampled_level[] = findnext(ns.level_set, ns.least_significant_sampled_level[]+1)
             end
         else # created an unsampled level
-            set!(ns.level_set_map, level, (all_levels_index, 0))
+            set!(ns.level_set_map, level_b16, (all_levels_index, 0))
         end
     else # Add to an existing level
-        j, k = ns.level_set_map[level]
+        j, k = ns.level_set_map[level_b16]
         w, level_sampler = ns.all_levels[j]
         push!(level_sampler, i, bucketw)
-        ns.entry_info[i] = (Int16(level), length(level_sampler))
+        ns.entry_info[i] = (level_b16, length(level_sampler))
         wn = w+Double64(bucketw)
         ns.all_levels[j] = (wn, level_sampler)
 
@@ -470,13 +471,13 @@ end
         ns.all_levels[l] = (Double64(0), level_sampler) # Fixup for rounding error
         if k != 0 # Remove a sampled level
             replacement = findprev(ns.level_set, ns.least_significant_sampled_level[]-1)
-            ns.level_set_map[level] = (l, 0)
+            ns.level_set_map[Int16(level)] = (l, 0)
             if replacement === nothing # We'll now have fewer than N sampled levels
                 ns.least_significant_sampled_level[] = -1075
                 sl_length = ns.lastfull[]
                 ns.lastfull[] -= 1
                 moved_level = ns.sampled_level_numbers[sl_length]
-                if moved_level == level
+                if moved_level == Int16(level)
                     ns.sampled_level_weights[sl_length] = 0.0
                 else
                     ns.sampled_level_numbers[k], ns.sampled_level_numbers[sl_length] = ns.sampled_level_numbers[sl_length], ns.sampled_level_numbers[k]
@@ -493,9 +494,9 @@ end
                 ns.least_significant_sampled_level[] = replacement
                 all_index, _zero = ns.level_set_map[replacement]
                 @assert _zero == 0
-                ns.level_set_map[replacement] = (all_index, k)
+                ns.level_set_map[Int16(replacement)] = (all_index, k)
                 w, replacement_level = ns.all_levels[all_index]
-                ns.sampled_levels[k] = all_index
+                ns.sampled_levels[k] = Int16(all_index)
                 ns.sampled_level_weights[k] = Float64(w)
                 ns.sampled_level_numbers[k] = replacement
             end
