@@ -476,9 +476,7 @@ end
                 ns.lastfull[] -= 1
                 moved_level = ns.sampled_level_numbers[sl_length]
                 if moved_level == level
-                    #pop!(ns.sampled_levels)
                     ns.sampled_level_weights[sl_length] = 0.0
-                    # sampled_level_numbers can have unclean trailing values
                 else
                     ns.sampled_level_numbers[k], ns.sampled_level_numbers[sl_length] = ns.sampled_level_numbers[sl_length], ns.sampled_level_numbers[k]
                     ns.sampled_levels[k], ns.sampled_levels[sl_length] = ns.sampled_levels[sl_length], ns.sampled_levels[k]
