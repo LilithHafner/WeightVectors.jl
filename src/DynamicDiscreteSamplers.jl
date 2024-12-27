@@ -310,15 +310,15 @@ end
 struct NestedSampler5{N}
     # Used in sampling
     distribution_over_levels::SelectionSampler4{N} # A distribution over 1:N
-    sampled_levels::MVector{N, Int} # The top up to 64 levels
+    sampled_levels::MVector{N, Int} # The top up to 64 levels indices
+    all_levels::Vector{Tuple{Double64, RejectionSampler3}} # All the levels, in insertion order, along with their total weights
 
     # Not used in sampling
     sampled_level_weights::MVector{N, Float64} # The weights of the top up to N levels
     sampled_level_numbers::MVector{N, Int} # The level numbers of the top up to N levels TODO: consider merging with sampled_levels_weights or reducing elsize
-    all_levels::Vector{Tuple{Double64, RejectionSampler3}} # All the levels, in insertion order, along with their total weights
     level_set::LinkedListSet3 # A set of which levels are present (named by level number)
     level_set_map::Dictionary{Int, Tuple{Int, Int}} # A mapping from level number to index in all_levels and index in sampled_levels (or 0 if not in sampled_levels)
-    entry_info::Vector{Tuple{Int, Int}} # A mapping from element to level number and index in that level (index in level is 0 if entry is not present)
+    entry_info::Vector{Tuple{Int16, Int}} # A mapping from element to level number and index in that level (index in level is 0 if entry is not present)
     least_significant_sampled_level::Base.RefValue{Int} # The level number of the least significant tracked level
     reset_distribution::Base.RefValue{Bool}
     nvalues::Base.RefValue{Int}
@@ -329,9 +329,9 @@ NestedSampler5() = NestedSampler5{64}()
 NestedSampler5{N}() where N = NestedSampler5{N}(
     SelectionSampler4(zero(MVector{N, Float64})),
     zero(MVector{N, Int}),
+    Tuple{Double64, RejectionSampler3}[],
     zero(MVector{N, Float64}),
     zero(MVector{N, Int}),
-    Tuple{Double64, RejectionSampler3}[],
     LinkedListSet3(),
     Dictionary{Int, Tuple{Int, Int}}(sizehint=16),
     Tuple{Int, Int}[],
@@ -375,15 +375,15 @@ end
     ns.nvalues[] += 1
     i <= 0 && throw(ArgumentError("Elements must be positive"))
     if i > lastindex(ns.entry_info)
-        append!(ns.entry_info, Iterators.repeated((0, 0), i - lastindex(ns.entry_info)))
-    elseif ns.entry_info[i] != (0, 0)
+        append!(ns.entry_info, Iterators.repeated((Int16(0), 0), i - lastindex(ns.entry_info)))
+    elseif ns.entry_info[i] != (Int16(0), 0)
         throw(ArgumentError("Element $i is already present"))
     end
     level = exponent(x)
     bucketw = significand(x)/2
     if level ∉ ns.level_set
         # Log the entry
-        ns.entry_info[i] = (level, 1)
+        ns.entry_info[i] = (Int16(level), 1)
 
         # Create a new level (or revive an empty level)
         push!(ns.level_set, level)
@@ -429,7 +429,7 @@ end
         j, k = ns.level_set_map[level]
         w, level_sampler = ns.all_levels[j]
         push!(level_sampler, i, bucketw)
-        ns.entry_info[i] = (level, length(level_sampler))
+        ns.entry_info[i] = (Int16(level), length(level_sampler))
         wn = w+Double64(bucketw)
         ns.all_levels[j] = (wn, level_sampler)
 
@@ -446,9 +446,10 @@ end
     if i <= 0 || i > lastindex(ns.entry_info)
         throw(ArgumentError("Element $i is not present"))
     end
-    level, j = ns.entry_info[i]
+    info = ns.entry_info[i]
+    level, j = Int(info[1]), info[2]
     j == 0 && throw(ArgumentError("Element $i is not present"))
-    ns.entry_info[i] = (0, 0)
+    ns.entry_info[i] = (Int16(0), 0)
 
     l, k = ns.level_set_map[level]
     w, level_sampler = ns.all_levels[l]
@@ -458,8 +459,8 @@ end
     level_sampler.data[level_sampler.length[]] = (0, UInt64(0))
     level_sampler.length[] -= 1
     if moved_entry != i
-        @assert ns.entry_info[moved_entry] == (level, length(level_sampler)+1)
-        ns.entry_info[moved_entry] = (level, j)
+        @assert ns.entry_info[moved_entry] == (Int16(level), length(level_sampler)+1)
+        ns.entry_info[moved_entry] = (Int16(level), j)
     end
     wn = w-Double64(significand)
     ns.all_levels[l] = (wn, level_sampler)
