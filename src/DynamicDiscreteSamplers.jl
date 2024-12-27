@@ -182,7 +182,7 @@ function set_cum_weights!(ss::SelectionSampler4, ns)
     ss
 end
 function set_level_weights!(ss::SelectionSampler4, ns)
-    p, lastfull = ns.sampled_level_weights, length(ns.sampled_levels)
+    p, lastfull = ns.sampled_level_weights, ns.lastfull[]
     slevels = ns.sampled_level_numbers
     @inbounds for i in 1:lastfull
         ss.p[i] = p[i]*prec_2pow[slevels[i]+1075]
@@ -310,7 +310,7 @@ end
 struct NestedSampler5{N}
     # Used in sampling
     distribution_over_levels::SelectionSampler4{N} # A distribution over 1:N
-    sampled_levels::SizedVector{N, RejectionSampler3} # The top up to 64 levels
+    sampled_levels::MVector{N, Int} # The top up to 64 levels
 
     # Not used in sampling
     sampled_level_weights::MVector{N, Float64} # The weights of the top up to N levels
@@ -328,7 +328,7 @@ end
 NestedSampler5() = NestedSampler5{64}()
 NestedSampler5{N}() where N = NestedSampler5{N}(
     SelectionSampler4(zero(MVector{N, Float64})),
-    SizedVector{N, RejectionSampler3}(undef),
+    zero(MVector{N, Int}),
     zero(MVector{N, Float64}),
     zero(MVector{N, Int}),
     Tuple{Double64, RejectionSampler3}[],
@@ -352,7 +352,7 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
     inds = Vector{Int}(undef, n)
     q = 1
     @inbounds for (level, k) in enumerate(n_each)
-        bucket = ns.sampled_levels[level]
+        bucket = ns.all_levels[ns.sampled_levels[level]][2]
         for _ in 1:k
             inds[q] = rand(rng, bucket)
             q += 1
@@ -367,7 +367,7 @@ Base.rand(ns::NestedSampler5) = rand(Random.default_rng(), ns)
     ns.reset_distribution[] && set_cum_weights!(ns.distribution_over_levels, ns)
     ns.reset_distribution[] = false
     level = @inline rand(rng, ns.distribution_over_levels, lastfull)
-    @inline rand(rng, ns.sampled_levels[level])
+    @inline rand(rng, ns.all_levels[ns.sampled_levels[level]][2])
 end
 
 @inline function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
@@ -406,7 +406,7 @@ end
             if ns.lastfull[] < N # Add the new level to the top 64
                 ns.lastfull[] += 1
                 sl_length = ns.lastfull[]
-                ns.sampled_levels[sl_length] = level_sampler
+                ns.sampled_levels[sl_length] = all_levels_index
                 ns.sampled_level_weights[sl_length] = bucketw
                 ns.sampled_level_numbers[sl_length] = level
                 set!(ns.level_set_map, level, (all_levels_index, sl_length))
@@ -416,7 +416,7 @@ end
             else # Replace the least significant sampled level with the new level
                 k, j = ns.level_set_map[ns.least_significant_sampled_level[]]
                 ns.level_set_map[ns.least_significant_sampled_level[]] = (k, 0)
-                ns.sampled_levels[j] = level_sampler
+                ns.sampled_levels[j] = all_levels_index
                 ns.sampled_level_weights[j] = bucketw
                 ns.sampled_level_numbers[j] = level
                 set!(ns.level_set_map, level, (all_levels_index, j))
@@ -494,7 +494,7 @@ end
                 @assert _zero == 0
                 ns.level_set_map[replacement] = (all_index, k)
                 w, replacement_level = ns.all_levels[all_index]
-                ns.sampled_levels[k] = replacement_level
+                ns.sampled_levels[k] = all_index
                 ns.sampled_level_weights[k] = Float64(w)
                 ns.sampled_level_numbers[k] = replacement
             end
