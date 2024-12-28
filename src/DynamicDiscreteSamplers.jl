@@ -326,7 +326,7 @@ end
 
 struct EntryInfo
     presence::BitVector
-    indices::Vector{Tuple{Int16, Int}}
+    indices::Vector{Tuple{Int, Int}}
     function EntryInfo()
         presence = BitVector()
         indices = Tuple{Int, Int}[]
