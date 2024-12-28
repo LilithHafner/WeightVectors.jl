@@ -198,18 +198,20 @@ struct RejectionSampler3
     RejectionSampler3(i, v) = new(Ref(1), [(i, v)], Ref(v))
 end
 function Random.rand(rng::AbstractRNG, rs::RejectionSampler3)
-    mask = UInt64(1) << Base.top_set_bit(rs.length[] - 1) - 1 # assumes length(data) is the power of two next after (or including) rs.length[]
+    len = rs.length[]
+    mask = UInt64(1) << Base.top_set_bit(len - 1) - 1 # assumes length(data) is the power of two next after (or including) rs.length[]
     maxw = rs.maxw[]
     while true
         u = rand(rng, UInt)
         i = u & mask + 1
+        i > len && continue
         res, x = rs.data[i]
-        rand(rng) < x/maxw && return res # TODO: consider reusing random bits from u; a previous test revealed no perf improvement from doing this
+        rand(rng) * maxw < x && return res # TODO: consider reusing random bits from u; a previous test revealed no perf improvement from doing this
     end
 end
 function Base.push!(rs::RejectionSampler3, i, x)
     len = rs.length[] += 1
-    len > length(rs.data) && append!(rs.data, Iterators.repeated((0, UInt64(0)), len-1))
+    len > length(rs.data) && resize!(rs.data, length(rs.data)+len-1)
     rs.data[len] = (i, x)
     maxwn = rs.maxw[]
     rs.maxw[] = x > maxwn ? x : maxwn
@@ -401,7 +403,7 @@ end
         resize!(ns.entry_info.indices, i)
         resize!(ns.entry_info.presence, i)
         fill!(@view(ns.entry_info.presence[l_info+1:i]), false)
-    elseif ns.entry_info.presence[i] != false
+    elseif ns.entry_info.presence[i] !== false
         throw(ArgumentError("Element $i is already present"))
     end
     level = exponent(x)
@@ -415,7 +417,7 @@ end
         # Create a new level (or revive an empty level)
         push!(ns.level_set, level)
         existing_level_indices = ns.level_set_map.presence[level+1075]
-        all_levels_index = if existing_level_indices == false
+        all_levels_index = if existing_level_indices === false
             level_sampler = RejectionSampler3(i, bucketw)
             push!(ns.all_levels, (Double64(bucketw), level_sampler))
             length(ns.all_levels)
@@ -477,7 +479,7 @@ end
     end
     info = ns.entry_info.indices[i]
     level, j = Int(info[1]), info[2]
-    ns.entry_info.presence[i] == false && throw(ArgumentError("Element $i is not present"))
+    ns.entry_info.presence[i] === false && throw(ArgumentError("Element $i is not present"))
     ns.entry_info.presence[i] = false
     ns.entry_info.indices[i] = (Int16(0), 0)
 
@@ -486,7 +488,7 @@ end
     _i, significand = level_sampler.data[j]
     @assert _i == i
     moved_entry, _ = level_sampler.data[j] = level_sampler.data[level_sampler.length[]]
-    level_sampler.data[level_sampler.length[]] = (0, UInt64(0))
+    level_sampler.data[level_sampler.length[]] = (0, 0.0)
     level_sampler.length[] -= 1
     if moved_entry != i
         @assert ns.entry_info.indices[moved_entry] == (Int16(level), length(level_sampler)+1)
