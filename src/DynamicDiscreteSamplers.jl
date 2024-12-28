@@ -303,10 +303,8 @@ distribution over the top N levels if possible
 
 if VERSION >= v"1.11.0"
     const prec_2pow = Memory{Float64}([2.0^i for i in -1073:1022])
-    const zeroed_level_set_map = Memory{Tuple{Int16, Int16}}([(0, 0) for i in -1074:1023])
 else
     const prec_2pow = [2.0^i for i in -1073:1022]
-    const zeroed_level_set_map = Tuple{Int16, Int16}[(0, 0) for i in -1074:1023]
 end
 
 struct LevelMap
@@ -315,8 +313,18 @@ struct LevelMap
     function LevelMap()
         presence = BitVector()
         resize!(presence, 2098)
-        fill!(presence, 0)
+        fill!(presence, false)
         indices = Vector{Tuple{Int, Int}}(undef, 2098)
+        return new(presence, indices)
+    end
+end
+
+struct EntryInfo
+    presence::BitVector
+    indices::Vector{Tuple{Int16, Int}}
+    function EntryInfo()
+        presence = BitVector()
+        indices = Tuple{Int16, Int}[]
         return new(presence, indices)
     end
 end
@@ -332,7 +340,7 @@ struct NestedSampler5{N}
     sampled_level_numbers::MVector{N, Int16} # The level numbers of the top up to N levels TODO: consider merging with sampled_levels_weights
     level_set::LinkedListSet3 # A set of which levels are present (named by level number)
     level_set_map::LevelMap # A mapping from level number to index in all_levels and index in sampled_levels (or 0 if not in sampled_levels)
-    entry_info::Vector{Tuple{Int16, Int}} # A mapping from element to level number and index in that level (index in level is 0 if entry is not present)
+    entry_info::EntryInfo # A mapping from element to level number and index in that level (index in level is 0 if entry is not present)
     least_significant_sampled_level::Base.RefValue{Int} # The level number of the least significant tracked level
     reset_distribution::Base.RefValue{Bool}
     nvalues::Base.RefValue{Int}
@@ -348,7 +356,7 @@ NestedSampler5{N}() where N = NestedSampler5{N}(
     zero(MVector{N, Int16}),
     LinkedListSet3(),
     LevelMap(),
-    Tuple{Int16, Int}[],
+    EntryInfo(),
     Ref(-1075),
     Ref(true),
     Ref(0),
@@ -388,22 +396,26 @@ end
     ns.reset_distribution[] = true
     ns.nvalues[] += 1
     i <= 0 && throw(ArgumentError("Elements must be positive"))
-    if i > lastindex(ns.entry_info)
-        append!(ns.entry_info, Iterators.repeated((Int16(0), 0), i - lastindex(ns.entry_info)))
-    elseif ns.entry_info[i] != (Int16(0), 0)
+    l_info = lastindex(ns.entry_info.indices)
+    if i > l_info
+        resize!(ns.entry_info.indices, i)
+        resize!(ns.entry_info.presence, i)
+        fill!(@view(ns.entry_info.presence[l_info+1:i]), false)
+    elseif ns.entry_info.presence[i] != false
         throw(ArgumentError("Element $i is already present"))
     end
     level = exponent(x)
     level_b16 = Int16(level)
     bucketw = significand(x)/2
+    ns.entry_info.presence[i] = true
     if level ∉ ns.level_set
         # Log the entry
-        ns.entry_info[i] = (level_b16, 1)
+        ns.entry_info.indices[i] = (level_b16, 1)
 
         # Create a new level (or revive an empty level)
         push!(ns.level_set, level)
         existing_level_indices = ns.level_set_map.presence[level+1075]
-        all_levels_index = if existing_level_indices == 0
+        all_levels_index = if existing_level_indices == false
             level_sampler = RejectionSampler3(i, bucketw)
             push!(ns.all_levels, (Double64(bucketw), level_sampler))
             length(ns.all_levels)
@@ -416,7 +428,7 @@ end
             ns.all_levels[level_indices[1]] = (Double64(bucketw), level_sampler)
             level_indices[1]
         end
-        ns.level_set_map.presence[level+1075] = 1
+        ns.level_set_map.presence[level+1075] = true
 
         # Update the sampled levels if needed
         if level > ns.least_significant_sampled_level[] # we just created a sampled level
@@ -446,7 +458,7 @@ end
         j, k = ns.level_set_map.indices[level+1075]
         w, level_sampler = ns.all_levels[j]
         push!(level_sampler, i, bucketw)
-        ns.entry_info[i] = (level_b16, length(level_sampler))
+        ns.entry_info.indices[i] = (level_b16, length(level_sampler))
         wn = w+Double64(bucketw)
         ns.all_levels[j] = (wn, level_sampler)
 
@@ -460,13 +472,14 @@ end
 @inline function Base.delete!(ns::NestedSampler5, i::Int)
     ns.reset_distribution[] = true
     ns.nvalues[] -= 1
-    if i <= 0 || i > lastindex(ns.entry_info)
+    if i <= 0 || i > lastindex(ns.entry_info.indices)
         throw(ArgumentError("Element $i is not present"))
     end
-    info = ns.entry_info[i]
+    info = ns.entry_info.indices[i]
     level, j = Int(info[1]), info[2]
-    j == 0 && throw(ArgumentError("Element $i is not present"))
-    ns.entry_info[i] = (Int16(0), 0)
+    ns.entry_info.presence[i] == false && throw(ArgumentError("Element $i is not present"))
+    ns.entry_info.presence[i] = false
+    ns.entry_info.indices[i] = (Int16(0), 0)
 
     l, k = ns.level_set_map.indices[level+1075]
     w, level_sampler = ns.all_levels[l]
@@ -476,8 +489,8 @@ end
     level_sampler.data[level_sampler.length[]] = (0, UInt64(0))
     level_sampler.length[] -= 1
     if moved_entry != i
-        @assert ns.entry_info[moved_entry] == (Int16(level), length(level_sampler)+1)
-        ns.entry_info[moved_entry] = (Int16(level), j)
+        @assert ns.entry_info.indices[moved_entry] == (Int16(level), length(level_sampler)+1)
+        ns.entry_info.indices[moved_entry] = (Int16(level), j)
     end
     wn = w-Double64(significand)
     ns.all_levels[l] = (wn, level_sampler)
