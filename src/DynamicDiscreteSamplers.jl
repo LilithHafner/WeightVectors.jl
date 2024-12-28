@@ -303,8 +303,22 @@ distribution over the top N levels if possible
 
 if VERSION >= v"1.11.0"
     const prec_2pow = Memory{Float64}([2.0^i for i in -1073:1022])
+    const zeroed_level_set_map = Memory{Tuple{Int16, Int16}}([(0, 0) for i in -1074:1023])
 else
     const prec_2pow = [2.0^i for i in -1073:1022]
+    const zeroed_level_set_map = Tuple{Int16, Int16}[(0, 0) for i in -1074:1023]
+end
+
+struct LevelMap
+    presence::BitVector
+    indices::Vector{Tuple{Int, Int}}
+    function LevelMap()
+        presence = BitVector()
+        resize!(presence, 2098)
+        fill!(presence, 0)
+        indices = Vector{Tuple{Int, Int}}(undef, 2098)
+        return new(presence, indices)
+    end
 end
 
 struct NestedSampler5{N}
@@ -317,7 +331,7 @@ struct NestedSampler5{N}
     sampled_level_weights::MVector{N, Float64} # The weights of the top up to N levels
     sampled_level_numbers::MVector{N, Int16} # The level numbers of the top up to N levels TODO: consider merging with sampled_levels_weights
     level_set::LinkedListSet3 # A set of which levels are present (named by level number)
-    level_set_map::Dictionary{Int16, Tuple{Int, Int}} # A mapping from level number to index in all_levels and index in sampled_levels (or 0 if not in sampled_levels)
+    level_set_map::LevelMap # A mapping from level number to index in all_levels and index in sampled_levels (or 0 if not in sampled_levels)
     entry_info::Vector{Tuple{Int16, Int}} # A mapping from element to level number and index in that level (index in level is 0 if entry is not present)
     least_significant_sampled_level::Base.RefValue{Int} # The level number of the least significant tracked level
     reset_distribution::Base.RefValue{Bool}
@@ -333,7 +347,7 @@ NestedSampler5{N}() where N = NestedSampler5{N}(
     zero(MVector{N, Float64}),
     zero(MVector{N, Int16}),
     LinkedListSet3(),
-    Dictionary{Int16, Tuple{Int, Int}}(sizehint=16),
+    LevelMap(),
     Tuple{Int16, Int}[],
     Ref(-1075),
     Ref(true),
@@ -388,19 +402,21 @@ end
 
         # Create a new level (or revive an empty level)
         push!(ns.level_set, level)
-        existing_level_indices = get(ns.level_set_map, level_b16, (0, 0))
-        all_levels_index = if existing_level_indices == (0, 0)
+        existing_level_indices = ns.level_set_map.presence[level+1075]
+        all_levels_index = if existing_level_indices == 0
             level_sampler = RejectionSampler3(i, bucketw)
             push!(ns.all_levels, (Double64(bucketw), level_sampler))
             length(ns.all_levels)
         else
-            w, level_sampler = ns.all_levels[existing_level_indices[1]]
+            level_indices = ns.level_set_map.indices[level+1075]
+            w, level_sampler = ns.all_levels[level_indices[1]]
             @assert w == 0
             @assert isempty(level_sampler)
             push!(level_sampler, i, bucketw)
-            ns.all_levels[existing_level_indices[1]] = (Double64(bucketw), level_sampler)
-            existing_level_indices[1]
+            ns.all_levels[level_indices[1]] = (Double64(bucketw), level_sampler)
+            level_indices[1]
         end
+        ns.level_set_map.presence[level+1075] = 1
 
         # Update the sampled levels if needed
         if level > ns.least_significant_sampled_level[] # we just created a sampled level
@@ -410,24 +426,24 @@ end
                 ns.sampled_levels[sl_length] = Int16(all_levels_index)
                 ns.sampled_level_weights[sl_length] = bucketw
                 ns.sampled_level_numbers[sl_length] = level_b16
-                set!(ns.level_set_map, level_b16, (all_levels_index, sl_length))
+                ns.level_set_map.indices[level+1075] = (all_levels_index, sl_length)
                 if sl_length == N
                     ns.least_significant_sampled_level[] = findnext(ns.level_set, ns.least_significant_sampled_level[]+1)
                 end
             else # Replace the least significant sampled level with the new level
-                k, j = ns.level_set_map[Int16(ns.least_significant_sampled_level[])]
-                ns.level_set_map[Int16(ns.least_significant_sampled_level[])] = (k, 0)
+                k, j = ns.level_set_map.indices[ns.least_significant_sampled_level[]+1075]
+                ns.level_set_map.indices[ns.least_significant_sampled_level[]+1075] = (k, 0)
                 ns.sampled_levels[j] = Int16(all_levels_index)
                 ns.sampled_level_weights[j] = bucketw
                 ns.sampled_level_numbers[j] = level_b16
-                set!(ns.level_set_map, level_b16, (all_levels_index, j))
+                ns.level_set_map.indices[level+1075] = (all_levels_index, j)
                 ns.least_significant_sampled_level[] = findnext(ns.level_set, ns.least_significant_sampled_level[]+1)
             end
         else # created an unsampled level
-            set!(ns.level_set_map, level_b16, (all_levels_index, 0))
+            ns.level_set_map.indices[level+1075] = (all_levels_index, 0)
         end
     else # Add to an existing level
-        j, k = ns.level_set_map[level_b16]
+        j, k = ns.level_set_map.indices[level+1075]
         w, level_sampler = ns.all_levels[j]
         push!(level_sampler, i, bucketw)
         ns.entry_info[i] = (level_b16, length(level_sampler))
@@ -452,7 +468,7 @@ end
     j == 0 && throw(ArgumentError("Element $i is not present"))
     ns.entry_info[i] = (Int16(0), 0)
 
-    l, k = ns.level_set_map[level]
+    l, k = ns.level_set_map.indices[level+1075]
     w, level_sampler = ns.all_levels[l]
     _i, significand = level_sampler.data[j]
     @assert _i == i
@@ -471,7 +487,7 @@ end
         ns.all_levels[l] = (Double64(0), level_sampler) # Fixup for rounding error
         if k != 0 # Remove a sampled level
             replacement = findprev(ns.level_set, ns.least_significant_sampled_level[]-1)
-            ns.level_set_map[Int16(level)] = (l, 0)
+            ns.level_set_map.indices[level+1075] = (l, 0)
             if replacement === nothing # We'll now have fewer than N sampled levels
                 ns.least_significant_sampled_level[] = -1075
                 sl_length = ns.lastfull[]
@@ -484,17 +500,17 @@ end
                     ns.sampled_levels[k], ns.sampled_levels[sl_length] = ns.sampled_levels[sl_length], ns.sampled_levels[k]
                     ns.sampled_level_weights[k] = ns.sampled_level_weights[sl_length]
                     ns.sampled_level_weights[sl_length] = 0.0
-                    all_index, _l = ns.level_set_map[ns.sampled_level_numbers[k]]
+                    all_index, _l = ns.level_set_map.indices[ns.sampled_level_numbers[k]+1075]
                     @assert _l == ns.lastfull[]+1
-                    ns.level_set_map[ns.sampled_level_numbers[k]] = (all_index, k)
-                    all_index, _ = ns.level_set_map[ns.sampled_level_numbers[sl_length]]
-                    ns.level_set_map[ns.sampled_level_numbers[sl_length]] = (all_index, sl_length)
+                    ns.level_set_map.indices[ns.sampled_level_numbers[k]+1075] = (all_index, k)
+                    all_index, _ = ns.level_set_map.indices[ns.sampled_level_numbers[sl_length]+1075]
+                    ns.level_set_map.indices[ns.sampled_level_numbers[sl_length]+1075] = (all_index, sl_length)
                 end
             else # Replace the removed level with the replacement
                 ns.least_significant_sampled_level[] = replacement
-                all_index, _zero = ns.level_set_map[replacement]
+                all_index, _zero = ns.level_set_map.indices[replacement+1075]
                 @assert _zero == 0
-                ns.level_set_map[Int16(replacement)] = (all_index, k)
+                ns.level_set_map.indices[replacement+1075] = (all_index, k)
                 w, replacement_level = ns.all_levels[all_index]
                 ns.sampled_levels[k] = Int16(all_index)
                 ns.sampled_level_weights[k] = Float64(w)
