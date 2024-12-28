@@ -329,7 +329,7 @@ struct EntryInfo
     indices::Vector{Tuple{Int16, Int}}
     function EntryInfo()
         presence = BitVector()
-        indices = Tuple{Int16, Int}[]
+        indices = Tuple{Int, Int}[]
         return new(presence, indices)
     end
 end
@@ -416,7 +416,7 @@ end
     ns.entry_info.presence[i] = true
     if level ∉ ns.level_set
         # Log the entry
-        ns.entry_info.indices[i] = (level_b16, 1)
+        ns.entry_info.indices[i] = (level, 1)
 
         # Create a new level (or revive an empty level)
         push!(ns.level_set, level)
@@ -464,7 +464,7 @@ end
         j, k = ns.level_set_map.indices[level+1075]
         w, level_sampler = ns.all_levels[j]
         push!(level_sampler, i, bucketw)
-        ns.entry_info.indices[i] = (level_b16, length(level_sampler))
+        ns.entry_info.indices[i] = (level, length(level_sampler))
         wn = w+Double64(bucketw)
         ns.all_levels[j] = (wn, level_sampler)
 
@@ -481,11 +481,10 @@ end
     if i <= 0 || i > lastindex(ns.entry_info.indices)
         throw(ArgumentError("Element $i is not present"))
     end
-    info = ns.entry_info.indices[i]
-    level, j = Int(info[1]), info[2]
+    level, j = ns.entry_info.indices[i]
     ns.entry_info.presence[i] === false && throw(ArgumentError("Element $i is not present"))
     ns.entry_info.presence[i] = false
-    ns.entry_info.indices[i] = (Int16(0), 0)
+    ns.entry_info.indices[i] = (0, 0)
 
     l, k = ns.level_set_map.indices[level+1075]
     w, level_sampler = ns.all_levels[l]
@@ -495,8 +494,8 @@ end
     level_sampler.data[level_sampler.track_info.length] = (0, 0.0)
     level_sampler.track_info.length -= 1
     if moved_entry != i
-        @assert ns.entry_info.indices[moved_entry] == (Int16(level), length(level_sampler)+1)
-        ns.entry_info.indices[moved_entry] = (Int16(level), j)
+        @assert ns.entry_info.indices[moved_entry] == (level, length(level_sampler)+1)
+        ns.entry_info.indices[moved_entry] = (level, j)
     end
     wn = w-Double64(significand)
     ns.all_levels[l] = (wn, level_sampler)
