@@ -181,13 +181,6 @@ function set_cum_weights!(ss::SelectionSampler4, ns)
     end
     ss
 end
-function set_level_weights!(ss::SelectionSampler4, ns)
-    p, lastfull = ns.sampled_level_weights, ns.track_info.lastfull
-    slevels = ns.sampled_level_numbers
-    @inbounds for i in 1:lastfull
-        ss.p[i] = p[i]
-    end
-end
 
 # TODO: add some benchmarks here of SelectionSampler4
 
@@ -384,8 +377,7 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
     n < 100 && return [rand(rng, ns) for _ in 1:n]
     slevels = ns.sampled_level_numbers
     lastfull = ns.track_info.lastfull
-    set_level_weights!(ns.distribution_over_levels, ns)
-    full_level_weights = @view(ns.distribution_over_levels.p[1:lastfull])
+    full_level_weights = @view(ns.sampled_level_weights[1:lastfull])
     n_each = rand(rng, Multinomial(n, full_level_weights ./ sum(full_level_weights)))
     inds = Vector{Int}(undef, n)
     q = 1
