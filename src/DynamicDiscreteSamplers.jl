@@ -341,7 +341,7 @@ end
     x = (sg >>= shift) % UInt64
     exp = level+shift
     exp += 0x3fe
-    println(typeof(shift), " "; typeof(x), " ", typeof(exp))
+    println(typeof(shift), " ", typeof(x), " ", typeof(exp))
     reinterpret(Float64, x + (exp << 52))
 end
 
