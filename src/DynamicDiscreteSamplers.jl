@@ -339,7 +339,7 @@ end
 @inline function flot(sg::UInt128, level::Integer)
     shift = Int64(8 * sizeof(sg) - 53 - leading_zeros(sg))
     x = (sg >>= shift) % UInt64
-    exp = level + shift + 0x3fe
+    exp = level + shift + 1022
     reinterpret(Float64, x + (exp << 52))
 end
 
