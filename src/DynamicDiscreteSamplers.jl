@@ -337,10 +337,9 @@ end
 @inline sig(x::Float64) = (reinterpret(UInt64, x) & Base.significand_mask(Float64)) + Base.significand_mask(Float64) + 1
 
 @inline function flot(sg::UInt128, level::Integer)
-    shift = Int64(8sizeof(sg)-53-leading_zeros(sg))
+    shift = Int64(8 * sizeof(sg) - 53 - leading_zeros(sg))
     x = (sg >>= shift) % UInt64
-    exp = level+shift
-    exp += 0x3fe
+    exp = level + shift + 0x3fe
     reinterpret(Float64, x + (exp << 52))
 end
 
