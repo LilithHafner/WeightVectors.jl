@@ -10,7 +10,7 @@ julia> @b AliasTable(rand(6)) rand
 6.329 ns
 =#
 
-using Dictionaries, Distributions, DoubleFloats, Random, StaticArrays
+using Distributions, DoubleFloats, Random, StaticArrays
 
 get_weights(p::NTuple{8, Float64}) = p .* typemax(UInt) ./ maximum(p)
 get_weights(p::NTuple{8, Any}) = get_weights(Float64.(p))
@@ -164,22 +164,58 @@ end
 
 struct SelectionSampler4{N}
     p::MVector{N, Float64}
+    o::MVector{N, Int16}
 end
 function Base.rand(rng::AbstractRNG, ss::SelectionSampler4, lastfull::Int)
     u = rand(rng)*ss.p[lastfull]
-    @inbounds for i in 1:lastfull
+    @inbounds for i in 1:lastfull-1
         ss.p[i] > u && return i
     end
     return lastfull
 end
 function set_cum_weights!(ss::SelectionSampler4, ns)
     p, lastfull = ns.sampled_level_weights, ns.track_info.lastfull
-    slevels = ns.sampled_level_numbers
+    if lastfull > 8 && ns.track_info.reset_order > 100*lastfull
+        ns.track_info.reset_order = 0
+        if ns.track_info.reset_distribution == false && issorted(@view(p[1:lastfull]); rev=true)
+            return ss
+        end
+        reorder_levels(ns, ss, p, lastfull)
+    end
     ss.p[1] = p[1]
     @inbounds for i in 2:lastfull
         ss.p[i] = ss.p[i-1] + p[i]
     end
     ss
+end
+
+function reorder_levels(ns, ss, p, lastfull)
+    sortperm!(@view(ss.o[1:lastfull]), @view(p[1:lastfull]); rev=true)
+    @inbounds for i in 1:lastfull
+        if ss.o[i] == zero(Int16)
+            all_index, _ = ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075]
+            ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075] = (all_index, i)
+            continue
+        end
+        value1 = ns.sampled_levels[i]
+        value2 = ns.sampled_level_numbers[i]
+        value3 = p[i]
+        x, y = i, Int(ss.o[i])
+        while y != i
+            ss.o[x] = zero(Int16)
+            ns.sampled_levels[x] = ns.sampled_levels[y]
+            ns.sampled_level_numbers[x] = ns.sampled_level_numbers[y]
+            p[x] = p[y]
+            x = y
+            y = Int(ss.o[x])
+        end
+        ns.sampled_levels[x] = value1
+        ns.sampled_level_numbers[x] = value2
+        p[x] = value3
+        ss.o[x] = zero(Int16)
+        all_index, _ = ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075]
+        ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075] = (all_index, i)
+    end
 end
 
 # TODO: add some benchmarks here of SelectionSampler4
@@ -331,6 +367,7 @@ mutable struct TrackInfo
     least_significant_sampled_level::Int # The level number of the least significant tracked level
     nvalues::Int
     lastfull::Int
+    reset_order::Int
     reset_distribution::Bool
 end
 
@@ -360,7 +397,7 @@ end
 
 NestedSampler5() = NestedSampler5{64}()
 NestedSampler5{N}() where N = NestedSampler5{N}(
-    SelectionSampler4(zero(MVector{N, Float64})),
+    SelectionSampler4(zero(MVector{N, Float64}), MVector{N, Int16}(1:N)),
     zero(MVector{N, Int16}),
     Tuple{UInt128, RejectionSampler3}[],
     zero(MVector{N, Float64}),
@@ -368,7 +405,7 @@ NestedSampler5{N}() where N = NestedSampler5{N}(
     LinkedListSet3(),
     LevelMap(),
     EntryInfo(),
-    TrackInfo(-1075, 0, 0, true),
+    TrackInfo(-1075, 0, 0, 0, true),
 )
 
 Base.rand(ns::NestedSampler5, n::Integer) = rand(Random.default_rng(), ns, n)
@@ -392,8 +429,11 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
 end
 Base.rand(ns::NestedSampler5) = rand(Random.default_rng(), ns)
 @inline function Base.rand(rng::AbstractRNG, ns::NestedSampler5)
+    ns.track_info.reset_order += 1
     lastfull = ns.track_info.lastfull
-    ns.track_info.reset_distribution && set_cum_weights!(ns.distribution_over_levels, ns)
+    if ns.track_info.reset_distribution || (lastfull > 8 && ns.track_info.reset_order > 100*lastfull)
+        @inline set_cum_weights!(ns.distribution_over_levels, ns)
+    end
     ns.track_info.reset_distribution = false
     level = @inline rand(rng, ns.distribution_over_levels, lastfull)
     @inline rand(rng, ns.all_levels[Int(ns.sampled_levels[level])][2])
@@ -401,6 +441,7 @@ end
 
 @inline function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
     ns.track_info.reset_distribution = true
+    ns.track_info.reset_order += 1
     ns.track_info.nvalues += 1
     i <= 0 && throw(ArgumentError("Elements must be positive"))
     l_info = lastindex(ns.entry_info.indices)
@@ -478,6 +519,7 @@ end
 
 @inline function Base.delete!(ns::NestedSampler5, i::Int)
     ns.track_info.reset_distribution = true
+    ns.track_info.reset_order += 1
     ns.track_info.nvalues -= 1
     if i <= 0 || i > lastindex(ns.entry_info.indices)
         throw(ArgumentError("Element $i is not present"))
