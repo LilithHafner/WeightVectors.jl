@@ -591,7 +591,7 @@ struct SamplerIndices{I}
     iter::I
 end
 function SamplerIndices(ns::NestedSampler5)
-    iter = Iterators.Flatten((Iterators.map(x -> x[1], @view(b[2].data[1:b[2].length[]])) for b in ns.all_levels))
+    iter = Iterators.Flatten((Iterators.map(x -> x[1], @view(b[2].data[1:b[2].track_info.length])) for b in ns.all_levels))
     SamplerIndices(ns, iter)
 end
 Base.iterate(inds::SamplerIndices) = Base.iterate(inds.iter)
