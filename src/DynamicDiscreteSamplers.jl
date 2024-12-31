@@ -420,7 +420,7 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
     @inbounds for (level, k) in enumerate(n_each)
         bucket = ns.all_levels[Int(ns.sampled_levels[level])][2]
         for _ in 1:k
-            inds[q] = rand(rng, bucket)
+            inds[q] = @inline rand(rng, bucket)
             q += 1
         end
     end
