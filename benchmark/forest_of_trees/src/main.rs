@@ -8,7 +8,7 @@ use std::time::Instant;
 fn setup(rng: &mut Pcg64, size: usize) -> DynamicWeightedIndex<f64> {
     let mut dw_index = DynamicWeightedIndex::new(size);
     for i in 0..size {
-        let weight = rng.gen_range(0.25..0.5);
+        let weight = rng.gen_range(0.0..(10.0_f64).powi(200));
         dw_index.set_weight(i, weight);
     }
     dw_index
@@ -36,7 +36,7 @@ fn sample_variable(
         let index_to_modify = rng.gen_range(0..n);
         dw_index.remove_weight(index_to_modify);
         samples.push(dw_index.sample(rng).unwrap());
-        let new_weight = rng.gen_range(0.25..0.5);
+        let new_weight = rng.gen_range(0.0..(10.0_f64).powi(200));
         dw_index.set_weight(index_to_modify, new_weight);
     }
     samples
@@ -68,4 +68,3 @@ fn main() {
         );
     }
 }
-
