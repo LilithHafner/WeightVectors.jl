@@ -4,7 +4,7 @@ using DynamicDiscreteSamplers, Chairmarks, Random
 function setup(rng, indices)
     ds = DynamicDiscreteSampler()
     for i in indices
-	push!(ds, i, 10^6*rand(rng))
+	push!(ds, i, (10^200)*rand(rng))
     end
     return ds
 end
@@ -23,7 +23,7 @@ function sample_variable(rng, ds, n)
 	j = rand(rng, 1:n)
 	delete!(ds, j)
 	inds[i] = rand(rng, ds)
-	push!(ds, j, 10^6*rand(rng))
+	push!(ds, j, (10^200)*rand(rng))
    end
    return ds
 end
