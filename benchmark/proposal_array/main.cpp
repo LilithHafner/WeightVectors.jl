@@ -36,7 +36,7 @@ std::vector<size_t> benchmark_sample_variable(sampling::DynamicProposalArrayStar
     samples.reserve(n);
 
     std::uniform_int_distribution<size_t> index_dist(0, n - 1);
-    std::uniform_real_distribution<double> weight_dist(0.0, 1e6);
+    std::uniform_real_distribution<double> weight_dist(0.0, pow(10.0,200));
 
     for (size_t i = 0; i < n; ++i) {
         size_t index = index_dist(rng);
