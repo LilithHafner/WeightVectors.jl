@@ -2,11 +2,12 @@
 #include <random>
 #include <vector>
 #include <chrono>
+#include <cmath>
 #include "DynamicProposalArrayStar.hpp"
 
 // Setup function for the sampler
 sampling::DynamicProposalArrayStar setup_sampler(size_t size, std::mt19937& rng) {
-    std::uniform_real_distribution<double> weight_dist(1.0, 100.0);
+    std::uniform_real_distribution<double> weight_dist(1.0, pow(10.0,200));
     std::vector<double> weights(size);
 
     // Randomly initialize weights
@@ -67,30 +68,19 @@ int main() {
         auto fixed_end = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double, std::nano> fixed_time = fixed_end - fixed_start;
 
-        // Benchmark variable sampling
-        auto variable_start = std::chrono::high_resolution_clock::now();
-        auto variable_samples = benchmark_sample_variable(sampler, rng, size);
-        auto variable_end = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double, std::nano> variable_time = variable_end - variable_start;
-
+        // Benchmark variable sampling - SOMEHOW THIS CRASHES
+        //auto variable_start = std::chrono::high_resolution_clock::now();
+        //auto variable_samples = benchmark_sample_variable(sampler, rng, size);
+        //auto variable_end = std::chrono::high_resolution_clock::now();
+        //std::chrono::duration<double, std::nano> variable_time = variable_end - variable_start;
+      
         std::cout << "Size: " << size
                   << ", Setup time: " << setup_time.count() / size << " ns/element"
                   << ", Fixed sampling: " << fixed_time.count() / size << " ns/sample"
-                  << ", Variable sampling: " << variable_time.count() / size << " ns/sample"
+                  //<< ", Variable sampling: " << variable_time.count() / size << " ns/sample"
                   << std::endl;
 
-        // Optional: Print sampled indices
-        // std::cout << "Fixed samples: ";
-        // for (auto idx : fixed_samples) {
-        //     std::cout << idx << " ";
-        // }
-        // std::cout << "\nVariable samples: ";
-        // for (auto idx : variable_samples) {
-        //     std::cout << idx << " ";
-        // }
-        // std::cout << std::endl;
     }
 
     return 0;
 }
-
