@@ -173,24 +173,24 @@ function Base.rand(rng::AbstractRNG, ss::SelectionSampler4, lastfull::Int)
     end
     return lastfull
 end
-function set_cum_weights!(ss::SelectionSampler4, ns)
+function set_cum_weights!(ss::SelectionSampler4, ns, reorder)
     p, lastfull = ns.sampled_level_weights, ns.track_info.lastfull
-    if lastfull > 8 && ns.track_info.reset_order > 100*lastfull
+    if reorder
         ns.track_info.reset_order = 0
         if ns.track_info.reset_distribution == false && issorted(@view(p[1:lastfull]); rev=true)
             return ss
         end
-        reorder_levels(ns, ss, p, lastfull)
+        @inline reorder_levels(ns, ss, p, lastfull)
     end
     ss.p[1] = p[1]
     @inbounds for i in 2:lastfull
         ss.p[i] = ss.p[i-1] + p[i]
     end
-    ss
+    return ss
 end
 
 function reorder_levels(ns, ss, p, lastfull)
-    sortperm!(@view(ss.o[1:lastfull]), @view(p[1:lastfull]); rev=true)
+    sortperm!(@view(ss.o[1:lastfull]), @view(p[1:lastfull]); alg=Base.Sort.InsertionSortAlg(), rev=true)
     @inbounds for i in 1:lastfull
         if ss.o[i] == zero(Int16)
             all_index, _ = ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075]
@@ -238,7 +238,7 @@ function Random.rand(rng::AbstractRNG, rs::RejectionSampler3)
         i = u & mask + 1
         i > len && continue
         res, x = rs.data[i]
-        rand(rng) * maxw < x && return res # TODO: consider reusing random bits from u; a previous test revealed no perf improvement from doing this
+        rand(rng) * maxw < x && return (i, res) # TODO: consider reusing random bits from u; a previous test revealed no perf improvement from doing this
     end
 end
 function Base.push!(rs::RejectionSampler3, i, x)
@@ -364,6 +364,9 @@ struct EntryInfo
 end
 
 mutable struct TrackInfo
+    lastsampled_idx::Int
+    lastsampled_idx_out::Int
+    lastsampled_idx_in::Int
     least_significant_sampled_level::Int # The level number of the least significant tracked level
     nvalues::Int
     lastfull::Int
@@ -405,13 +408,12 @@ NestedSampler5{N}() where N = NestedSampler5{N}(
     LinkedListSet3(),
     LevelMap(),
     EntryInfo(),
-    TrackInfo(-1075, 0, 0, 0, true),
+    TrackInfo(0, 0, 0, -1075, 0, 0, 0, true),
 )
 
 Base.rand(ns::NestedSampler5, n::Integer) = rand(Random.default_rng(), ns, n)
 function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
     n < 100 && return [rand(rng, ns) for _ in 1:n]
-    slevels = ns.sampled_level_numbers
     lastfull = ns.track_info.lastfull
     full_level_weights = @view(ns.sampled_level_weights[1:lastfull])
     n_each = rand(rng, Multinomial(n, full_level_weights ./ sum(full_level_weights)))
@@ -420,7 +422,8 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
     @inbounds for (level, k) in enumerate(n_each)
         bucket = ns.all_levels[Int(ns.sampled_levels[level])][2]
         for _ in 1:k
-            inds[q] = @inline rand(rng, bucket)
+            _, i = @inline rand(rng, bucket)
+            inds[q] = i
             q += 1
         end
     end
@@ -429,14 +432,20 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
 end
 Base.rand(ns::NestedSampler5) = rand(Random.default_rng(), ns)
 @inline function Base.rand(rng::AbstractRNG, ns::NestedSampler5)
-    ns.track_info.reset_order += 1
-    lastfull = ns.track_info.lastfull
-    if ns.track_info.reset_distribution || (lastfull > 8 && ns.track_info.reset_order > 100*lastfull)
-        @inline set_cum_weights!(ns.distribution_over_levels, ns)
+    track_info = ns.track_info
+    track_info.reset_order += 1
+    lastfull = track_info.lastfull
+    reorder = lastfull > 8 && track_info.reset_order > 300*lastfull
+    if track_info.reset_distribution || reorder 
+        @inline set_cum_weights!(ns.distribution_over_levels, ns, reorder)
     end
-    ns.track_info.reset_distribution = false
+    track_info.reset_distribution = false
     level = @inline rand(rng, ns.distribution_over_levels, lastfull)
-    @inline rand(rng, ns.all_levels[Int(ns.sampled_levels[level])][2])
+    j, i = @inline rand(rng, ns.all_levels[Int(ns.sampled_levels[level])][2])
+    track_info.lastsampled_idx = i
+    track_info.lastsampled_idx_out = ns.sampled_level_numbers[level]
+    track_info.lastsampled_idx_in = j
+    return i
 end
 
 @inline function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
@@ -518,13 +527,19 @@ end
 end
 
 @inline function Base.delete!(ns::NestedSampler5, i::Int)
-    ns.track_info.reset_distribution = true
-    ns.track_info.reset_order += 1
-    ns.track_info.nvalues -= 1
+    ns_track_info = ns.track_info
+    ns_track_info.reset_distribution = true
+    ns_track_info.reset_order += 1
+    ns_track_info.nvalues -= 1
     if i <= 0 || i > lastindex(ns.entry_info.indices)
         throw(ArgumentError("Element $i is not present"))
     end
-    level, j = ns.entry_info.indices[i]
+    if ns_track_info.lastsampled_idx == i
+        level, j = ns_track_info.lastsampled_idx_out, ns_track_info.lastsampled_idx_in
+    else
+        level, j = ns.entry_info.indices[i]
+    end
+    ns_track_info.lastsampled_idx = 0
     ns.entry_info.presence[i] === false && throw(ArgumentError("Element $i is not present"))
     ns.entry_info.presence[i] = false
 
@@ -546,12 +561,12 @@ end
         delete!(ns.level_set, level)
         ns.all_levels[l] = (zero(UInt128), level_sampler) # Fixup for rounding error
         if k != 0 # Remove a sampled level
-            replacement = findprev(ns.level_set, ns.track_info.least_significant_sampled_level-1)
+            replacement = findprev(ns.level_set, ns_track_info.least_significant_sampled_level-1)
             ns.level_set_map.indices[level+1075] = (l, 0)
             if replacement === nothing # We'll now have fewer than N sampled levels
-                ns.track_info.least_significant_sampled_level = -1075
-                sl_length = ns.track_info.lastfull
-                ns.track_info.lastfull -= 1
+                ns_track_info.least_significant_sampled_level = -1075
+                sl_length = ns_track_info.lastfull
+                ns_track_info.lastfull -= 1
                 moved_level = ns.sampled_level_numbers[sl_length]
                 if moved_level == Int16(level)
                     ns.sampled_level_weights[sl_length] = 0.0
@@ -567,7 +582,7 @@ end
                     ns.level_set_map.indices[ns.sampled_level_numbers[sl_length]+1075] = (all_index, sl_length)
                 end
             else # Replace the removed level with the replacement
-                ns.track_info.least_significant_sampled_level = replacement
+                ns_track_info.least_significant_sampled_level = replacement
                 all_index, _zero = ns.level_set_map.indices[replacement+1075]
                 @assert _zero == 0
                 ns.level_set_map.indices[replacement+1075] = (all_index, k)
