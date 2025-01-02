@@ -527,7 +527,6 @@ end
     level, j = ns.entry_info.indices[i]
     ns.entry_info.presence[i] === false && throw(ArgumentError("Element $i is not present"))
     ns.entry_info.presence[i] = false
-    ns.entry_info.indices[i] = (0, 0)
 
     l, k = ns.level_set_map.indices[level+1075]
     w, level_sampler = ns.all_levels[l]
