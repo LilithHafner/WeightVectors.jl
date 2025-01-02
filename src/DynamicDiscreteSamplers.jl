@@ -443,7 +443,7 @@ Base.rand(ns::NestedSampler5) = rand(Random.default_rng(), ns)
     level = @inline rand(rng, ns.distribution_over_levels, lastfull)
     j, i = @inline rand(rng, ns.all_levels[Int(ns.sampled_levels[level])][2])
     track_info.lastsampled_idx = i
-    track_info.lastsampled_idx_out = ns.sampled_level_numbers[level]
+    track_info.lastsampled_idx_out = level
     track_info.lastsampled_idx_in = j
     return i
 end
@@ -535,7 +535,8 @@ end
         throw(ArgumentError("Element $i is not present"))
     end
     if ns_track_info.lastsampled_idx == i
-        level, j = ns_track_info.lastsampled_idx_out, ns_track_info.lastsampled_idx_in
+        level = Int(ns.sampled_level_numbers[ns_track_info.lastsampled_idx_out])
+        j = ns_track_info.lastsampled_idx_in
     else
         level, j = ns.entry_info.indices[i]
     end
