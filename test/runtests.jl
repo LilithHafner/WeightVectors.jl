@@ -137,9 +137,7 @@ end
 
     ds2 = DynamicDiscreteSampler()
     
-    for (i, w) in zip(range, weights)
-        push!(ds2, i, w)
-    end
+    append!(ds2, range, weights)
 
     delete!(ds2, 1)
     delete!(ds2, 2)
