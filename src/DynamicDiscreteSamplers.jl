@@ -448,6 +448,27 @@ Base.rand(ns::NestedSampler5) = rand(Random.default_rng(), ns)
     return i
 end
 
+function Base.append!(ns::NestedSampler5{N}, inds::Union{AbstractRange{Int}, Vector{Int}}, 
+        xs::Union{AbstractRange{Float64}, Vector{Float64}}) where N
+    ns.track_info.reset_distribution = true
+    ns.track_info.reset_order += length(inds)
+    ns.track_info.nvalues += length(inds)
+    maxi = maximum(inds)
+    l_info = lastindex(ns.entry_info.indices)
+    if maxi > l_info
+        resize!(ns.entry_info.indices, maxi)
+        resize!(ns.entry_info.presence, maxi)
+        fill!(@view(ns.entry_info.presence[l_info+1:maxi]), false)
+    end
+    for (i, x) in zip(inds, xs)
+        if ns.entry_info.presence[i] !== false
+            throw(ArgumentError("Element $i is already present"))
+        end
+        _push!(ns, i, x)
+    end
+    return ns
+end
+
 @inline function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
     ns.track_info.reset_distribution = true
     ns.track_info.reset_order += 1
@@ -461,6 +482,10 @@ end
     elseif ns.entry_info.presence[i] !== false
         throw(ArgumentError("Element $i is already present"))
     end
+    return _push!(ns, i, x)
+end
+
+@inline function _push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
     level = exponent(x)
     level_b16 = Int16(level)
     bucketw = significand(x)/2
