@@ -574,7 +574,7 @@ end
         @assert ns.entry_info.indices[moved_entry] == (level, length(level_sampler)+1)
         ns.entry_info.indices[moved_entry] = (level, j)
     end
-    wn = w-sig(significand*exp2(level))
+    wn = w-sig(significand*exp2(level+1))
     ns.all_levels[l] = (wn, level_sampler)
 
     if isempty(level_sampler) # Remove a level
