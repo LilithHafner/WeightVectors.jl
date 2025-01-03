@@ -335,12 +335,6 @@ Otherwise, update the least significant tracked level and add an element to the
 distribution over the top N levels if possible
 =#
 
-if VERSION >= v"1.11.0"
-    const prec_2pow = Memory{Float64}([2.0^i for i in -1073:1022])
-else
-    const prec_2pow = [2.0^i for i in -1073:1022]
-end
-
 struct LevelMap
     presence::BitVector
     indices::Vector{Tuple{Int, Int}}
@@ -580,7 +574,7 @@ end
         @assert ns.entry_info.indices[moved_entry] == (level, length(level_sampler)+1)
         ns.entry_info.indices[moved_entry] = (level, j)
     end
-    wn = w-sig(significand*prec_2pow[level+1075])
+    wn = w-sig(significand*exp2(level))
     ns.all_levels[l] = (wn, level_sampler)
 
     if isempty(level_sampler) # Remove a level
