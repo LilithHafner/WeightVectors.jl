@@ -10,7 +10,7 @@ julia> @b AliasTable(rand(6)) rand
 6.329 ns
 =#
 
-using Distributions, DoubleFloats, Random, StaticArrays
+using Distributions, Random, StaticArrays
 
 get_weights(p::NTuple{8, Float64}) = p .* typemax(UInt) ./ maximum(p)
 get_weights(p::NTuple{8, Any}) = get_weights(Float64.(p))
@@ -618,7 +618,7 @@ end
     return ns
 end
 
-Base.isempty(ns::NestedSampler5) = ns.nvalues[] == 0
+Base.isempty(ns::NestedSampler5) = ns.track_info.nvalues == 0
 
 struct SamplerIndices{I}
     ns::NestedSampler5
@@ -632,7 +632,7 @@ Base.iterate(inds::SamplerIndices) = Base.iterate(inds.iter)
 Base.iterate(inds::SamplerIndices, state) = Base.iterate(inds.iter, state)
 Base.eltype(::Type{<:SamplerIndices}) = Int
 Base.IteratorSize(::Type{<:SamplerIndices}) = Base.HasLength()
-Base.length(inds::SamplerIndices) = inds.ns.nvalues[]
+Base.length(inds::SamplerIndices) = inds.ns.track_info.nvalues
 
 const DynamicDiscreteSampler = NestedSampler5
 
