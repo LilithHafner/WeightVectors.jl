@@ -249,10 +249,9 @@ function compact_data!(rs::RejectionSampler3, entry_info, len)
             @inbounds for q in last:-1:k+1
                 last -= 1
                 if rs.presence[q] === true
+                    moved_entry = rs.data[q][1]
+                    entry_info.indices[moved_entry] = (entry_info.indices[moved_entry][1], k)
                     rs.presence[k], rs.presence[q] = true, false
-                    moved_entry, _ = rs.data[q]
-                    y, __ = entry_info.indices[moved_entry]
-                    entry_info.indices[moved_entry] = (y, k)
                     rs.data[k], rs.data[q] = rs.data[q], rs.data[k]
                     break
                 end
@@ -284,11 +283,12 @@ function Base.push!(rs::RejectionSampler3, entry_info::EntryInfo, i, x, z)
         if rs.track_info.n/length(rs.data) < 0.9
             compact_data!(rs, entry_info, length(rs.data))
             len = rs.track_info.length
+        else
+            newlen = length(rs.data)+rs.track_info.length-1
+            resize!(rs.data, newlen)
+            resize!(rs.presence, newlen)
+            fill!(@view(rs.presence[len+1:newlen]), false)
         end
-        newlen = length(rs.data)+rs.track_info.length-1
-        resize!(rs.data, newlen)
-        resize!(rs.presence, newlen)
-        fill!(@view(rs.presence[len+1:newlen]), false)
     end
     rs.presence[len] = true
     rs.data[len] = (i, x)
