@@ -242,17 +242,16 @@ struct RejectionSampler3
     RejectionSampler3(i, v) = new(BitVector((true,)), [(i, v)], RejectionInfo(1, 1, v))
 end
 function compact_data!(rs::RejectionSampler3, entry_info, len)
-    last = len
-    for k in eachindex(rs.presence)
-        last <= k && break
+    @inbounds for k in 1:rs.track_info.n
         if rs.presence[k] === false
-            @inbounds for q in last:-1:k+1
-                last -= 1
+            @inbounds for q in len:-1:k+1
+                len -= 1
                 if rs.presence[q] === true
-                    moved_entry = rs.data[q][1]
+                    moved_entry_data = rs.data[q]
+                    moved_entry = moved_entry_data[1]
                     entry_info.indices[moved_entry] = (entry_info.indices[moved_entry][1], k)
                     rs.presence[k], rs.presence[q] = true, false
-                    rs.data[k], rs.data[q] = rs.data[q], rs.data[k]
+                    rs.data[k], rs.data[q] = moved_entry_data, rs.data[k]
                     break
                 end
             end
