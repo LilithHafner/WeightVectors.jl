@@ -243,9 +243,9 @@ struct RejectionSampler3
 end
 function compact_data!(rs::RejectionSampler3, entry_info, len, n)
     @inbounds for k in 1:n
-        if rs.presence[k] === false
+        if !rs.presence[k]
             @inbounds for q in len:-1:k+1
-                if rs.presence[q] === true
+                if rs.presence[q]
                     moved_entry_data = rs.data[q]
                     moved_entry = moved_entry_data[1]
                     entry_info.indices[moved_entry] = (entry_info.indices[moved_entry][1], k)
@@ -271,7 +271,7 @@ function Random.rand(rng::AbstractRNG, rs::RejectionSampler3, entry_info::EntryI
     @inbounds while true
         u = rand(rng, UInt)
         i = u & mask + 1
-        (i > len || rs.presence[i] === false) && continue
+        (i > len || !rs.presence[i]) && continue
         res, x = rs.data[i]
         rand(rng) * maxw < x && return (i, res, x) # TODO: consider reusing random bits from u; a previous test revealed no perf improvement from doing this
     end
@@ -495,7 +495,7 @@ function Base.append!(ns::NestedSampler5{N}, inds::Union{AbstractRange{Int}, Vec
         fill!(@view(ns.entry_info.presence[l_info+1:maxi]), false)
     end
     for (i, x) in zip(inds, xs)
-        if ns.entry_info.presence[i] !== false
+        if ns.entry_info.presence[i]
             throw(ArgumentError("Element $i is already present"))
         end
         _push!(ns, i, x)
@@ -513,7 +513,7 @@ end
         resize!(ns.entry_info.indices, i)
         resize!(ns.entry_info.presence, i)
         fill!(@view(ns.entry_info.presence[l_info+1:i]), false)
-    elseif ns.entry_info.presence[i] !== false
+    elseif ns.entry_info.presence[i]
         throw(ArgumentError("Element $i is already present"))
     end
     return _push!(ns, i, x)
@@ -529,7 +529,7 @@ end
         # Create a new level (or revive an empty level)
         push!(ns.level_set, level)
         existing_level_indices = ns.level_set_map.presence[level+1075]
-        all_levels_index = if existing_level_indices === false
+        all_levels_index = if !existing_level_indices
             level_sampler = RejectionSampler3(i, bucketw)
             # Log the entry
             ns.entry_info.indices[i] = (x, 1)
@@ -600,7 +600,7 @@ end
     end
     level = exponent(x)
     ns_track_info.lastsampled_idx = 0
-    ns.entry_info.presence[i] === false && throw(ArgumentError("Element $i is not present"))
+    !ns.entry_info.presence[i] && throw(ArgumentError("Element $i is not present"))
     ns.entry_info.presence[i] = false
 
     l, k = ns.level_set_map.indices[level+1075]
