@@ -231,7 +231,7 @@ struct RejectionSampler3
     track_info::RejectionInfo
     RejectionSampler3(i, v) = new(BitVector((true,)), [(i, v)], RejectionInfo(1, 1, v))
 end
-function compact_data!(rs::RejectionSampler3, ns, len)
+function compact_data!(rs::RejectionSampler3, entry_info, len)
     last = len
     for k in eachindex(rs.presence)
         last <= k && break
@@ -241,8 +241,8 @@ function compact_data!(rs::RejectionSampler3, ns, len)
                 if rs.presence[q] === true
                     rs.presence[k], rs.presence[q] = true, false
                     moved_entry, _ = rs.data[q]
-                    y, __ = ns.entry_info.indices[moved_entry]
-                    ns.entry_info.indices[moved_entry] = (y, k)
+                    y, __ = entry_info.indices[moved_entry]
+                    entry_info.indices[moved_entry] = (y, k)
                     rs.data[k], rs.data[q] = rs.data[q], rs.data[k]
                     break
                 end
@@ -251,10 +251,10 @@ function compact_data!(rs::RejectionSampler3, ns, len)
     end
     rs.track_info.length = rs.track_info.n
 end
-function Random.rand(rng::AbstractRNG, rs::RejectionSampler3, ns)
+function Random.rand(rng::AbstractRNG, rs::RejectionSampler3, entry_info::EntryInfo)
     len = rs.track_info.length
     if rs.track_info.n/len < 0.5
-        compact_data!(rs, ns, len)
+        compact_data!(rs, entry_info, len)
         len = rs.track_info.length
     end
     mask = UInt64(1) << Base.top_set_bit(len - 1) - 1 # assumes length(data) is the power of two next after (or including) rs.length[]
@@ -267,12 +267,12 @@ function Random.rand(rng::AbstractRNG, rs::RejectionSampler3, ns)
         rand(rng) * maxw < x && return (i, res, x) # TODO: consider reusing random bits from u; a previous test revealed no perf improvement from doing this
     end
 end
-function Base.push!(rs::RejectionSampler3, ns, i, x, z)
+function Base.push!(rs::RejectionSampler3, entry_info::EntryInfo, i, x, z)
     rs.track_info.n += 1
     len = rs.track_info.length += 1
     if len > length(rs.data)
         if rs.track_info.n/length(rs.data) < 0.9
-            compact_data!(rs, ns, length(rs.data))
+            compact_data!(rs, entry_info, length(rs.data))
             len = rs.track_info.length
         end
         newlen = length(rs.data)+rs.track_info.length-1
@@ -282,7 +282,7 @@ function Base.push!(rs::RejectionSampler3, ns, i, x, z)
     end
     rs.presence[len] = true
     rs.data[len] = (i, x)
-    ns.entry_info.indices[i] = (z, len)
+    entry_info.indices[i] = (z, len)
     maxwn = rs.track_info.maxw
     rs.track_info.maxw = x > maxwn ? x : maxwn
     rs
@@ -454,7 +454,7 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
     @inbounds for (level, k) in enumerate(n_each)
         bucket = ns.all_levels[Int(ns.sampled_levels[level])][2]
         for _ in 1:k
-            _, i, _ = @inline rand(rng, bucket, ns)
+            _, i, _ = @inline rand(rng, bucket, ns.entry_info)
             inds[q] = i
             q += 1
         end
@@ -473,7 +473,7 @@ Base.rand(ns::NestedSampler5) = rand(Random.default_rng(), ns)
     end
     track_info.reset_distribution = false
     level = @inline rand(rng, ns.distribution_over_levels, lastfull)
-    j, i, s = @inline rand(rng, ns.all_levels[Int(ns.sampled_levels[level])][2], ns)
+    j, i, s = @inline rand(rng, ns.all_levels[Int(ns.sampled_levels[level])][2], ns.entry_info)
     track_info.lastsampled_idx = i
     track_info.lastsampled_w = s*exp2(ns.sampled_level_numbers[level]+1)
     track_info.lastsampled_idx_in = j
@@ -538,7 +538,7 @@ end
             w, level_sampler = ns.all_levels[level_indices[1]]
             @assert w == 0
             @assert isempty(level_sampler)
-            push!(level_sampler, ns, i, bucketw, x)
+            push!(level_sampler, ns.entry_info, i, bucketw, x)
             ns.all_levels[level_indices[1]] = (sig(x), level_sampler)
             level_indices[1]
         end
@@ -571,7 +571,7 @@ end
     else # Add to an existing level
         j, k = ns.level_set_map.indices[level+1075]
         w, level_sampler = ns.all_levels[j]
-        @inline push!(level_sampler, ns, i, bucketw, x)
+        @inline push!(level_sampler, ns.entry_info, i, bucketw, x)
         wn = w+sig(x)
         ns.all_levels[j] = (wn, level_sampler)
 
