@@ -193,7 +193,7 @@ function reorder_levels(ns, ss, p, lastfull)
     sortperm!(@view(ss.o[1:lastfull]), @view(p[1:lastfull]); alg=Base.Sort.InsertionSortAlg(), rev=true)
     @inbounds for i in 1:lastfull
         if ss.o[i] == zero(Int16)
-            all_index, _ = ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075]
+            all_index = ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075][1]
             ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075] = (all_index, i)
             continue
         end
@@ -213,7 +213,7 @@ function reorder_levels(ns, ss, p, lastfull)
         ns.sampled_level_numbers[x] = value2
         p[x] = value3
         ss.o[x] = zero(Int16)
-        all_index, _ = ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075]
+        all_index = ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075][1]
         ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075] = (all_index, i)
     end
 end
@@ -262,7 +262,7 @@ function compact_data!(rs::RejectionSampler3, entry_info, len)
 end
 function Random.rand(rng::AbstractRNG, rs::RejectionSampler3, entry_info::EntryInfo)
     len = rs.track_info.length
-    if rs.track_info.n/len < 0.5
+    if rs.track_info.n/len < 0.8
         compact_data!(rs, entry_info, len)
         len = rs.track_info.length
     end
@@ -454,8 +454,8 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
     @inbounds for (level, k) in enumerate(n_each)
         bucket = ns.all_levels[Int(ns.sampled_levels[level])][2]
         for _ in 1:k
-            _, i, _ = @inline rand(rng, bucket, ns.entry_info)
-            inds[q] = i
+            ti = @inline rand(rng, bucket, ns.entry_info)
+            inds[q] = ti[2]
             q += 1
         end
     end
