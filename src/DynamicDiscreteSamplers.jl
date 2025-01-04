@@ -257,6 +257,7 @@ function compact_data!(rs::RejectionSampler3, entry_info, len, n)
             end
         end
     end
+    rs
 end
 function Random.rand(rng::AbstractRNG, rs::RejectionSampler3, entry_info::EntryInfo)
     n, len = rs.track_info.n, rs.track_info.length
@@ -280,7 +281,7 @@ function Base.push!(rs::RejectionSampler3, entry_info::EntryInfo, i, x, z)
     len = rs.track_info.length += 1
     if len > length(rs.data)
         n = rs.track_info.n
-        if n/length(rs.data) < 0.9
+        if n/length(rs.data) < 0.95
             compact_data!(rs, entry_info, length(rs.data), n-1)
             rs.track_info.length = n
             len = rs.track_info.length
@@ -594,11 +595,10 @@ end
     if ns_track_info.lastsampled_idx == i
         x = ns_track_info.lastsampled_w
         j = ns_track_info.lastsampled_idx_in
-        level = exponent(x)
     else
         x, j = ns.entry_info.indices[i]
-        level = exponent(x)
     end
+    level = exponent(x)
     ns_track_info.lastsampled_idx = 0
     ns.entry_info.presence[i] === false && throw(ArgumentError("Element $i is not present"))
     ns.entry_info.presence[i] = false
