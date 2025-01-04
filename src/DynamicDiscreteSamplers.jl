@@ -220,6 +220,16 @@ end
 
 # TODO: add some benchmarks here of SelectionSampler4
 
+struct EntryInfo
+    presence::BitVector
+    indices::Vector{Tuple{Float64, Int}}
+    function EntryInfo()
+        presence = BitVector()
+        indices = Tuple{Float64, Int}[]
+        return new(presence, indices)
+    end
+end
+
 mutable struct RejectionInfo
     n::Int
     length::Int
@@ -381,16 +391,6 @@ struct LevelMap
         resize!(presence, 2098)
         fill!(presence, false)
         indices = Vector{Tuple{Int, Int}}(undef, 2098)
-        return new(presence, indices)
-    end
-end
-
-struct EntryInfo
-    presence::BitVector
-    indices::Vector{Tuple{Float64, Int}}
-    function EntryInfo()
-        presence = BitVector()
-        indices = Tuple{Float64, Int}[]
         return new(presence, indices)
     end
 end
