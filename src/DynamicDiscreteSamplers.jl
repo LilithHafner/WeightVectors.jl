@@ -221,36 +221,74 @@ end
 # TODO: add some benchmarks here of SelectionSampler4
 
 mutable struct RejectionInfo
+    n::Int
     length::Int
     maxw::Float64
 end
 struct RejectionSampler3
+    presence::BitVector
     data::Vector{Tuple{Int, Float64}}
     track_info::RejectionInfo
-    RejectionSampler3(i, v) = new([(i, v)], RejectionInfo(1, v))
+    RejectionSampler3(i, v) = new(BitVector((true,)), [(i, v)], RejectionInfo(1, 1, v))
 end
-function Random.rand(rng::AbstractRNG, rs::RejectionSampler3)
+function compact_data!(rs::RejectionSampler3, ns, len)
+    last = len
+    for k in eachindex(rs.presence)
+        last <= k && break
+        if rs.presence[k] === false
+            @inbounds for q in last:-1:k+1
+                last -= 1
+                if rs.presence[q] === true
+                    rs.presence[k], rs.presence[q] = true, false
+                    moved_entry, _ = rs.data[q]
+                    y, __ = ns.entry_info.indices[moved_entry]
+                    ns.entry_info.indices[moved_entry] = (y, k)
+                    rs.data[k], rs.data[q] = rs.data[q], rs.data[k]
+                    break
+                end
+            end
+        end
+    end
+    rs.track_info.length = rs.track_info.n
+end
+function Random.rand(rng::AbstractRNG, rs::RejectionSampler3, ns)
     len = rs.track_info.length
+    if rs.track_info.n/len < 0.5
+        compact_data!(rs, ns, len)
+        len = rs.track_info.length
+    end
     mask = UInt64(1) << Base.top_set_bit(len - 1) - 1 # assumes length(data) is the power of two next after (or including) rs.length[]
     maxw = rs.track_info.maxw
-    while true
+    @inbounds while true
         u = rand(rng, UInt)
         i = u & mask + 1
-        i > len && continue
+        (i > len || rs.presence[i] === false) && continue
         res, x = rs.data[i]
-        rand(rng) * maxw < x && return (i, res) # TODO: consider reusing random bits from u; a previous test revealed no perf improvement from doing this
+        rand(rng) * maxw < x && return (i, res, x) # TODO: consider reusing random bits from u; a previous test revealed no perf improvement from doing this
     end
 end
-function Base.push!(rs::RejectionSampler3, i, x)
+function Base.push!(rs::RejectionSampler3, ns, i, x, z)
+    rs.track_info.n += 1
     len = rs.track_info.length += 1
-    len > length(rs.data) && resize!(rs.data, length(rs.data)+len-1)
+    if len > length(rs.data)
+        if rs.track_info.n/length(rs.data) < 0.9
+            compact_data!(rs, ns, length(rs.data))
+            len = rs.track_info.length
+        end
+        newlen = length(rs.data)+rs.track_info.length-1
+        resize!(rs.data, newlen)
+        resize!(rs.presence, newlen)
+        fill!(@view(rs.presence[len+1:newlen]), false)
+    end
+    rs.presence[len] = true
     rs.data[len] = (i, x)
+    ns.entry_info.indices[i] = (z, len)
     maxwn = rs.track_info.maxw
     rs.track_info.maxw = x > maxwn ? x : maxwn
     rs
 end
 Base.isempty(rs::RejectionSampler3) = length(rs) == 0 # For testing only
-Base.length(rs::RejectionSampler3) = rs.track_info.length # For testing only
+Base.length(rs::RejectionSampler3) = rs.track_info.n # For testing only
 
 # julia> rs = RejectionSampler3(3, .5)
 # RejectionSampler3(Base.RefValue{Int64}(1), [(3, 0.5)])
@@ -349,17 +387,17 @@ end
 
 struct EntryInfo
     presence::BitVector
-    indices::Vector{Tuple{Int, Int}}
+    indices::Vector{Tuple{Float64, Int}}
     function EntryInfo()
         presence = BitVector()
-        indices = Tuple{Int, Int}[]
+        indices = Tuple{Float64, Int}[]
         return new(presence, indices)
     end
 end
 
 mutable struct TrackInfo
     lastsampled_idx::Int
-    lastsampled_idx_out::Int
+    lastsampled_w::Float64
     lastsampled_idx_in::Int
     least_significant_sampled_level::Int # The level number of the least significant tracked level
     nvalues::Int
@@ -416,7 +454,7 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
     @inbounds for (level, k) in enumerate(n_each)
         bucket = ns.all_levels[Int(ns.sampled_levels[level])][2]
         for _ in 1:k
-            _, i = @inline rand(rng, bucket)
+            _, i, _ = @inline rand(rng, bucket, ns)
             inds[q] = i
             q += 1
         end
@@ -435,9 +473,9 @@ Base.rand(ns::NestedSampler5) = rand(Random.default_rng(), ns)
     end
     track_info.reset_distribution = false
     level = @inline rand(rng, ns.distribution_over_levels, lastfull)
-    j, i = @inline rand(rng, ns.all_levels[Int(ns.sampled_levels[level])][2])
+    j, i, s = @inline rand(rng, ns.all_levels[Int(ns.sampled_levels[level])][2], ns)
     track_info.lastsampled_idx = i
-    track_info.lastsampled_idx_out = level
+    track_info.lastsampled_w = s*exp2(ns.sampled_level_numbers[level]+1)
     track_info.lastsampled_idx_in = j
     return i
 end
@@ -485,14 +523,14 @@ end
     bucketw = significand(x)/2
     ns.entry_info.presence[i] = true
     if level ∉ ns.level_set
-        # Log the entry
-        ns.entry_info.indices[i] = (level, 1)
 
         # Create a new level (or revive an empty level)
         push!(ns.level_set, level)
         existing_level_indices = ns.level_set_map.presence[level+1075]
         all_levels_index = if existing_level_indices === false
             level_sampler = RejectionSampler3(i, bucketw)
+            # Log the entry
+            ns.entry_info.indices[i] = (x, 1)
             push!(ns.all_levels, (sig(x), level_sampler))
             length(ns.all_levels)
         else
@@ -500,7 +538,7 @@ end
             w, level_sampler = ns.all_levels[level_indices[1]]
             @assert w == 0
             @assert isempty(level_sampler)
-            push!(level_sampler, i, bucketw)
+            push!(level_sampler, ns, i, bucketw, x)
             ns.all_levels[level_indices[1]] = (sig(x), level_sampler)
             level_indices[1]
         end
@@ -533,8 +571,7 @@ end
     else # Add to an existing level
         j, k = ns.level_set_map.indices[level+1075]
         w, level_sampler = ns.all_levels[j]
-        push!(level_sampler, i, bucketw)
-        ns.entry_info.indices[i] = (level, length(level_sampler))
+        @inline push!(level_sampler, ns, i, bucketw, x)
         wn = w+sig(x)
         ns.all_levels[j] = (wn, level_sampler)
 
@@ -554,10 +591,12 @@ end
         throw(ArgumentError("Element $i is not present"))
     end
     if ns_track_info.lastsampled_idx == i
-        level = Int(ns.sampled_level_numbers[ns_track_info.lastsampled_idx_out])
+        x = ns_track_info.lastsampled_w
         j = ns_track_info.lastsampled_idx_in
+        level = exponent(x)
     else
-        level, j = ns.entry_info.indices[i]
+        x, j = ns.entry_info.indices[i]
+        level = exponent(x)
     end
     ns_track_info.lastsampled_idx = 0
     ns.entry_info.presence[i] === false && throw(ArgumentError("Element $i is not present"))
@@ -565,16 +604,11 @@ end
 
     l, k = ns.level_set_map.indices[level+1075]
     w, level_sampler = ns.all_levels[l]
-    _i, significand = level_sampler.data[j]
-    @assert _i == i
-    moved_entry, _ = level_sampler.data[j] = level_sampler.data[level_sampler.track_info.length]
-    level_sampler.data[level_sampler.track_info.length] = (0, 0.0)
-    level_sampler.track_info.length -= 1
-    if moved_entry != i
-        @assert ns.entry_info.indices[moved_entry] == (level, length(level_sampler)+1)
-        ns.entry_info.indices[moved_entry] = (level, j)
-    end
-    wn = w-sig(significand*exp2(level+1))
+
+    level_sampler.presence[j] = false
+    level_sampler.track_info.n -= 1
+
+    wn = w-sig(x)
     ns.all_levels[l] = (wn, level_sampler)
 
     if isempty(level_sampler) # Remove a level
