@@ -236,13 +236,13 @@ mutable struct RejectionInfo
     maxw::Float64
 end
 struct RejectionSampler3
-    presence::BitVector
+    presence::Vector{Bool}
     data::Vector{Tuple{Int, Float64}}
     track_info::RejectionInfo
-    RejectionSampler3(i, v) = new(BitVector((true,)), [(i, v)], RejectionInfo(1, 1, v))
+    RejectionSampler3(i, v) = new([true,], [(i, v)], RejectionInfo(1, 1, v))
 end
-function compact_data!(rs::RejectionSampler3, entry_info, len)
-    @inbounds for k in 1:rs.track_info.n
+function compact_data!(rs::RejectionSampler3, entry_info, len, n)
+    @inbounds for k in 1:n
         if rs.presence[k] === false
             @inbounds for q in len:-1:k+1
                 if rs.presence[q] === true
@@ -257,13 +257,13 @@ function compact_data!(rs::RejectionSampler3, entry_info, len)
             end
         end
     end
-    rs.track_info.length = rs.track_info.n
 end
 function Random.rand(rng::AbstractRNG, rs::RejectionSampler3, entry_info::EntryInfo)
-    len = rs.track_info.length
-    if rs.track_info.n/len < 0.8
-        compact_data!(rs, entry_info, len)
-        len = rs.track_info.length
+    n, len = rs.track_info.n, rs.track_info.length
+    if n/len < 0.8
+        compact_data!(rs, entry_info, len, n)
+        rs.track_info.length = n
+        len = n
     end
     mask = UInt64(1) << Base.top_set_bit(len - 1) - 1 # assumes length(data) is the power of two next after (or including) rs.length[]
     maxw = rs.track_info.maxw
@@ -279,8 +279,10 @@ function Base.push!(rs::RejectionSampler3, entry_info::EntryInfo, i, x, z)
     rs.track_info.n += 1
     len = rs.track_info.length += 1
     if len > length(rs.data)
-        if rs.track_info.n/length(rs.data) < 0.9
-            compact_data!(rs, entry_info, length(rs.data))
+        n = rs.track_info.n
+        if n/length(rs.data) < 0.9
+            compact_data!(rs, entry_info, length(rs.data), n-1)
+            rs.track_info.length = n
             len = rs.track_info.length
         else
             newlen = length(rs.data)+rs.track_info.length-1
