@@ -1,4 +1,4 @@
-using DynamicDiscreteSamplers, Chairmarks, Random, Statistics
+using DynamicDiscreteSamplers, BenchmarkTools, Random, Statistics
 
 function setup(rng, indices)
     ds = DynamicDiscreteSampler()
@@ -8,15 +8,15 @@ function setup(rng, indices)
     return ds
 end
 
-# Sampling with Fixed Distribution
+# Sampling Fixed Distribution
 
-function sample_fixed(rng, ds, n)
+function sample_fixed_dist(rng, ds, n)
     return rand(rng, ds, n)
 end
 
-# Sampling with Variable Distribution
+# Sampling Variable Distribution with Fixed Range
 
-function sample_variable(rng, ds, n)
+function sample_variable_dist_fixed_range(rng, ds, n)
     inds = Vector{Int}(undef, n)
     @inbounds for i in 1:n
         j = rand(rng, 1:n)
@@ -27,9 +27,33 @@ function sample_variable(rng, ds, n)
     return ds
 end
 
-rng = Xoshiro(42)
-for s in [10^i for i in 1:8]
-    b1 = @be setup($rng, 1:$s) sample_fixed($rng, _, $s) seconds=3
-    b2 = @be setup($rng, 1:$s) sample_variable($rng, _, $s) seconds=3
-    println(mean(x.time for x in b1.samples)/s*10^9, " ", mean(x.time for x in b2.samples)/s*10^9,)
+# Sampling Variable Distribution with Variable Range
+
+function sample_variable_dist_variable_range(rng, ds, n)
+    inds = Vector{Int}(undef, n)
+    @inbounds for i in 1:n
+        j = rand(rng, 1:n)
+        delete!(ds, j)
+        inds[i] = rand(rng, ds)
+        push!(ds, j, (10.0^200)*rand(rng))
+        push!(ds, n+i, (10.0^200)*rand(rng))
+    end
+    return ds
 end
+
+rng = Xoshiro(42)
+times = [[],[],[]]
+for s in [[10^i for i in 1:7]..., 8*10^7]
+    b1 = @benchmark sample_fixed_dist($rng, ds, $s) setup=(ds=setup($rng, 1:$s)) evals=1 seconds=10
+    b2 = @benchmark sample_variable_dist_fixed_range($rng, ds, $s) setup=(ds=setup($rng, 1:$s)) evals=1 seconds=10
+    b3 = @benchmark sample_variable_dist_variable_range($rng, ds, $s) setup=(ds=setup($rng, 1:$s)) evals=1 seconds=10
+    push!(times[1], mean(b1.times)/s)
+    push!(times[2], mean(b2.times)/s)
+    push!(times[3], mean(b3.times)/s)
+end
+
+using Plots
+
+plot!(1:8, times[1], marker=:circle, label="fixed dist", ylabel="time per element (ns)", xlabel="size", xticks=(1:8, [["10^$i" for i in 1:7]..., "8*10^7"]))
+plot!(1:8, times[2], marker=:square, label="variable dist fixed range")
+plot!(1:8, times[3], marker=:utriangle, label="variable dist variable range")
