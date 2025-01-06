@@ -67,10 +67,10 @@ mutable struct RejectionInfo
     length::Int
     maxw::Float64
 end
-struct RejectionSampler3
+struct RejectionSampler
     data::Vector{Tuple{Int, Float64}}
     track_info::RejectionInfo
-    RejectionSampler3(i, v) = new([(i, v)], RejectionInfo(1, v))
+    RejectionSampler(i, v) = new([(i, v)], RejectionInfo(1, v))
 end
 function Random.rand(rng::AbstractRNG, rs::RejectionSampler)
     len = rs.track_info.length
