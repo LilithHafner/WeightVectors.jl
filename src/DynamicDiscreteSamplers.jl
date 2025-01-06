@@ -223,10 +223,10 @@ NestedSampler() = NestedSampler{64}()
 NestedSampler{N}() where N = NestedSampler{N}(
     SelectionSampler4(zero(MVector{N, Float64}), MVector{N, Int16}(1:N)),
     zero(MVector{N, Int16}),
-    Tuple{UInt128, RejectionSampler3}[],
+    Tuple{UInt128, RejectionSampler}[],
     zero(MVector{N, Float64}),
     zero(MVector{N, Int16}),
-    LinkedListSet3(),
+    LinkedListSet(),
     LevelMap(),
     EntryInfo(),
     TrackInfo(0, 0, 0, -1075, 0, 1, 0, 0, true),
