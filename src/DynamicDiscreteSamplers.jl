@@ -72,7 +72,7 @@ struct RejectionSampler3
     track_info::RejectionInfo
     RejectionSampler3(i, v) = new([(i, v)], RejectionInfo(1, v))
 end
-function Random.rand(rng::AbstractRNG, rs::RejectionSampler3)
+function Random.rand(rng::AbstractRNG, rs::RejectionSampler)
     len = rs.track_info.length
     mask = UInt64(1) << Base.top_set_bit(len - 1) - 1 # assumes length(data) is the power of two next after (or including) rs.length[]
     maxw = rs.track_info.maxw
@@ -84,7 +84,7 @@ function Random.rand(rng::AbstractRNG, rs::RejectionSampler3)
         rand(rng) * maxw < x && return (i, res) # TODO: consider reusing random bits from u; a previous test revealed no perf improvement from doing this
     end
 end
-function Base.push!(rs::RejectionSampler3, i, x)
+function Base.push!(rs::RejectionSampler, i, x)
     len = rs.track_info.length += 1
     len > length(rs.data) && resize!(rs.data, length(rs.data)+len-1)
     rs.data[len] = (i, x)
@@ -92,8 +92,8 @@ function Base.push!(rs::RejectionSampler3, i, x)
     rs.track_info.maxw = ifelse(x > maxwn, x, maxwn)
     rs
 end
-Base.isempty(rs::RejectionSampler3) = length(rs) == 0 # For testing only
-Base.length(rs::RejectionSampler3) = rs.track_info.length # For testing only
+Base.isempty(rs::RejectionSampler) = length(rs) == 0 # For testing only
+Base.length(rs::RejectionSampler) = rs.track_info.length # For testing only
 
 struct LinkedListSet
     data::MVector{34, UInt64}
@@ -204,7 +204,7 @@ end
     reinterpret(Float64, x + (exp << 52))
 end
 
-struct NestedSampler5{N}
+struct NestedSampler{N}
     # Used in sampling
     distribution_over_levels::SelectionSampler4{N} # A distribution over 1:N
     sampled_levels::MVector{N, Int16} # The top up to 64 levels indices
@@ -219,8 +219,8 @@ struct NestedSampler5{N}
     track_info::TrackInfo
 end
 
-NestedSampler5() = NestedSampler5{64}()
-NestedSampler5{N}() where N = NestedSampler5{N}(
+NestedSampler() = NestedSampler{64}()
+NestedSampler{N}() where N = NestedSampler{N}(
     SelectionSampler4(zero(MVector{N, Float64}), MVector{N, Int16}(1:N)),
     zero(MVector{N, Int16}),
     Tuple{UInt128, RejectionSampler3}[],
@@ -232,8 +232,8 @@ NestedSampler5{N}() where N = NestedSampler5{N}(
     TrackInfo(0, 0, 0, -1075, 0, 1, 0, 0, true),
 )
 
-Base.rand(ns::NestedSampler5, n::Integer) = rand(Random.default_rng(), ns, n)
-function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
+Base.rand(ns::NestedSampler, n::Integer) = rand(Random.default_rng(), ns, n)
+function Base.rand(rng::AbstractRNG, ns::NestedSampler, n::Integer)
     n < 100 && return [rand(rng, ns) for _ in 1:n]
     lastfull = ns.track_info.lastfull
     ws = @view(ns.sampled_level_weights[1:lastfull])
@@ -254,8 +254,8 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
     shuffle!(rng, inds)
     return inds
 end
-Base.rand(ns::NestedSampler5) = rand(Random.default_rng(), ns)
-@inline function Base.rand(rng::AbstractRNG, ns::NestedSampler5)
+Base.rand(ns::NestedSampler) = rand(Random.default_rng(), ns)
+@inline function Base.rand(rng::AbstractRNG, ns::NestedSampler)
     track_info = ns.track_info
     track_info.reset_order += 1
     lastfull = track_info.lastfull
@@ -272,7 +272,7 @@ Base.rand(ns::NestedSampler5) = rand(Random.default_rng(), ns)
     return i
 end
 
-function Base.append!(ns::NestedSampler5{N}, inds::Union{AbstractRange{Int}, Vector{Int}}, 
+function Base.append!(ns::NestedSampler{N}, inds::Union{AbstractRange{Int}, Vector{Int}}, 
         xs::Union{AbstractRange{Float64}, Vector{Float64}}) where N
     ns.track_info.reset_distribution = true
     ns.track_info.reset_order += length(inds)
@@ -293,7 +293,7 @@ function Base.append!(ns::NestedSampler5{N}, inds::Union{AbstractRange{Int}, Vec
     return ns
 end
 
-@inline function Base.push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
+@inline function Base.push!(ns::NestedSampler{N}, i::Int, x::Float64) where N
     ns.track_info.reset_distribution = true
     ns.track_info.reset_order += 1
     ns.track_info.nvalues += 1
@@ -309,7 +309,7 @@ end
     return _push!(ns, i, x)
 end
 
-@inline function _push!(ns::NestedSampler5{N}, i::Int, x::Float64) where N
+@inline function _push!(ns::NestedSampler{N}, i::Int, x::Float64) where N
     level = exponent(x)
     level_b16 = Int16(level)
     bucketw = significand(x)/2
@@ -379,7 +379,7 @@ end
     return ns
 end
 
-@inline function Base.delete!(ns::NestedSampler5, i::Int)
+@inline function Base.delete!(ns::NestedSampler, i::Int)
     ns_track_info = ns.track_info
     ns_track_info.reset_distribution = true
     ns_track_info.reset_order += 1
@@ -456,13 +456,13 @@ end
     return ns
 end
 
-Base.isempty(ns::NestedSampler5) = ns.track_info.nvalues == 0
+Base.isempty(ns::NestedSampler) = ns.track_info.nvalues == 0
 
 struct SamplerIndices{I}
-    ns::NestedSampler5
+    ns::NestedSampler
     iter::I
 end
-function SamplerIndices(ns::NestedSampler5)
+function SamplerIndices(ns::NestedSampler)
     iter = Iterators.Flatten((Iterators.map(x -> x[1], @view(b[2].data[1:b[2].track_info.length])) for b in ns.all_levels))
     SamplerIndices(ns, iter)
 end
@@ -472,6 +472,6 @@ Base.eltype(::Type{<:SamplerIndices}) = Int
 Base.IteratorSize(::Type{<:SamplerIndices}) = Base.HasLength()
 Base.length(inds::SamplerIndices) = inds.ns.track_info.nvalues
 
-const DynamicDiscreteSampler = NestedSampler5
+const DynamicDiscreteSampler = NestedSampler
 
 end
