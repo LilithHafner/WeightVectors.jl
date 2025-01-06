@@ -197,7 +197,7 @@ function reorder_levels(ns, ss, p, lastfull)
     sortperm!(@view(ss.o[1:lastfull]), @view(p[1:lastfull]); alg=Base.Sort.InsertionSortAlg())
     @inbounds for i in 1:lastfull
         if ss.o[i] == zero(Int16)
-            all_index, _ = ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075]
+            all_index = ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075][1]
             ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075] = (all_index, i)
             continue
         end
@@ -217,7 +217,7 @@ function reorder_levels(ns, ss, p, lastfull)
         ns.sampled_level_numbers[x] = value2
         p[x] = value3
         ss.o[x] = zero(Int16)
-        all_index, _ = ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075]
+        all_index = ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075][1]
         ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075] = (all_index, i)
     end
 end
@@ -407,7 +407,7 @@ NestedSampler5{N}() where N = NestedSampler5{N}(
     LinkedListSet3(),
     LevelMap(),
     EntryInfo(),
-    TrackInfo(0, 0, 0, -1075, 0, N+1, 0, 0, true),
+    TrackInfo(0, 0, 0, -1075, 0, 1, 0, 0, true),
 )
 
 Base.rand(ns::NestedSampler5, n::Integer) = rand(Random.default_rng(), ns, n)
@@ -494,7 +494,6 @@ end
     ns.entry_info.presence[i] = true
     if level ∉ ns.level_set
         # Log the entry
-        ns.track_info.firstchanged = 1
         ns.entry_info.indices[i] = (level, 1)
 
         # Create a new level (or revive an empty level)
@@ -528,13 +527,15 @@ end
                     ns.track_info.least_significant_sampled_level = findnext(ns.level_set, ns.track_info.least_significant_sampled_level+1)
                 end
             else # Replace the least significant sampled level with the new level
-                k, j = ns.level_set_map.indices[ns.track_info.least_significant_sampled_level+1075]
-                ns.level_set_map.indices[ns.track_info.least_significant_sampled_level+1075] = (k, 0)
-                ns.sampled_levels[j] = Int16(all_levels_index)
-                ns.sampled_level_weights[j] = x
-                ns.sampled_level_numbers[j] = level_b16
-                ns.level_set_map.indices[level+1075] = (all_levels_index, j)
+                j, k = ns.level_set_map.indices[ns.track_info.least_significant_sampled_level+1075]
+                ns.level_set_map.indices[ns.track_info.least_significant_sampled_level+1075] = (j, 0)
+                ns.sampled_levels[k] = Int16(all_levels_index)
+                ns.sampled_level_weights[k] = x
+                ns.sampled_level_numbers[k] = level_b16
+                ns.level_set_map.indices[level+1075] = (all_levels_index, k)
                 ns.track_info.least_significant_sampled_level = findnext(ns.level_set, ns.track_info.least_significant_sampled_level+1)
+                firstc = ns.track_info.firstchanged
+                ns.track_info.firstchanged = ifelse(k < firstc, k, firstc)
             end
         else # created an unsampled level
             ns.level_set_map.indices[level+1075] = (all_levels_index, 0)
@@ -589,10 +590,11 @@ end
     ns.all_levels[l] = (wn, level_sampler)
 
     if isempty(level_sampler) # Remove a level
-        ns.track_info.firstchanged = 1
         delete!(ns.level_set, level)
         ns.all_levels[l] = (zero(UInt128), level_sampler) # Fixup for rounding error
         if k != 0 # Remove a sampled level
+            firstc = ns.track_info.firstchanged
+            ns.track_info.firstchanged = ifelse(k < firstc, k, firstc)
             replacement = findprev(ns.level_set, ns_track_info.least_significant_sampled_level-1)
             ns.level_set_map.indices[level+1075] = (l, 0)
             if isnothing(replacement) # We'll now have fewer than N sampled levels
