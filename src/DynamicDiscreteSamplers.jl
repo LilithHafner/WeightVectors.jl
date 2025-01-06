@@ -2,178 +2,20 @@ module DynamicDiscreteSamplers
 
 export DynamicDiscreteSampler, SamplerIndices
 
-#=
-julia> @b AliasTable(rand(6)) AliasTables.set_weights!(_, rand!(X))
-136.789 ns
-
-julia> @b AliasTable(rand(6)) rand
-6.329 ns
-=#
-
 using Distributions, Random, StaticArrays
 
-get_weights(p::NTuple{8, Float64}) = p .* typemax(UInt) ./ maximum(p)
-get_weights(p::NTuple{8, Any}) = get_weights(Float64.(p))
-get_weights(p::NTuple{6, Any}) = get_weights((p..., 0.0, 0.0))
-mutable struct RejectionSampler8
-    p::NTuple{8, Float64}
-    RejectionSampler8(p) = new(get_weights(p))
-end
-
-function Random.rand(rng::AbstractRNG, rs::RejectionSampler8)
-    while true
-        u = rand(rng, UInt64)
-        i = u & 0x07 + 1
-        u > rs.p[i] || return i
-    end
-end
-
-function set_weights!(rs::RejectionSampler8, p)
-    rs.p = get_weights(p)
-    rs
-end
-
-# julia> @be RejectionSampler8(rand(NTuple{6, Float64})) rand
-# Benchmark: 3322 samples with 1728 evaluations
-#  min    10.489 ns
-#  median 16.373 ns
-#  mean   16.547 ns
-#  max    33.275 ns
-
-# julia> @be RejectionSampler8(rand(NTuple{6, Float64})) set_weights!(_, rand(NTuple{6, Float64}))
-# Benchmark: 6967 samples with 906 evaluations
-#  min    10.946 ns
-#  median 12.740 ns
-#  mean   14.784 ns
-#  max    622.015 ns
-
-all_but_last(x) = x[begin:end-1]
-all_but_last(x::SVector) = pop(x)
-
-normalize(x::NTuple) = normalize(SVector(x))
-function normalize(p)
-    c = cumsum(Float64.(p))
-    all_but_last(c) ./ c[end]
-end
-mutable struct SelectionSampler6
-    p::NTuple{5, Float64}
-    SelectionSampler6(p) = new(normalize(p))
-end
-function Base.rand(rng::AbstractRNG, ss::SelectionSampler6)
-    u = rand(rng)
-    count(<(u), ss.p) + 1
-end
-function set_weights!(ss::SelectionSampler6, p)
-    ss.p = normalize(p)
-    ss
-end
-
-# julia> @be SelectionSampler6(rand(NTuple{6, Float64})) rand
-# Benchmark: 4191 samples with 6525 evaluations
-#  min    3.065 ns
-#  median 3.608 ns
-#  mean   3.472 ns
-#  max    6.156 ns
-
-# julia> @be SelectionSampler6(rand(NTuple{6, Float64})) set_weights!(_, rand(NTuple{6, Float64}))
-# Benchmark: 4602 samples with 2270 evaluations
-#  min    8.150 ns
-#  median 8.700 ns
-#  mean   9.085 ns
-#  max    27.056 ns
-
-
-mutable struct SelectionSampler{N}
-    p::NTuple{N, Float64}
-    SelectionSampler(p::NTuple{N, <:Any}) where N = new{N-1}(normalize(p))
-end
-function Base.rand(rng::AbstractRNG, ss::SelectionSampler)
-    u = rand(rng)
-    count(<(u), ss.p) + 1
-end
-function set_weights!(ss::SelectionSampler, p)
-    ss.p = normalize(p)
-    ss
-end
-
-# julia> @b SelectionSampler(rand(NTuple{6, Float64})) rand
-# 3.060 ns
-
-# julia> @b SelectionSampler(rand(NTuple{6, Float64})) set_weights!(_, rand(NTuple{6, Float64}))
-# 8.368 ns
-
-# julia> @b SelectionSampler(rand(NTuple{64, Float64})) rand
-# 16.280 ns
-
-# julia> @b SelectionSampler(rand(NTuple{64, Float64})) set_weights!(_, rand(NTuple{64, Float64}))
-# 105.458 μs (3994 allocs: 107.062 KiB)
-
-struct SelectionSampler2{N}
-    p::MVector{N, Float64}
-    SelectionSampler2(p) = new{length(p)-1}(normalize(p))
-end
-function Base.rand(rng::AbstractRNG, ss::SelectionSampler2)
-    u = rand(rng)
-    count(<(u), ss.p) + 1
-end
-set_weights!(ss::SelectionSampler2, p) = set_weights!(ss, SVector(p))
-function set_weights!(ss::SelectionSampler2{T}, p::SVector{U}) where {T, U}
-    # cumsum!(ss.p, pop(p))
-    # ss.p ./= ss.p[end]+p[end]
-    ss.p .= normalize(p)
-    ss
-end
-
-# julia> @b SelectionSampler2(rand(NTuple{6, Float64})) rand
-# 3.033 ns
-
-# julia> @b SelectionSampler2(rand(NTuple{6, Float64})) set_weights!(_, rand(NTuple{6, Float64}))
-# 8.186 ns
-
-# julia> @b SelectionSampler2(rand(NTuple{64, Float64})) rand
-# 17.953 ns
-
-# julia> @b SelectionSampler2(rand(NTuple{64, Float64})) set_weights!(_, rand(NTuple{64, Float64}))
-# 135.489 ns
-
-
-struct SelectionSampler3{N}
-    p::MVector{N, Float64}
-end
-function Base.rand(rng::AbstractRNG, ss::SelectionSampler3)
-    u = rand(rng)*last(ss.p)
-    count(<(u), ss.p) + 1
-end
-set_weights!(ss::SelectionSampler3, p) = set_weights!(ss, SVector(p))
-function set_weights!(ss::SelectionSampler3, p::SVector)
-    cumsum!(ss.p, p)
-    ss
-end
-
-# julia> @b SelectionSampler3(rand(NTuple{6, Float64})) rand
-# 2.838 ns
-
-# julia> @b SelectionSampler3(rand(NTuple{6, Float64})) set_weights!(_, rand(NTuple{6, Float64}))
-# 10.133 ns
-
-# julia> @b SelectionSampler3(rand(NTuple{64, Float64})) rand
-# 19.213 ns
-
-# julia> @b SelectionSampler3(rand(NTuple{64, Float64})) set_weights!(_, rand(NTuple{64, Float64}))
-# 86.549 ns
-
-struct SelectionSampler4{N}
+struct SelectionSampler{N}
     p::MVector{N, Float64}
     o::MVector{N, Int16}
 end
-function Base.rand(rng::AbstractRNG, ss::SelectionSampler4, lastfull::Int)
+function Base.rand(rng::AbstractRNG, ss::SelectionSampler, lastfull::Int)
     u = rand(rng)*ss.p[lastfull]
     @inbounds for i in lastfull-1:-1:1
         ss.p[i] < u && return i+1
     end
     return 1
 end
-function set_cum_weights!(ss::SelectionSampler4, ns, reorder)
+function set_cum_weights!(ss::SelectionSampler, ns, reorder)
     p, lastfull = ns.sampled_level_weights, ns.track_info.lastfull
     if reorder
         ns.track_info.reset_order = 0
@@ -192,7 +34,6 @@ function set_cum_weights!(ss::SelectionSampler4, ns, reorder)
     ns.track_info.firstchanged = lastfull
     return ss
 end
-
 function reorder_levels(ns, ss, p, lastfull)
     sortperm!(@view(ss.o[1:lastfull]), @view(p[1:lastfull]); alg=Base.Sort.InsertionSortAlg())
     @inbounds for i in 1:lastfull
@@ -221,8 +62,6 @@ function reorder_levels(ns, ss, p, lastfull)
         ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075] = (all_index, i)
     end
 end
-
-# TODO: add some benchmarks here of SelectionSampler4
 
 mutable struct RejectionInfo
     length::Int
@@ -256,31 +95,14 @@ end
 Base.isempty(rs::RejectionSampler3) = length(rs) == 0 # For testing only
 Base.length(rs::RejectionSampler3) = rs.track_info.length # For testing only
 
-# julia> rs = RejectionSampler3(3, .5)
-# RejectionSampler3(Base.RefValue{Int64}(1), [(3, 0.5)])
-
-# julia> @b rs rand
-# 14.542 ns
-
-# julia> @b rs push!(_, rand(Int), rand()/2+.5)
-# 5.597 ns
-
-# julia> @b rs rand
-# 33.750 ns
-
-# julia> rs.length[]
-# 1048678
-
-# -----------
-
-struct LinkedListSet3
+struct LinkedListSet
     data::MVector{34, UInt64}
-    LinkedListSet3() = new(zero(MVector{34, UInt64}))
+    LinkedListSet() = new(zero(MVector{34, UInt64}))
 end
-Base.in(i::Int, x::LinkedListSet3) = x.data[i >> 6 + 18] & (UInt64(1) << (0x3f - (i & 0x3f))) != 0
-Base.push!(x::LinkedListSet3, i::Int) = (x.data[i >> 6 + 18] |= UInt64(1) << (0x3f - (i & 0x3f)); x)
-Base.delete!(x::LinkedListSet3, i::Int) = (x.data[i >> 6 + 18] &= ~(UInt64(1) << (0x3f - (i & 0x3f))); x)
-function Base.findnext(x::LinkedListSet3, i::Int)
+Base.in(i::Int, x::LinkedListSet) = x.data[i >> 6 + 18] & (UInt64(1) << (0x3f - (i & 0x3f))) != 0
+Base.push!(x::LinkedListSet, i::Int) = (x.data[i >> 6 + 18] |= UInt64(1) << (0x3f - (i & 0x3f)); x)
+Base.delete!(x::LinkedListSet, i::Int) = (x.data[i >> 6 + 18] &= ~(UInt64(1) << (0x3f - (i & 0x3f))); x)
+function Base.findnext(x::LinkedListSet, i::Int)
     j = i >> 6 + 18
     k = i & 0x3f
     y = x.data[j] << k
@@ -289,7 +111,7 @@ function Base.findnext(x::LinkedListSet3, i::Int)
     isnothing(j2) && return nothing
     j2 << 6 + leading_zeros(x.data[j2]) - 18*64
 end
-function Base.findprev(x::LinkedListSet3, i::Int)
+function Base.findprev(x::LinkedListSet, i::Int)
     j = i >> 6 + 18
     k = i & 0x3f
     y = x.data[j] >> (0x3f - k)
@@ -651,49 +473,5 @@ Base.IteratorSize(::Type{<:SamplerIndices}) = Base.HasLength()
 Base.length(inds::SamplerIndices) = inds.ns.track_info.nvalues
 
 const DynamicDiscreteSampler = NestedSampler5
-
-# ------------------------------
-
-# Trash:
-
-struct RejectionSampler
-    maximum::Float64
-    p::Vector{Tuple{Int, Float64}}
-end
-function set_weight!(rs::RejectionSampler, i, p)
-    rs.p = [(i, p[i]) for i in 1:length(p)]
-    rs.maximum[] = maximum(p)
-    rs
-end
-
-struct Reducer0{T}
-    group_p::T
-    groups::Vector{Vector{Tuple{Int, Float64}}}
-    small::Vector{Tuple{Int, Float64}}
-    p::Ref{Float64}
-    metadata::Vector{@NamedTuple{group::Int, group_index::Int, weight::Float64}} # For mutation only
-end
-function sample_from_group(group::Vector{Tuple{Int, Float64}})
-    while true
-        u = rand(UInt)
-        i = u & (length(group)-1) + 1 # assumes length(group) is a power of two
-        res,p = group[i]
-        u > p || return res
-    end
-end
-function Random.rand(r::Reducer0)
-    group = if rand() < r.p[]
-        (r.small)
-    else
-        groups[rand(r.group_p)]
-    end
-    sample_from_group(group)
-end
-
-roundup(x) = 1 << Base.top_set_bit(x-1)
-function Reducer0(group_p_maker, weights)
-    n = roundup(length(weights))
-    log2(w)
-end
 
 end
