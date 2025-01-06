@@ -183,9 +183,10 @@ function set_cum_weights!(ss::SelectionSampler4, ns, reorder)
         @inline reorder_levels(ns, ss, p, lastfull)
         ns.track_info.lastchanged = 1
     end
-    s = ns.track_info.lastchanged + Int(ns.track_info.lastchanged == 1)
+    firstc = ns.track_info.firstchanged
     ss.p[1] = p[1]
-    @inbounds for i in s:lastfull
+    f = firstc + Int(firstc == 1)
+    @inbounds for i in f:lastfull
         ss.p[i] = ss.p[i-1] + p[i]
     end
     ns.track_info.lastchanged = 1
@@ -493,7 +494,7 @@ end
     ns.entry_info.presence[i] = true
     if level ∉ ns.level_set
         # Log the entry
-        ns.track_info.lastchanged = 1
+        ns.track_info.firstchanged = 1
         ns.entry_info.indices[i] = (level, 1)
 
         # Create a new level (or revive an empty level)
@@ -548,8 +549,8 @@ end
 
         if k != 0 # level is sampled
             ns.sampled_level_weights[k] = flot(wn, level)
-            lastv = ns.track_info.lastchanged
-            ns.track_info.lastchanged = k < lastv ? k : lastv
+            firstc = ns.track_info.firstchanged
+            ns.track_info.firstchanged = k < firstc ? k : firstc
         end
     end
     return ns
@@ -588,7 +589,7 @@ end
     ns.all_levels[l] = (wn, level_sampler)
 
     if isempty(level_sampler) # Remove a level
-        ns.track_info.lastchanged = 1
+        ns.track_info.firstchanged = 1
         delete!(ns.level_set, level)
         ns.all_levels[l] = (zero(UInt128), level_sampler) # Fixup for rounding error
         if k != 0 # Remove a sampled level
@@ -625,8 +626,8 @@ end
         end
     elseif k != 0
         ns.sampled_level_weights[k] = flot(wn, level)
-        lastv = ns.track_info.lastchanged
-        ns.track_info.lastchanged = k < lastv ? k : lastv
+        firstc = ns.track_info.firstchanged
+        ns.track_info.firstchanged = k < firstc ? k : firstc
     end
     return ns
 end
