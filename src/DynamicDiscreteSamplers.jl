@@ -189,7 +189,7 @@ function set_cum_weights!(ss::SelectionSampler4, ns, reorder)
     @inbounds for i in f:lastfull
         ss.p[i] = ss.p[i-1] + p[i]
     end
-    ns.track_info.lastchanged = 1
+    ns.track_info.firstchanged = 1
     return ss
 end
 
