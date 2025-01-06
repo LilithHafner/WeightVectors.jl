@@ -367,7 +367,7 @@ mutable struct TrackInfo
     lastsampled_idx_in::Int
     least_significant_sampled_level::Int # The level number of the least significant tracked level
     nvalues::Int
-    lastchanged::Int
+    firstchanged::Int
     lastfull::Int
     reset_order::Int
     reset_distribution::Bool
