@@ -1,4 +1,4 @@
-module DynamicDiscreteSamplers
+imodule DynamicDiscreteSamplers
 
 export DynamicDiscreteSampler, SamplerIndices
 
@@ -221,7 +221,7 @@ end
 
 NestedSampler() = NestedSampler{64}()
 NestedSampler{N}() where N = NestedSampler{N}(
-    SelectionSampler4(zero(MVector{N, Float64}), MVector{N, Int16}(1:N)),
+    SelectionSampler(zero(MVector{N, Float64}), MVector{N, Int16}(1:N)),
     zero(MVector{N, Int16}),
     Tuple{UInt128, RejectionSampler}[],
     zero(MVector{N, Float64}),
