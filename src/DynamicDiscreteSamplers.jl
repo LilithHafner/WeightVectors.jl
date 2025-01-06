@@ -177,7 +177,7 @@ function set_cum_weights!(ss::SelectionSampler4, ns, reorder)
     p, lastfull = ns.sampled_level_weights, ns.track_info.lastfull
     if reorder
         ns.track_info.reset_order = 0
-        if ns.track_info.reset_distribution == false && issorted(@view(p[1:lastfull]))
+        if !ns.track_info.reset_distribution && issorted(@view(p[1:lastfull]))
             return ss
         end
         @inline reorder_levels(ns, ss, p, lastfull)
@@ -286,7 +286,7 @@ function Base.findnext(x::LinkedListSet3, i::Int)
     y = x.data[j] << k
     y != 0 && return i + leading_zeros(y)
     j2 = findnext(!iszero, x.data, j+1)
-    j2 === nothing && return nothing
+    isnothing(j2) && return nothing
     j2 << 6 + leading_zeros(x.data[j2]) - 18*64
 end
 function Base.findprev(x::LinkedListSet3, i::Int)
@@ -295,7 +295,7 @@ function Base.findprev(x::LinkedListSet3, i::Int)
     y = x.data[j] >> (0x3f - k)
     y != 0 && return i - trailing_zeros(y)
     j2 = findprev(!iszero, x.data, j-1)
-    j2 === nothing && return nothing
+    isnothing(j2) && return nothing
     j2 << 6 - trailing_zeros(x.data[j2]) - 17*64 - 1
 end
 
