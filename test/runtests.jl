@@ -8,7 +8,7 @@ using StableRNGs
 using StatsBase
 
 @testset "unit tests" begin
-    lls = DynamicDiscreteSamplers.LinkedListSet3()
+    lls = DynamicDiscreteSamplers.LinkedListSet()
     push!(lls, 2)
     push!(lls, 3)
     delete!(lls, 2)
