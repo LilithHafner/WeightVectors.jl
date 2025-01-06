@@ -168,29 +168,33 @@ struct SelectionSampler4{N}
 end
 function Base.rand(rng::AbstractRNG, ss::SelectionSampler4, lastfull::Int)
     u = rand(rng)*ss.p[lastfull]
-    @inbounds for i in 1:lastfull-1
-        ss.p[i] > u && return i
+    @inbounds for i in lastfull-1:-1:1
+        ss.p[i] < u && return i+1
     end
-    return lastfull
+    return 1
 end
 function set_cum_weights!(ss::SelectionSampler4, ns, reorder)
     p, lastfull = ns.sampled_level_weights, ns.track_info.lastfull
     if reorder
         ns.track_info.reset_order = 0
-        if ns.track_info.reset_distribution == false && issorted(@view(p[1:lastfull]); rev=true)
+        if !ns.track_info.reset_distribution && issorted(@view(p[1:lastfull]))
             return ss
         end
         @inline reorder_levels(ns, ss, p, lastfull)
+        ns.track_info.firstchanged = 1
     end
+    firstc = ns.track_info.firstchanged
     ss.p[1] = p[1]
-    @inbounds for i in 2:lastfull
+    f = firstc + Int(firstc == 1)
+    @inbounds for i in f:lastfull
         ss.p[i] = ss.p[i-1] + p[i]
     end
+    ns.track_info.firstchanged = lastfull
     return ss
 end
 
 function reorder_levels(ns, ss, p, lastfull)
-    sortperm!(@view(ss.o[1:lastfull]), @view(p[1:lastfull]); alg=Base.Sort.InsertionSortAlg(), rev=true)
+    sortperm!(@view(ss.o[1:lastfull]), @view(p[1:lastfull]); alg=Base.Sort.InsertionSortAlg())
     @inbounds for i in 1:lastfull
         if ss.o[i] == zero(Int16)
             all_index, _ = ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075]
@@ -246,7 +250,7 @@ function Base.push!(rs::RejectionSampler3, i, x)
     len > length(rs.data) && resize!(rs.data, length(rs.data)+len-1)
     rs.data[len] = (i, x)
     maxwn = rs.track_info.maxw
-    rs.track_info.maxw = x > maxwn ? x : maxwn
+    rs.track_info.maxw = ifelse(x > maxwn, x, maxwn)
     rs
 end
 Base.isempty(rs::RejectionSampler3) = length(rs) == 0 # For testing only
@@ -282,7 +286,7 @@ function Base.findnext(x::LinkedListSet3, i::Int)
     y = x.data[j] << k
     y != 0 && return i + leading_zeros(y)
     j2 = findnext(!iszero, x.data, j+1)
-    j2 === nothing && return nothing
+    isnothing(j2) && return nothing
     j2 << 6 + leading_zeros(x.data[j2]) - 18*64
 end
 function Base.findprev(x::LinkedListSet3, i::Int)
@@ -291,7 +295,7 @@ function Base.findprev(x::LinkedListSet3, i::Int)
     y = x.data[j] >> (0x3f - k)
     y != 0 && return i - trailing_zeros(y)
     j2 = findprev(!iszero, x.data, j-1)
-    j2 === nothing && return nothing
+    isnothing(j2) && return nothing
     j2 << 6 - trailing_zeros(x.data[j2]) - 17*64 - 1
 end
 
@@ -363,6 +367,7 @@ mutable struct TrackInfo
     lastsampled_idx_in::Int
     least_significant_sampled_level::Int # The level number of the least significant tracked level
     nvalues::Int
+    firstchanged::Int
     lastfull::Int
     reset_order::Int
     reset_distribution::Bool
@@ -402,7 +407,7 @@ NestedSampler5{N}() where N = NestedSampler5{N}(
     LinkedListSet3(),
     LevelMap(),
     EntryInfo(),
-    TrackInfo(0, 0, 0, -1075, 0, 0, 0, true),
+    TrackInfo(0, 0, 0, -1075, 0, N+1, 0, 0, true),
 )
 
 Base.rand(ns::NestedSampler5, n::Integer) = rand(Random.default_rng(), ns, n)
@@ -489,6 +494,7 @@ end
     ns.entry_info.presence[i] = true
     if level ∉ ns.level_set
         # Log the entry
+        ns.track_info.firstchanged = 1
         ns.entry_info.indices[i] = (level, 1)
 
         # Create a new level (or revive an empty level)
@@ -543,6 +549,8 @@ end
 
         if k != 0 # level is sampled
             ns.sampled_level_weights[k] = flot(wn, level)
+            firstc = ns.track_info.firstchanged
+            ns.track_info.firstchanged = ifelse(k < firstc, k, firstc)
         end
     end
     return ns
@@ -581,6 +589,7 @@ end
     ns.all_levels[l] = (wn, level_sampler)
 
     if isempty(level_sampler) # Remove a level
+        ns.track_info.firstchanged = 1
         delete!(ns.level_set, level)
         ns.all_levels[l] = (zero(UInt128), level_sampler) # Fixup for rounding error
         if k != 0 # Remove a sampled level
@@ -617,6 +626,8 @@ end
         end
     elseif k != 0
         ns.sampled_level_weights[k] = flot(wn, level)
+        firstc = ns.track_info.firstchanged
+        ns.track_info.firstchanged = ifelse(k < firstc, k, firstc)
     end
     return ns
 end
