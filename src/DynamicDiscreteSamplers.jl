@@ -322,7 +322,7 @@ end
         push!(ns.level_set, level)
         existing_level_indices = ns.level_set_map.presence[level+1075]
         all_levels_index = if !existing_level_indices
-            level_sampler = RejectionSampler3(i, bucketw)
+            level_sampler = RejectionSampler(i, bucketw)
             push!(ns.all_levels, (sig(x), level_sampler))
             length(ns.all_levels)
         else
