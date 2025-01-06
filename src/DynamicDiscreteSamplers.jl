@@ -413,8 +413,11 @@ Base.rand(ns::NestedSampler5, n::Integer) = rand(Random.default_rng(), ns, n)
 function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
     n < 100 && return [rand(rng, ns) for _ in 1:n]
     lastfull = ns.track_info.lastfull
-    full_level_weights = @view(ns.sampled_level_weights[1:lastfull])
-    n_each = rand(rng, Multinomial(n, full_level_weights ./ sum(full_level_weights)))
+    ws = @view(ns.sampled_level_weights[1:lastfull])
+    totw = sum(ws)
+    maxw = maximum(ws)
+    maxw/totw > 0.98 && return [rand(rng, ns) for _ in 1:n]
+    n_each = rand(rng, Multinomial(n, ws ./ totw))
     inds = Vector{Int}(undef, n)
     q = 1
     @inbounds for (level, k) in enumerate(n_each)
@@ -503,8 +506,8 @@ end
         else
             level_indices = ns.level_set_map.indices[level+1075]
             w, level_sampler = ns.all_levels[level_indices[1]]
-            @assert w == 0
-            @assert isempty(level_sampler)
+            #@assert w == 0
+            #@assert isempty(level_sampler)
             push!(level_sampler, i, bucketw)
             ns.all_levels[level_indices[1]] = (sig(x), level_sampler)
             level_indices[1]
@@ -573,12 +576,12 @@ end
     l, k = ns.level_set_map.indices[level+1075]
     w, level_sampler = ns.all_levels[l]
     _i, significand = level_sampler.data[j]
-    @assert _i == i
+    #@assert _i == i
     moved_entry, _ = level_sampler.data[j] = level_sampler.data[level_sampler.track_info.length]
     level_sampler.data[level_sampler.track_info.length] = (0, 0.0)
     level_sampler.track_info.length -= 1
     if moved_entry != i
-        @assert ns.entry_info.indices[moved_entry] == (level, length(level_sampler)+1)
+        #@assert ns.entry_info.indices[moved_entry] == (level, length(level_sampler)+1)
         ns.entry_info.indices[moved_entry] = (level, j)
     end
     wn = w-sig(significand*exp2(level+1))
@@ -604,7 +607,7 @@ end
                     ns.sampled_level_weights[k] = ns.sampled_level_weights[sl_length]
                     ns.sampled_level_weights[sl_length] = 0.0
                     all_index, _l = ns.level_set_map.indices[ns.sampled_level_numbers[k]+1075]
-                    @assert _l == ns.track_info.lastfull+1
+                    #@assert _l == ns.track_info.lastfull+1
                     ns.level_set_map.indices[ns.sampled_level_numbers[k]+1075] = (all_index, k)
                     all_index = ns.level_set_map.indices[ns.sampled_level_numbers[sl_length]+1075][1]
                     ns.level_set_map.indices[ns.sampled_level_numbers[sl_length]+1075] = (all_index, sl_length)
@@ -612,7 +615,7 @@ end
             else # Replace the removed level with the replacement
                 ns_track_info.least_significant_sampled_level = replacement
                 all_index, _zero = ns.level_set_map.indices[replacement+1075]
-                @assert _zero == 0
+                #@assert _zero == 0
                 ns.level_set_map.indices[replacement+1075] = (all_index, k)
                 w, replacement_level = ns.all_levels[all_index]
                 ns.sampled_levels[k] = Int16(all_index)
