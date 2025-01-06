@@ -168,29 +168,32 @@ struct SelectionSampler4{N}
 end
 function Base.rand(rng::AbstractRNG, ss::SelectionSampler4, lastfull::Int)
     u = rand(rng)*ss.p[lastfull]
-    @inbounds for i in 1:lastfull-1
-        ss.p[i] > u && return i
+    @inbounds for i in lastfull-1:-1:1
+        ss.p[i] < u && return i+1
     end
-    return lastfull
+    return 1
 end
 function set_cum_weights!(ss::SelectionSampler4, ns, reorder)
     p, lastfull = ns.sampled_level_weights, ns.track_info.lastfull
     if reorder
         ns.track_info.reset_order = 0
-        if ns.track_info.reset_distribution == false && issorted(@view(p[1:lastfull]); rev=true)
+        if ns.track_info.reset_distribution == false && issorted(@view(p[1:lastfull]))
             return ss
         end
         @inline reorder_levels(ns, ss, p, lastfull)
+        ns.track_info.lastchanged = 1
     end
+    s = ns.track_info.lastchanged + Int(ns.track_info.lastchanged == 1)
     ss.p[1] = p[1]
-    @inbounds for i in 2:lastfull
+    @inbounds for i in s:lastfull
         ss.p[i] = ss.p[i-1] + p[i]
     end
+    ns.track_info.lastchanged = 1
     return ss
 end
 
 function reorder_levels(ns, ss, p, lastfull)
-    sortperm!(@view(ss.o[1:lastfull]), @view(p[1:lastfull]); alg=Base.Sort.InsertionSortAlg(), rev=true)
+    sortperm!(@view(ss.o[1:lastfull]), @view(p[1:lastfull]); alg=Base.Sort.InsertionSortAlg())
     @inbounds for i in 1:lastfull
         if ss.o[i] == zero(Int16)
             all_index, _ = ns.level_set_map.indices[ns.sampled_level_numbers[i]+1075]
@@ -363,6 +366,7 @@ mutable struct TrackInfo
     lastsampled_idx_in::Int
     least_significant_sampled_level::Int # The level number of the least significant tracked level
     nvalues::Int
+    lastchanged::Int
     lastfull::Int
     reset_order::Int
     reset_distribution::Bool
@@ -402,7 +406,7 @@ NestedSampler5{N}() where N = NestedSampler5{N}(
     LinkedListSet3(),
     LevelMap(),
     EntryInfo(),
-    TrackInfo(0, 0, 0, -1075, 0, 0, 0, true),
+    TrackInfo(0, 0, 0, -1075, 0, N+1, 0, 0, true),
 )
 
 Base.rand(ns::NestedSampler5, n::Integer) = rand(Random.default_rng(), ns, n)
@@ -410,14 +414,14 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
     n < 100 && return [rand(rng, ns) for _ in 1:n]
     lastfull = ns.track_info.lastfull
     full_level_weights = @view(ns.sampled_level_weights[1:lastfull])
+    ws = @view(ns.sampled_level_weights[1:lastfull])
     n_each = rand(rng, Multinomial(n, full_level_weights ./ sum(full_level_weights)))
-    inds = Vector{Int}(undef, n)
     q = 1
     @inbounds for (level, k) in enumerate(n_each)
         bucket = ns.all_levels[Int(ns.sampled_levels[level])][2]
         for _ in 1:k
-            _, i = @inline rand(rng, bucket)
-            inds[q] = i
+            ti = @inline rand(rng, bucket)
+            inds[q] = ti[2]
             q += 1
         end
     end
@@ -432,8 +436,8 @@ Base.rand(ns::NestedSampler5) = rand(Random.default_rng(), ns)
     reorder = lastfull > 8 && track_info.reset_order > 300*lastfull
     if track_info.reset_distribution || reorder 
         @inline set_cum_weights!(ns.distribution_over_levels, ns, reorder)
+        track_info.reset_distribution = false
     end
-    track_info.reset_distribution = false
     level = @inline rand(rng, ns.distribution_over_levels, lastfull)
     j, i = @inline rand(rng, ns.all_levels[Int(ns.sampled_levels[level])][2])
     track_info.lastsampled_idx = i
@@ -455,7 +459,7 @@ function Base.append!(ns::NestedSampler5{N}, inds::Union{AbstractRange{Int}, Vec
         fill!(@view(ns.entry_info.presence[l_info+1:maxi]), false)
     end
     for (i, x) in zip(inds, xs)
-        if ns.entry_info.presence[i] !== false
+        if ns.entry_info.presence[i]
             throw(ArgumentError("Element $i is already present"))
         end
         _push!(ns, i, x)
@@ -473,7 +477,7 @@ end
         resize!(ns.entry_info.indices, i)
         resize!(ns.entry_info.presence, i)
         fill!(@view(ns.entry_info.presence[l_info+1:i]), false)
-    elseif ns.entry_info.presence[i] !== false
+    elseif ns.entry_info.presence[i]
         throw(ArgumentError("Element $i is already present"))
     end
     return _push!(ns, i, x)
@@ -486,12 +490,13 @@ end
     ns.entry_info.presence[i] = true
     if level ∉ ns.level_set
         # Log the entry
+        ns.track_info.lastchanged = 1
         ns.entry_info.indices[i] = (level, 1)
 
         # Create a new level (or revive an empty level)
         push!(ns.level_set, level)
         existing_level_indices = ns.level_set_map.presence[level+1075]
-        all_levels_index = if existing_level_indices === false
+        all_levels_index = if !existing_level_indices
             level_sampler = RejectionSampler3(i, bucketw)
             push!(ns.all_levels, (sig(x), level_sampler))
             length(ns.all_levels)
@@ -540,6 +545,8 @@ end
 
         if k != 0 # level is sampled
             ns.sampled_level_weights[k] = flot(wn, level)
+            lastv = ns.track_info.lastchanged
+            ns.track_info.lastchanged = k < lastv ? k : lastv
         end
     end
     return ns
@@ -560,7 +567,7 @@ end
         level, j = ns.entry_info.indices[i]
     end
     ns_track_info.lastsampled_idx = 0
-    ns.entry_info.presence[i] === false && throw(ArgumentError("Element $i is not present"))
+    !ns.entry_info.presence[i] && throw(ArgumentError("Element $i is not present"))
     ns.entry_info.presence[i] = false
 
     l, k = ns.level_set_map.indices[level+1075]
@@ -578,12 +585,13 @@ end
     ns.all_levels[l] = (wn, level_sampler)
 
     if isempty(level_sampler) # Remove a level
+        ns.track_info.lastchanged = 1
         delete!(ns.level_set, level)
         ns.all_levels[l] = (zero(UInt128), level_sampler) # Fixup for rounding error
         if k != 0 # Remove a sampled level
             replacement = findprev(ns.level_set, ns_track_info.least_significant_sampled_level-1)
             ns.level_set_map.indices[level+1075] = (l, 0)
-            if replacement === nothing # We'll now have fewer than N sampled levels
+            if isnothing(replacement) # We'll now have fewer than N sampled levels
                 ns_track_info.least_significant_sampled_level = -1075
                 sl_length = ns_track_info.lastfull
                 ns_track_info.lastfull -= 1
@@ -598,7 +606,7 @@ end
                     all_index, _l = ns.level_set_map.indices[ns.sampled_level_numbers[k]+1075]
                     @assert _l == ns.track_info.lastfull+1
                     ns.level_set_map.indices[ns.sampled_level_numbers[k]+1075] = (all_index, k)
-                    all_index, _ = ns.level_set_map.indices[ns.sampled_level_numbers[sl_length]+1075]
+                    all_index = ns.level_set_map.indices[ns.sampled_level_numbers[sl_length]+1075][1]
                     ns.level_set_map.indices[ns.sampled_level_numbers[sl_length]+1075] = (all_index, sl_length)
                 end
             else # Replace the removed level with the replacement
@@ -614,6 +622,8 @@ end
         end
     elseif k != 0
         ns.sampled_level_weights[k] = flot(wn, level)
+        lastv = ns.track_info.lastchanged
+        ns.track_info.lastchanged = k < lastv ? k : lastv
     end
     return ns
 end
