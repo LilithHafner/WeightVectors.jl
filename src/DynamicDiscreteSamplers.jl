@@ -181,7 +181,7 @@ function set_cum_weights!(ss::SelectionSampler4, ns, reorder)
             return ss
         end
         @inline reorder_levels(ns, ss, p, lastfull)
-        ns.track_info.lastchanged = 1
+        ns.track_info.firstchanged = 1
     end
     firstc = ns.track_info.firstchanged
     ss.p[1] = p[1]
