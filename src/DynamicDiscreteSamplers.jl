@@ -414,8 +414,8 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler5, n::Integer)
     n < 100 && return [rand(rng, ns) for _ in 1:n]
     lastfull = ns.track_info.lastfull
     full_level_weights = @view(ns.sampled_level_weights[1:lastfull])
-    ws = @view(ns.sampled_level_weights[1:lastfull])
     n_each = rand(rng, Multinomial(n, full_level_weights ./ sum(full_level_weights)))
+    inds = Vector{Int}(undef, n)
     q = 1
     @inbounds for (level, k) in enumerate(n_each)
         bucket = ns.all_levels[Int(ns.sampled_levels[level])][2]
