@@ -1,4 +1,4 @@
-imodule DynamicDiscreteSamplers
+module DynamicDiscreteSamplers
 
 export DynamicDiscreteSampler, SamplerIndices
 
