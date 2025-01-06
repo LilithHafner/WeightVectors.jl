@@ -206,14 +206,14 @@ end
 
 struct NestedSampler{N}
     # Used in sampling
-    distribution_over_levels::SelectionSampler4{N} # A distribution over 1:N
+    distribution_over_levels::SelectionSampler{N} # A distribution over 1:N
     sampled_levels::MVector{N, Int16} # The top up to 64 levels indices
-    all_levels::Vector{Tuple{UInt128, RejectionSampler3}} # All the levels, in insertion order, along with their total weights
+    all_levels::Vector{Tuple{UInt128, RejectionSampler}} # All the levels, in insertion order, along with their total weights
 
     # Not used in sampling
     sampled_level_weights::MVector{N, Float64} # The weights of the top up to N levels
     sampled_level_numbers::MVector{N, Int16} # The level numbers of the top up to N levels TODO: consider merging with sampled_levels_weights
-    level_set::LinkedListSet3 # A set of which levels are present (named by level number)
+    level_set::LinkedListSet # A set of which levels are present (named by level number)
     level_set_map::LevelMap # A mapping from level number to index in all_levels and index in sampled_levels (or 0 if not in sampled_levels)
     entry_info::EntryInfo # A mapping from element to level number and index in that level (index in level is 0 if entry is not present)
     track_info::TrackInfo
