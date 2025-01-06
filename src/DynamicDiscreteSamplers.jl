@@ -250,7 +250,7 @@ function Base.push!(rs::RejectionSampler3, i, x)
     len > length(rs.data) && resize!(rs.data, length(rs.data)+len-1)
     rs.data[len] = (i, x)
     maxwn = rs.track_info.maxw
-    rs.track_info.maxw = x > maxwn ? x : maxwn
+    rs.track_info.maxw = ifelse(x > maxwn, x, maxwn)
     rs
 end
 Base.isempty(rs::RejectionSampler3) = length(rs) == 0 # For testing only
@@ -550,7 +550,7 @@ end
         if k != 0 # level is sampled
             ns.sampled_level_weights[k] = flot(wn, level)
             firstc = ns.track_info.firstchanged
-            ns.track_info.firstchanged = k < firstc ? k : firstc
+            ns.track_info.firstchanged = ifelse(k < firstc, k, firstc)
         end
     end
     return ns
@@ -627,7 +627,7 @@ end
     elseif k != 0
         ns.sampled_level_weights[k] = flot(wn, level)
         firstc = ns.track_info.firstchanged
-        ns.track_info.firstchanged = k < firstc ? k : firstc
+        ns.track_info.firstchanged = ifelse(k < firstc, k, firstc)
     end
     return ns
 end
