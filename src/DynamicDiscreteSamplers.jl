@@ -66,20 +66,20 @@ end
 mutable struct RejectionInfo
     length::Int
     maxw::Float64
-    mask::UInt
+    mask::Int
 end
 struct RejectionSampler
     data::Vector{Tuple{Int, Float64}}
     track_info::RejectionInfo
-    RejectionSampler(i, v) = new([(i, v)], RejectionInfo(1, v, zero(UInt)))
+    RejectionSampler(i, v) = new([(i, v)], RejectionInfo(1, v, 0))
 end
 function Random.rand(rng::AbstractRNG, rs::RejectionSampler)
     len = rs.track_info.length
     mask = rs.track_info.mask
     maxw = rs.track_info.maxw
     while true
-        u = rand(rng, UInt)
-        i = Int(u & mask)
+        u = rand(rng, Int)
+        i = u & mask
         i >= len && continue
         i += 1
         res, x = rs.data[i]
@@ -90,7 +90,7 @@ function Base.push!(rs::RejectionSampler, i, x)
     len = rs.track_info.length += 1
     if len > length(rs.data)
         resize!(rs.data, 2*length(rs.data))
-        rs.track_info.mask = UInt64(1) << Base.top_set_bit(len - 1) - 1
+        rs.track_info.mask = 1 << Base.top_set_bit(len - 1) - 1
     end
     rs.data[len] = (i, x)
     maxwn = rs.track_info.maxw
