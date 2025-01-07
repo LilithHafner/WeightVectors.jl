@@ -77,11 +77,12 @@ function Random.rand(rng::AbstractRNG, rs::RejectionSampler)
     mask = UInt64(1) << Base.top_set_bit(len - 1) - 1 # assumes length(data) is the power of two next after (or including) rs.length[]
     maxw = rs.track_info.maxw
     while true
-        u = rand(rng, UInt)
-        i = u & mask + 1
-        i > len && continue
+        u = rand(rng) * len
+        intu = unsafe_trunc(Int, u)
+        fracu = u - intu
+        i = intu + 1
         res, x = rs.data[i]
-        rand(rng) * maxw < x && return (i, res) # TODO: consider reusing random bits from u; a previous test revealed no perf improvement from doing this
+        fracu * maxw < x && return (i, res)
     end
 end
 function Base.push!(rs::RejectionSampler, i, x)
