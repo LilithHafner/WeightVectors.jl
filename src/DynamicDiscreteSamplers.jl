@@ -78,8 +78,9 @@ function Random.rand(rng::AbstractRNG, rs::RejectionSampler)
     maxw = rs.track_info.maxw
     while true
         u = rand(rng, UInt)
-        i = u & mask + 1
-        i > len && continue
+        i = u & mask
+        i >= len && continue
+        i += 1
         res, x = rs.data[i]
         rand(rng) * maxw < x && return (i, res) # TODO: consider reusing random bits from u; a previous test revealed no perf improvement from doing this
     end
