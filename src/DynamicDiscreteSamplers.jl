@@ -78,7 +78,7 @@ function Random.rand(rng::AbstractRNG, rs::RejectionSampler)
     mask = rs.track_info.mask
     maxw = rs.track_info.maxw
     while true
-        u = rand(rng, Int)
+        u = rand(rng, UInt) % Int
         i = u & mask
         i >= len && continue
         i += 1
