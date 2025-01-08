@@ -90,7 +90,7 @@ function Base.push!(rs::RejectionSampler, i, x)
     len = rs.track_info.length += 1
     if len > length(rs.data)
         resize!(rs.data, 2*length(rs.data))
-        rs.track_info.mask = UInt(1) << Base.top_set_bit(len - 1) - 1
+        rs.track_info.mask = UInt(1) << (64 - leading_zeros(len - 1)) - 1
     end
     rs.data[len] = (i, x)
     maxwn = rs.track_info.maxw
@@ -411,7 +411,7 @@ end
     level_sampler.data[len] = (0, 0.0)
     level_sampler.track_info.length -= 1
     if (len & (len-1)) == 0
-        level_sampler.track_info.mask = UInt(1) << Base.top_set_bit(len - 1) - 1
+        level_sampler.track_info.mask = UInt(1) << (64 - leading_zeros(len - 1)) - 1
     end
     if moved_entry != i
         @assert ns.entry_info.indices[moved_entry] == (level, length(level_sampler)+1)
