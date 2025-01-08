@@ -71,7 +71,7 @@ end
 struct RejectionSampler
     data::Vector{Tuple{Int, Float64}}
     track_info::RejectionInfo
-    RejectionSampler(i, v) = new([(i, v)], RejectionInfo(1, v, 0))
+    RejectionSampler(i, v) = new([(i, v)], RejectionInfo(1, v, zero(UInt)))
 end
 function Random.rand(rng::AbstractRNG, rs::RejectionSampler)
     len = rs.track_info.length
@@ -406,9 +406,13 @@ end
     w, level_sampler = ns.all_levels[l]
     _i, significand = level_sampler.data[j]
     @assert _i == i
-    moved_entry, _ = level_sampler.data[j] = level_sampler.data[level_sampler.track_info.length]
-    level_sampler.data[level_sampler.track_info.length] = (0, 0.0)
+    len = level_sampler.track_info.length
+    moved_entry, _ = level_sampler.data[j] = level_sampler.data[len]
+    level_sampler.data[len] = (0, 0.0)
     level_sampler.track_info.length -= 1
+    if next2power(len) != next2power(len-1)
+        level_sampler.track_info.mask = UInt(1) << Base.top_set_bit(len - 1) - 1
+    end
     if moved_entry != i
         @assert ns.entry_info.indices[moved_entry] == (level, length(level_sampler)+1)
         ns.entry_info.indices[moved_entry] = (level, j)
@@ -459,6 +463,19 @@ end
         ns.track_info.firstchanged = ifelse(k < firstc, k, firstc)
     end
     return ns
+end
+
+# http://graphics.stanford.edu/~seander/bithacks.html#IntegerLogLookup
+@inline function next2power(v)
+    v -= 1
+    v |= v >> 1;
+    v |= v >> 2;
+    v |= v >> 4;
+    v |= v >> 8;
+    v |= v >> 16;
+    v |= v >> 32;
+    v += 1
+    return v
 end
 
 Base.in(i::Int, ns::NestedSampler) = 0 < i <= length(ns.entry_info.presence) && ns.entry_info.presence[i]
