@@ -461,6 +461,8 @@ end
     return ns
 end
 
+Base.in(i::Int, ns::NestedSampler) = 0 < i <= length(ns.entry_info.presence) ? ns.entry_info.presence[i] : false
+
 Base.isempty(ns::NestedSampler) = ns.track_info.nvalues == 0
 
 struct SamplerIndices{I}
