@@ -410,8 +410,8 @@ end
     moved_entry, _ = level_sampler.data[j] = level_sampler.data[len]
     level_sampler.data[len] = (0, 0.0)
     level_sampler.track_info.length -= 1
-    if ((len-1) & (len-2)) == 0
-        level_sampler.track_info.mask = UInt(1) << Base.top_set_bit(len - 2) - 1
+    if (len & (len-1)) == 0
+        level_sampler.track_info.mask = UInt(1) << Base.top_set_bit(len - 1) - 1
     end
     if moved_entry != i
         @assert ns.entry_info.indices[moved_entry] == (level, length(level_sampler)+1)
