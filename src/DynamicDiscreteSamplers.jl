@@ -77,13 +77,27 @@ function Random.rand(rng::AbstractRNG, rs::RejectionSampler)
     len = rs.track_info.length
     mask = rs.track_info.mask
     maxw = rs.track_info.maxw
+    bitsreuse = len <= 2048
+    bitsreuse ? rejection_loop_reuse(rng, rs, len, mask, maxw) : rejection_loop(rng, rs, len, mask, maxw)
+end
+@inline function rejection_loop_reuse(rng, rs, len, mask, maxw)
     while true
         u = rand(rng, UInt)
         i = Int(u & mask)
         i >= len && continue
         i += 1
         res, x = rs.data[i]
-        rand(rng) * maxw < x && return (i, res) # TODO: consider reusing random bits from u; a previous test revealed no perf improvement from doing this
+        Float64(u >>> 11) * 0x1.0p-53 * maxw < x && return (i, res)
+    end
+end
+@inline function rejection_loop(rng, rs, len, mask, maxw)
+    while true
+        u = rand(rng, UInt)
+        i = Int(u & mask)
+        i >= len && continue
+        i += 1
+        res, x = rs.data[i]
+        rand(rng) * maxw < x && return (i, res)
     end
 end
 function Base.push!(rs::RejectionSampler, i, x)
@@ -212,13 +226,13 @@ end
 struct NestedSampler{N}
     # Used in sampling
     distribution_over_levels::SelectionSampler{N} # A distribution over 1:N
-    sampled_levels::MVector{N, Int16} # The top up to 64 levels indices
+    sampled_levels::MVector{N, Int16} # The top up to N levels indices
     all_levels::Vector{Tuple{UInt128, RejectionSampler}} # All the levels, in insertion order, along with their total weights
 
     # Not used in sampling
     sampled_level_weights::MVector{N, Float64} # The weights of the top up to N levels
-    sampled_level_numbers::MVector{N, Int16} # The level numbers of the top up to N levels TODO: consider merging with sampled_levels_weights
-    level_set::LinkedListSet # A set of which levels are present (named by level number)
+    sampled_level_numbers::MVector{N, Int16} # The level numbers of the top up to N levels
+    level_set::LinkedListSet # A set of which levels are non-empty (named by level number)
     level_set_map::LevelMap # A mapping from level number to index in all_levels and index in sampled_levels (or 0 if not in sampled_levels)
     entry_info::EntryInfo # A mapping from element to level number and index in that level (index in level is 0 if entry is not present)
     track_info::TrackInfo
