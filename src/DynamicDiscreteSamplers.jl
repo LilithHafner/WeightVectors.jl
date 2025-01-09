@@ -66,7 +66,7 @@ end
 mutable struct RejectionInfo
     length::Int
     maxw::Float64
-    mask::UInt
+    mask::UInt64
 end
 struct RejectionSampler
     data::Vector{Tuple{Int, Float64}}
@@ -82,7 +82,7 @@ function Random.rand(rng::AbstractRNG, rs::RejectionSampler)
 end
 @inline function rejection_loop_reuse(rng, rs, len, mask, maxw)
     while true
-        u = rand(rng, UInt)
+        u = rand(rng, UInt64)
         i = Int(u & mask)
         i >= len && continue
         i += 1
