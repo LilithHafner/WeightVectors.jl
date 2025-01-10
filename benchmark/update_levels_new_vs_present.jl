@@ -2,7 +2,7 @@ using Plots, Chairmarks, DynamicDiscreteSamplers
 function push_v!(ds, n)
     k = ds.track_info.nvalues
     for i in k+1:k+n
-        push!(ds, i, (2.0^i)+eps())
+        push!(ds, i, (2.0^(i-k))+eps())
     end
     return ds
 end
@@ -14,7 +14,7 @@ function remove_v!(ds, n)
     return ds
 end
 
-x = 1:256;
+x = 1:500;
 
 y1 = [(@b push_v!(DynamicDiscreteSampler(), xi) push_v!(_, xi) evals=1 seconds=.01).time for xi in x];
 y2 = [(@b DynamicDiscreteSampler() push_v!(_, xi) evals=1 seconds=.01).time for xi in x];
