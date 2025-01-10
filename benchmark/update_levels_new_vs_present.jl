@@ -23,7 +23,7 @@ y4 = [(@b push_v!(push_v!(DynamicDiscreteSampler(), xi), xi) remove_v!(_, xi) ev
 
 plot!(x,y2,label="add element");
 plot(x,y1,label="add element + level");
-plot!(x,y4,label="remove element")
-plot!(x,y3,label="remove element + level");
+plot!(x,y4,label="remove element");
+plot!(x,y3,label="remove element + level")
 
 savefig("update_levels_new_vs_present.png")
