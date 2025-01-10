@@ -21,8 +21,6 @@ y2 = [(@b DynamicDiscreteSampler() push_v!(_, xi) evals=1 seconds=.01).time for 
 y3 = [(@b push_v!(push_v!(DynamicDiscreteSampler(), xi), xi) remove_v!(_, xi) evals=1 seconds=.01).time for xi in x];
 y4 = [(@b push_v!(DynamicDiscreteSampler(), xi) remove_v!(_, xi) evals=1 seconds=.01).time for xi in x];
 
-
-plot()
 plot(x,y1,label="add element");
 plot!(x,y2,label="add element + level");
 plot!(x,y3,label="remove element");
