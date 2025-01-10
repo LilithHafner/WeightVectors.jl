@@ -16,14 +16,16 @@ end
 
 x = 1:256;
 
-y1 = [(@b DynamicDiscreteSampler() push_v!(_, xi) evals=1 seconds=.01).time for xi in x];
-y2 = [(@b push_v!(DynamicDiscreteSampler(), xi) push_v!(_, xi) evals=1 seconds=.01).time for xi in x];
-y3 = [(@b push_v!(DynamicDiscreteSampler(), xi) remove_v!(_, xi) evals=1 seconds=.01).time for xi in x];
-y4 = [(@b push_v!(push_v!(DynamicDiscreteSampler(), xi), xi) remove_v!(_, xi) evals=1 seconds=.01).time for xi in x];
+y1 = [(@b push_v!(DynamicDiscreteSampler(), xi) push_v!(_, xi) evals=1 seconds=.01).time for xi in x];
+y2 = [(@b DynamicDiscreteSampler() push_v!(_, xi) evals=1 seconds=.01).time for xi in x];
+y3 = [(@b push_v!(push_v!(DynamicDiscreteSampler(), xi), xi) remove_v!(_, xi) evals=1 seconds=.01).time for xi in x];
+y4 = [(@b push_v!(DynamicDiscreteSampler(), xi) remove_v!(_, xi) evals=1 seconds=.01).time for xi in x];
 
-plot(x,y1,label="push! - new sampled levels");
-plot!(x,y2,label="push! - present sampled levels");
-plot!(x,y3,label="delete! - new sampled levels");
-plot!(x,y4,label="delete! - present sampled levels")
+
+plot()
+plot(x,y1,label="add element");
+plot!(x,y2,label="add element + level");
+plot!(x,y3,label="remove element");
+plot!(x,y4,label="remove element + level")
 
 savefig("update_levels_new_vs_present.png")
