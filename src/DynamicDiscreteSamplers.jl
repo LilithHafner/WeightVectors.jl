@@ -4,12 +4,57 @@ export DynamicDiscreteSampler, SamplerIndices
 
 using Distributions, Random, StaticArrays
 
-struct SelectionSampler{N}
-    p::MVector{N, Float64}
-    o::MVector{N, Int16}
+const UPPER_LIMIT = 10^12
+const MAX_CUT = typemax(UInt)-UPPER_LIMIT+1
+const RANDF = 2^11/MAX_CUT
+
+@inline sig(x::Float64) = (reinterpret(UInt64, x) & Base.significand_mask(Float64)) + Base.significand_mask(Float64) + 1
+
+@inline function flot(sg::UInt128, level::Integer)
+    shift = Int64(8 * sizeof(sg) - 53 - leading_zeros(sg))
+    x = (sg >>= shift) % UInt64
+    exp = level + shift + 1022
+    reinterpret(Float64, x + (exp << 52))
 end
-function Base.rand(rng::AbstractRNG, ss::SelectionSampler, lastfull::Int)
-    u = rand(rng)*ss.p[lastfull]
+
+struct FallBackSampler end
+function Base.rand(rng::AbstractRNG, fs::FallBackSampler, ns, lastfull)
+    totwnots = 0.0
+    for i in eachindex(ns.level_set_map.indices)
+        !ns.level_set_map.presence[i] && continue
+        level_index, k = ns.level_set_map.indices[i]
+        k !== 0 && continue
+        wlevel, level_sampler = ns.all_levels[level_index]
+        isempty(level_sampler) && continue
+        level = exponent(level_sampler.data[1][2])
+        totwnots += flot(wlevel, level)
+    end
+    totw = totwnots + ns.distribution_over_levels[lastfull]    
+    r = (typemax(UInt)/UPPER_LIMIT) * (totwnots/totw)
+    rand(rng) > r && return 0
+    u = rand(rng)*totwnots
+    last = 0
+    w = 0.0
+    for i in eachindex(ns.level_set_map.indices)
+        !ns.level_set_map.presence[i] && continue
+        level_index, k = ns.level_set_map.indices[i]
+        k !== 0 && continue
+        wlevel, level_sampler = ns.all_levels[level_index]
+        isempty(level_sampler) && continue
+        level = exponent(level_sampler.data[1][2])
+        w += flot(wlevel, level)
+        w > u && return level_index
+        last = level_index
+    end
+    return last
+end
+
+struct SelectionSampler
+    p::MVector{64, Float64}
+    o::MVector{64, Int16}
+end
+function Base.rand(rng::AbstractRNG, ss::SelectionSampler, v, lastfull::Int)
+    u = v*ss.p[lastfull]
     @inbounds for i in lastfull-1:-1:1
         ss.p[i] < u && return i+1
     end
@@ -133,31 +178,31 @@ end
 #=
 Each entry is assigned a level based on its power.
 We have at most min(n, 2048) levels.
-# Maintain a distribution over the top N levels and ignore any lower
+# Maintain a distribution over the top 64 levels and ignore any lower
 (or maybe the top log(n) levels and treat the rest as a single level).
 For each level, maintain a distribution over the elements of that level
-Also, maintain a distribution over the N most significant levels.
+Also, maintain a distribution over the 64 most significant levels.
 To facilitate updating, but unused during sampling, also maintain,
 A linked list set (supports push!, delete!, in, findnext, and findprev) of levels
-A pointer to the least significant tracked level (-1075 if there are fewer than N levels)
+A pointer to the least significant tracked level (-1075 if there are fewer than 64 levels)
 A vector that maps elements (integers) to their level and index in the level
 
 To sample,
-draw from the distribution over the top N levels and then
+draw from the distribution over the top 64 levels and then
 draw from the distribution over the elements of that level.
 
 To add a new element at a given weight,
 determine the level of that weight,
 create a new level if needed,
 add the element to the distribution of that level,
-and update the distribution over the top N levels if needed.
+and update the distribution over the top 64 levels if needed.
 Log the location of the new element.
 
 To create a new level,
 Push the level into the linked list set of levels.
 If the level is below the least significant tracked level, that's all.
 Otherwise, update the least significant tracked level and evict an element
-from the distribution over the top N levels if necessary
+from the distribution over the top 64 levels if necessary
 
 To remove an element,
 Lookup the location of the element
@@ -165,7 +210,7 @@ Remove the element from the distribution of its level
 If the level is now empty, remove the level from the linked list set of levels
 If the level is below the least significant tracked level, that's all.
 Otherwise, update the least significant tracked level and add an element to the
-distribution over the top N levels if possible
+distribution over the top 64 levels if possible
 =#
 
 struct LevelMap
@@ -179,7 +224,6 @@ struct LevelMap
         return new(presence, indices)
     end
 end
-
 struct EntryInfo
     presence::BitVector
     indices::Vector{Tuple{Int, Int}}
@@ -189,7 +233,6 @@ struct EntryInfo
         return new(presence, indices)
     end
 end
-
 mutable struct TrackInfo
     lastsampled_idx::Int
     lastsampled_idx_out::Int
@@ -201,38 +244,27 @@ mutable struct TrackInfo
     reset_order::Int
     reset_distribution::Bool
 end
-
-@inline sig(x::Float64) = (reinterpret(UInt64, x) & Base.significand_mask(Float64)) + Base.significand_mask(Float64) + 1
-
-@inline function flot(sg::UInt128, level::Integer)
-    shift = Int64(8 * sizeof(sg) - 53 - leading_zeros(sg))
-    x = (sg >>= shift) % UInt64
-    exp = level + shift + 1022
-    reinterpret(Float64, x + (exp << 52))
-end
-
-struct NestedSampler{N}
+struct NestedSampler
     # Used in sampling
-    distribution_over_levels::SelectionSampler{N} # A distribution over 1:N
-    sampled_levels::MVector{N, Int16} # The top up to N levels indices
+    distribution_over_levels::SelectionSampler # A distribution over 1:64
+    sampled_levels::MVector{64, Int16} # The top up to 64 levels indices
     all_levels::Vector{Tuple{UInt128, RejectionSampler}} # All the levels, in insertion order, along with their total weights
 
     # Not used in sampling
-    sampled_level_weights::MVector{N, Float64} # The weights of the top up to N levels
-    sampled_level_numbers::MVector{N, Int16} # The level numbers of the top up to N levels
+    sampled_level_weights::MVector{64, Float64} # The weights of the top up to 64 levels
+    sampled_level_numbers::MVector{64, Int16} # The level numbers of the top up to 64 levels
     level_set::LinkedListSet # A set of which levels are non-empty (named by level number)
     level_set_map::LevelMap # A mapping from level number to index in all_levels and index in sampled_levels (or 0 if not in sampled_levels)
     entry_info::EntryInfo # A mapping from element to level number and index in that level (index in level is 0 if entry is not present)
     track_info::TrackInfo
 end
 
-NestedSampler() = NestedSampler{64}()
-NestedSampler{N}() where N = NestedSampler{N}(
-    SelectionSampler(zero(MVector{N, Float64}), MVector{N, Int16}(1:N)),
-    zero(MVector{N, Int16}),
+NestedSampler() = NestedSampler(
+    SelectionSampler(zero(MVector{64, Float64}), MVector{64, Int16}(1:64)),
+    zero(MVector{64, Int16}),
     Tuple{UInt128, RejectionSampler}[],
-    zero(MVector{N, Float64}),
-    zero(MVector{N, Int16}),
+    zero(MVector{64, Float64}),
+    zero(MVector{64, Int16}),
     LinkedListSet(),
     LevelMap(),
     EntryInfo(),
@@ -272,7 +304,19 @@ Base.rand(ns::NestedSampler) = rand(Random.default_rng(), ns)
         @inline set_cum_weights!(ns.distribution_over_levels, ns, reorder)
         track_info.reset_distribution = false
     end
-    level = @inline rand(rng, ns.distribution_over_levels, lastfull)
+    u = rand(rng, UInt64)
+    if u < MAX_CUT
+        return _rand(rng, ns, u, lastfull, track_info)
+    else
+        level_index = rand(rng, FallBackSampler(), ns, lastfull)
+        level_index === 0 && return _rand(rng, ns, u, lastfull, track_info)
+        j, i = rand(rng, ns.all_levels[level_index], randnoreuse)
+        return i
+    end
+end
+@inline function _rand(rng, ns, u, lastfull, track_info)
+    v = Float64(u >>> 11) * RANDF
+    level = @inline rand(rng, ns.distribution_over_levels, v, lastfull)
     j, i = @inline rand(rng, ns.all_levels[Int(ns.sampled_levels[level])][2], randnoreuse)
     track_info.lastsampled_idx = i
     track_info.lastsampled_idx_out = level
@@ -280,8 +324,8 @@ Base.rand(ns::NestedSampler) = rand(Random.default_rng(), ns)
     return i
 end
 
-function Base.append!(ns::NestedSampler{N}, inds::Union{AbstractRange{Int}, Vector{Int}}, 
-        xs::Union{AbstractRange{Float64}, Vector{Float64}}) where N
+function Base.append!(ns::NestedSampler, inds::Union{AbstractRange{Int}, Vector{Int}}, 
+        xs::Union{AbstractRange{Float64}, Vector{Float64}})
     ns.track_info.reset_distribution = true
     ns.track_info.reset_order += length(inds)
     ns.track_info.nvalues += length(inds)
@@ -301,7 +345,7 @@ function Base.append!(ns::NestedSampler{N}, inds::Union{AbstractRange{Int}, Vect
     return ns
 end
 
-@inline function Base.push!(ns::NestedSampler{N}, i::Int, x::Float64) where N
+@inline function Base.push!(ns::NestedSampler, i::Int, x::Float64)
     ns.track_info.reset_distribution = true
     ns.track_info.reset_order += 1
     ns.track_info.nvalues += 1
@@ -317,7 +361,7 @@ end
     return _push!(ns, i, x)
 end
 
-@inline function _push!(ns::NestedSampler{N}, i::Int, x::Float64) where N
+@inline function _push!(ns::NestedSampler, i::Int, x::Float64)
     level = exponent(x)
     level_b16 = Int16(level)
     bucketw = significand(x)/2
@@ -346,14 +390,14 @@ end
 
         # Update the sampled levels if needed
         if level > ns.track_info.least_significant_sampled_level # we just created a sampled level
-            if ns.track_info.lastfull < N # Add the new level to the top 64
+            if ns.track_info.lastfull < 64 # Add the new level to the top 64
                 ns.track_info.lastfull += 1
                 sl_length = ns.track_info.lastfull
                 ns.sampled_levels[sl_length] = Int16(all_levels_index)
                 ns.sampled_level_weights[sl_length] = x
                 ns.sampled_level_numbers[sl_length] = level_b16
                 ns.level_set_map.indices[level+1075] = (all_levels_index, sl_length)
-                if sl_length == N
+                if sl_length == 64
                     ns.track_info.least_significant_sampled_level = findnext(ns.level_set, ns.track_info.least_significant_sampled_level+1)
                 end
             else # Replace the least significant sampled level with the new level
@@ -431,7 +475,7 @@ end
             ns.track_info.firstchanged = ifelse(k < firstc, k, firstc)
             replacement = findprev(ns.level_set, ns_track_info.least_significant_sampled_level-1)
             ns.level_set_map.indices[level+1075] = (l, 0)
-            if isnothing(replacement) # We'll now have fewer than N sampled levels
+            if isnothing(replacement) # We'll now have fewer than 64 sampled levels
                 ns_track_info.least_significant_sampled_level = -1075
                 sl_length = ns_track_info.lastfull
                 ns_track_info.lastfull -= 1
