@@ -17,43 +17,11 @@ const RANDF = 2^11/MAX_CUT
     reinterpret(Float64, x + (exp << 52))
 end
 
-struct FallBackSampler end
-function Base.rand(rng::AbstractRNG, fs::FallBackSampler, ns, lastfull)
-    totwnots = 0.0
-    for i in eachindex(ns.level_set_map.indices)
-        !ns.level_set_map.presence[i] && continue
-        level_index, k = ns.level_set_map.indices[i]
-        k !== 0 && continue
-        wlevel, level_sampler = ns.all_levels[level_index]
-        isempty(level_sampler) && continue
-        level = exponent(level_sampler.data[1][2])
-        totwnots += flot(wlevel, level)
-    end
-    totw = totwnots + ns.distribution_over_levels[lastfull]    
-    r = (typemax(UInt)/UPPER_LIMIT) * (totwnots/totw)
-    rand(rng) > r && return 0
-    u = rand(rng)*totwnots
-    last = 0
-    w = 0.0
-    for i in eachindex(ns.level_set_map.indices)
-        !ns.level_set_map.presence[i] && continue
-        level_index, k = ns.level_set_map.indices[i]
-        k !== 0 && continue
-        wlevel, level_sampler = ns.all_levels[level_index]
-        isempty(level_sampler) && continue
-        level = exponent(level_sampler.data[1][2])
-        w += flot(wlevel, level)
-        w > u && return level_index
-        last = level_index
-    end
-    return last
-end
-
 struct SelectionSampler
     p::MVector{64, Float64}
     o::MVector{64, Int16}
 end
-function Base.rand(rng::AbstractRNG, ss::SelectionSampler, v, lastfull::Int)
+function Base.rand(rng::AbstractRNG, ss::SelectionSampler, v::Float64, lastfull::Int)
     u = v*ss.p[lastfull]
     @inbounds for i in lastfull-1:-1:1
         ss.p[i] < u && return i+1
@@ -510,6 +478,38 @@ end
         ns.track_info.firstchanged = ifelse(k < firstc, k, firstc)
     end
     return ns
+end
+
+struct FallBackSampler end
+function Base.rand(rng::AbstractRNG, fs::FallBackSampler, ns::NestedSampler, lastfull::Int)
+    totwnots = 0.0
+    for i in eachindex(ns.level_set_map.indices)
+        !ns.level_set_map.presence[i] && continue
+        level_index, k = ns.level_set_map.indices[i]
+        k !== 0 && continue
+        wlevel, level_sampler = ns.all_levels[level_index]
+        isempty(level_sampler) && continue
+        level = exponent(level_sampler.data[1][2])
+        totwnots += flot(wlevel, level)
+    end
+    totw = totwnots + ns.distribution_over_levels[lastfull]    
+    r = (typemax(UInt)/UPPER_LIMIT) * (totwnots/totw)
+    rand(rng) > r && return 0
+    u = rand(rng)*totwnots
+    last = 0
+    w = 0.0
+    for i in eachindex(ns.level_set_map.indices)
+        !ns.level_set_map.presence[i] && continue
+        level_index, k = ns.level_set_map.indices[i]
+        k !== 0 && continue
+        wlevel, level_sampler = ns.all_levels[level_index]
+        isempty(level_sampler) && continue
+        level = exponent(level_sampler.data[1][2])
+        w += flot(wlevel, level)
+        w > u && return level_index
+        last = level_index
+    end
+    return last
 end
 
 Base.in(i::Int, ns::NestedSampler) = 0 < i <= length(ns.entry_info.presence) && ns.entry_info.presence[i]
