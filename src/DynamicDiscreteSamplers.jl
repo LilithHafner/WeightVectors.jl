@@ -4,7 +4,7 @@ export DynamicDiscreteSampler, SamplerIndices
 
 using Distributions, Random, StaticArrays
 
-const UPPER_LIMIT = 10^12
+const UPPER_LIMIT = Int64(10)^12
 const MAX_CUT = typemax(UInt64)-UPPER_LIMIT+1
 const RANDF = 2^11/MAX_CUT
 
