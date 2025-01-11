@@ -5,7 +5,7 @@ export DynamicDiscreteSampler, SamplerIndices
 using Distributions, Random, StaticArrays
 
 const UPPER_LIMIT = 10^12
-const MAX_CUT = typemax(UInt)-UPPER_LIMIT+1
+const MAX_CUT = typemax(UInt64)-UPPER_LIMIT+1
 const RANDF = 2^11/MAX_CUT
 
 @inline sig(x::Float64) = (reinterpret(UInt64, x) & Base.significand_mask(Float64)) + Base.significand_mask(Float64) + 1
