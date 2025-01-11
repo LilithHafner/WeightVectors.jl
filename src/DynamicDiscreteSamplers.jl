@@ -493,7 +493,7 @@ function Base.rand(rng::AbstractRNG, fs::FallBackSampler, ns::NestedSampler, las
         totwnots += flot(wlevel, level)
     end
     totw = totwnots + ns.distribution_over_levels.p[lastfull]
-    r = (totwnots/totw) / (typemax(UInt64)/UPPER_LIMIT)
+    r = (typemax(UInt)/UPPER_LIMIT) * (totwnots/totw)
     rand(rng) > r && return 0
     u = rand(rng)*totwnots
     last = 0
