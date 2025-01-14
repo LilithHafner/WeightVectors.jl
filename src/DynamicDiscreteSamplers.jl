@@ -243,23 +243,31 @@ Base.rand(ns::NestedSampler, n::Integer) = rand(Random.default_rng(), ns, n)
 function Base.rand(rng::AbstractRNG, ns::NestedSampler, n::Integer)
     n < 100 && return [rand(rng, ns) for _ in 1:n]
     lastfull = ns.track_info.lastfull
-    totw = 0.0
+    totws = 0.0
     maxw = 0.0
     nvalues_sampled = 0
-    @inbounds for i in 1:lastfull
+    for i in 1:lastfull
         w = ns.sampled_level_weights[i]
-        totw += w
+        totws += w
         maxw = ifelse(w > maxw, w, maxw)
         nvalues_sampled += length(ns.all_levels[Int(ns.sampled_levels[i])][2])
     end
-    maxw/totw > 0.98 && return [rand(rng, ns) for _ in 1:n]
+    maxw/totws > 0.98 && return [rand(rng, ns) for _ in 1:n]
     nvalues_unsampled = ns.track_info.nvalues - nvalues_sampled
-    if rand(rng) > (1-nvalues_unsampled/typemax(UInt64))^n
-        ws = [flot(sl[1]) for sl in ns.all_levels]
-        n_each = rand(rng, Multinomial(n, ws ./ sum(ws)))
+    r = (1-nvalues_unsampled/typemax(UInt64))^n
+    n_nots = 0
+    ws = @view(ns.sampled_level_weights[1:lastfull])
+    if rand(rng) > r
+        totw = sum(flot(sl[1], exponent(sl[2].data[1][2])) for sl in ns.all_levels if !isempty(sl[2]))
+        pnots = 1-totws/totw
+        if rand(rng) > (1 - (pnots^n)) / (1-r)
+            n_nots = rand(rng, Truncated(Binomial(n, pnots), 1, n))
+            n_each = rand(rng, Multinomial(n - n_nots, ws ./ totws))
+        else
+            n_each = rand(rng, Multinomial(n, ws ./ totws))
+        end
     else
-        ws = @view(ns.sampled_level_weights[1:lastfull])
-        n_each = rand(rng, Multinomial(n, ws ./ totw))
+        n_each = rand(rng, Multinomial(n, ws ./ totws))
     end
     inds = Vector{Int}(undef, n)
     q = 1
@@ -270,6 +278,21 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler, n::Integer)
             ti = @inline rand(rng, bucket, f)
             inds[q] = ti[2]
             q += 1
+        end
+    end
+    if n_nots != 0
+        wnots = [flot(sl[1], exponent(sl[2].data[1][2])) for (i, sl) in enumerate(ns.all_levels)
+                 if !isempty(sl[2]) && ns.level_set_map.indices[i][2] == 0]
+        n_each_nots = rand(rng, Multinomial(n_nots, wnots ./ sum(wnots)))
+        for (i, sl) in enumerate(ns.all_levels)
+            isempty(sl[2]) || ns.level_set_map.indices[i][2] != 0 && continue
+            bucket = ns.all_levels[i][2]
+            f = length(bucket) <= 2048 ? randreuse : randnoreuse
+            for _ in 1:k
+                ti = @inline rand(rng, bucket, f)
+                inds[q] = ti[2]
+                q += 1
+            end
         end
     end
     shuffle!(rng, inds)
