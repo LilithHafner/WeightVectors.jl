@@ -243,11 +243,24 @@ Base.rand(ns::NestedSampler, n::Integer) = rand(Random.default_rng(), ns, n)
 function Base.rand(rng::AbstractRNG, ns::NestedSampler, n::Integer)
     n < 100 && return [rand(rng, ns) for _ in 1:n]
     lastfull = ns.track_info.lastfull
-    ws = @view(ns.sampled_level_weights[1:lastfull])
-    totw = sum(ws)
-    maxw = maximum(ws)
+    totw = 0.0
+    maxw = 0.0
+    nvalues_sampled = 0
+    for i in 1:lastfull
+        w = ns.sampled_level_weights[i]
+        totw += w
+        maxw = ifelse(w > maxw, w, maxw)
+        nvalues_sampled += length(ns.all_levels[Int(ns.sampled_levels[i])][2])
+    end
     maxw/totw > 0.98 && return [rand(rng, ns) for _ in 1:n]
-    n_each = rand(rng, Multinomial(n, ws ./ totw))
+    nvalues_unsampled = ns.track_info.nvalues - nvalues_sampled
+    if rand(rng) > (1-nvalues_unsampled/typemax(UInt64))^n
+        ws = [flot(sl[1]) for sl in ns.all_levels]
+        n_each = rand(rng, Multinomial(n, ws ./ sum(ws)))
+    else
+        ws = @view(ns.sampled_level_weights[1:lastfull])
+        n_each = rand(rng, Multinomial(n, ws ./ totw))
+    end
     inds = Vector{Int}(undef, n)
     q = 1
     @inbounds for (level, k) in enumerate(n_each)
