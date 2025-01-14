@@ -246,7 +246,7 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler, n::Integer)
     totw = 0.0
     maxw = 0.0
     nvalues_sampled = 0
-    for i in 1:lastfull
+    @inbounds for i in 1:lastfull
         w = ns.sampled_level_weights[i]
         totw += w
         maxw = ifelse(w > maxw, w, maxw)
