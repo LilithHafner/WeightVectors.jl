@@ -314,7 +314,7 @@ Base.rand(ns::NestedSampler) = rand(Random.default_rng(), ns)
     else
         level_index = rand(rng, FallBackSampler(), ns, lastfull)
         level_index === 0 && return _rand(rng, ns, u, lastfull, track_info)
-        j, i = rand(rng, ns.all_levels[level_index], randnoreuse)
+        j, i = rand(rng, ns.all_levels[level_index][2], randnoreuse)
         return i
     end
 end
