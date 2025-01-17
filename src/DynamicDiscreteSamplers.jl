@@ -83,8 +83,9 @@ mutable struct RejectionInfo
 end
 struct RejectionSampler
     data::Vector{Tuple{Int, Float64}}
+    level::Int
     track_info::RejectionInfo
-    RejectionSampler(i, v) = new([(i, v)], RejectionInfo(1, v, zero(UInt)))
+    RejectionSampler(level, i, v) = new([(i, v)], level, RejectionInfo(1, v, zero(UInt)))
 end
 function Random.rand(rng::AbstractRNG, rs::RejectionSampler, f::Function)
     len = rs.track_info.length
@@ -281,7 +282,7 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler, n::Integer)
         end
     end
     if n_nots != 0
-        wnots = [flot(sl[1], exponent(sl[2].data[1][2])) for (i, sl) in enumerate(ns.all_levels)
+        wnots = [flot(sl[1], sl[2].level) for (i, sl) in enumerate(ns.all_levels)
                  if !isempty(sl[2]) && ns.level_set_map.indices[i][2] == 0]
         n_each_nots = rand(rng, Multinomial(n_nots, wnots ./ sum(wnots)))
         for (i, sl) in enumerate(ns.all_levels)
@@ -309,7 +310,7 @@ Base.rand(ns::NestedSampler) = rand(Random.default_rng(), ns)
         track_info.reset_distribution = false
     end
     u = rand(rng, UInt64)
-    if u < MAX_CUT
+    if u < MAX_CUT 
         return _rand(rng, ns, u, lastfull, track_info)
     else
         level_index = rand(rng, FallBackSampler(), ns, lastfull)
@@ -354,6 +355,7 @@ end
     ns.track_info.reset_order += 1
     ns.track_info.nvalues += 1
     i <= 0 && throw(ArgumentError("Elements must be positive"))
+    x <= 0.0 && throw(ArgumentError("Weights must be positive"))
     l_info = lastindex(ns.entry_info.indices)
     if i > l_info
         resize!(ns.entry_info.indices, i)
@@ -378,7 +380,7 @@ end
         push!(ns.level_set, level)
         existing_level_indices = ns.level_set_map.presence[level+1075]
         all_levels_index = if !existing_level_indices
-            level_sampler = RejectionSampler(i, bucketw)
+            level_sampler = RejectionSampler(level, i, bucketw)
             push!(ns.all_levels, (sig(x), level_sampler))
             length(ns.all_levels)
         else
@@ -525,8 +527,7 @@ function Base.rand(rng::AbstractRNG, fs::FallBackSampler, ns::NestedSampler, las
         k !== 0 && continue
         wlevel, level_sampler = ns.all_levels[level_index]
         isempty(level_sampler) && continue
-        level = exponent(level_sampler.data[1][2])
-        totwnots += flot(wlevel, level)
+        totwnots += flot(wlevel, level_sampler.level)
     end
     totw = totwnots + ns.distribution_over_levels.p[lastfull]
     r = (typemax(UInt)/UPPER_LIMIT) * (totwnots/totw)
@@ -540,8 +541,7 @@ function Base.rand(rng::AbstractRNG, fs::FallBackSampler, ns::NestedSampler, las
         k !== 0 && continue
         wlevel, level_sampler = ns.all_levels[level_index]
         isempty(level_sampler) && continue
-        level = exponent(level_sampler.data[1][2])
-        w += flot(wlevel, level)
+        w += flot(wlevel, level_sampler.level)
         w > u && return level_index
         last = level_index
     end
