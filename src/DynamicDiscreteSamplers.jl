@@ -258,20 +258,33 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler, n::Integer)
     r = (1-nvalues_unsampled/typemax(UInt64))^n
     n_nots = 0
     ws = @view(ns.sampled_level_weights[1:lastfull])
+    inds = Vector{Int}(undef, n)
     if rand(rng) > r
         totwnots = sum(flot(sl[1], sl[2].level) for sl in ns.all_levels 
                    if !isempty(sl[2]) && ns.level_set_map.indices[sl[2].level+1075][2] == 0)
-        pnots = totwnots/(totwnots + totws)
-        if rand(rng) > (1 - (pnots^n)) / (1-r)
-            n_nots = rand(rng, Truncated(Binomial(n, pnots), 1, n))
-            n_each = rand(rng, Multinomial(n - n_nots, ws ./ totws))
-        else
-            n_each = rand(rng, Multinomial(n, ws ./ totws))
+        pnots = totwnots/(totwnots + totws)  
+        n_nots = rand(rng) > (1 - (pnots^n)) / (1-r) ? rand(rng, Truncated(Binomial(n, pnots), 1, n)) : 0
+        n_each = rand(rng, Multinomial(n - n_nots, ws ./ totws))
+        if n_nots != 0
+            wnots = [flot(sl[1], sl[2].level) for sl in ns.all_levels
+                     if !isempty(sl[2]) && ns.level_set_map.indices[sl[2].level+1075][2] == 0]
+            n_each_nots = rand(rng, Multinomial(n_nots, wnots ./ totwnots))
+            i, q = 1, n
+            for sl in ns.all_levels
+                isempty(sl[2]) || ns.level_set_map.indices[sl[2].level+1075][2] != 0 && continue
+                bucket = sl[2]
+                f = length(bucket) <= 2048 ? randreuse : randnoreuse
+                for _ in 1:n_each_nots[i]
+                    ti = @inline rand(rng, bucket, f)
+                    inds[q] = ti[2]
+                    q -= 1
+                end
+                i += 1
+            end
         end
     else
         n_each = rand(rng, Multinomial(n, ws ./ totws))
     end
-    inds = Vector{Int}(undef, n)
     q = 1
     @inbounds for (level, k) in enumerate(n_each)
         bucket = ns.all_levels[Int(ns.sampled_levels[level])][2]
@@ -280,23 +293,6 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler, n::Integer)
             ti = @inline rand(rng, bucket, f)
             inds[q] = ti[2]
             q += 1
-        end
-    end
-    if n_nots != 0
-        wnots = [flot(sl[1], sl[2].level) for sl in ns.all_levels
-                 if !isempty(sl[2]) && ns.level_set_map.indices[sl[2].level+1075][2] == 0]
-        n_each_nots = rand(rng, Multinomial(n_nots, wnots ./ totwnots))
-        i = 1
-        for sl in ns.all_levels
-            isempty(sl[2]) || ns.level_set_map.indices[sl[2].level+1075][2] != 0 && continue
-            bucket = sl[2]
-            f = length(bucket) <= 2048 ? randreuse : randnoreuse
-            for _ in 1:n_each_nots[i]
-                ti = @inline rand(rng, bucket, f)
-                inds[q] = ti[2]
-                q += 1
-            end
-            i += 1
         end
     end
     shuffle!(rng, inds)
