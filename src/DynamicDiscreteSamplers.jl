@@ -260,31 +260,9 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler, n::Integer)
     ws = @view(ns.sampled_level_weights[1:lastfull])
     inds = Vector{Int}(undef, n)
     if rand(rng) > r
-        totwnots = sum(flot(sl[1], sl[2].level) for sl in ns.all_levels 
-                   if !isempty(sl[2]) && ns.level_set_map.indices[sl[2].level+1075][2] == 0)
-        pnots = totwnots/(totwnots + totws)  
-        n_nots = rand(rng) > (1 - (pnots^n)) / (1-r) ? rand(rng, Truncated(Binomial(n, pnots), 1, n)) : 0
-        n_each = rand(rng, Multinomial(n - n_nots, ws ./ totws))
-        if n_nots != 0
-            wnots = [flot(sl[1], sl[2].level) for sl in ns.all_levels
-                     if !isempty(sl[2]) && ns.level_set_map.indices[sl[2].level+1075][2] == 0]
-            n_each_nots = rand(rng, Multinomial(n_nots, wnots ./ totwnots))
-            i, q = 1, n
-            for sl in ns.all_levels
-                isempty(sl[2]) || ns.level_set_map.indices[sl[2].level+1075][2] != 0 && continue
-                bucket = sl[2]
-                f = length(bucket) <= 2048 ? randreuse : randnoreuse
-                for _ in 1:n_each_nots[i]
-                    ti = @inline rand(rng, bucket, f)
-                    inds[q] = ti[2]
-                    q -= 1
-                end
-                i += 1
-            end
-        end
-    else
-        n_each = rand(rng, Multinomial(n, ws ./ totws))
+        n_nots = extract_rand_multi!(rng, FallBackSampler(), ns, inds, totws, n, r)
     end
+    n_each = rand(rng, Multinomial(n - n_nots, ws ./ totws))
     q = 1
     @inbounds for (level, k) in enumerate(n_each)
         bucket = ns.all_levels[Int(ns.sampled_levels[level])][2]
@@ -545,6 +523,30 @@ function Base.rand(rng::AbstractRNG, fs::FallBackSampler, ns::NestedSampler, las
         last = level_index
     end
     return last
+end
+function extract_rand_multi!(rng::AbstractRNG, fs::FallBackSampler, ns::NestedSampler, inds, totws, n, r)
+    totwnots = sum(flot(sl[1], sl[2].level) for sl in ns.all_levels 
+                   if !isempty(sl[2]) && ns.level_set_map.indices[sl[2].level+1075][2] == 0)
+    pnots = totwnots/(totwnots + totws)  
+    n_nots = rand(rng) > (1 - (pnots^n)) / (1-r) ? rand(rng, Truncated(Binomial(n, pnots), 1, n)) : 0
+    if n_nots != 0
+        wnots = [flot(sl[1], sl[2].level) for sl in ns.all_levels
+                 if !isempty(sl[2]) && ns.level_set_map.indices[sl[2].level+1075][2] == 0]
+        n_each_nots = rand(rng, Multinomial(n_nots, wnots ./ totwnots))
+        i, q = 1, n
+        for sl in ns.all_levels
+            isempty(sl[2]) || ns.level_set_map.indices[sl[2].level+1075][2] != 0 && continue
+            bucket = sl[2]
+            f = length(bucket) <= 2048 ? randreuse : randnoreuse
+            for _ in 1:n_each_nots[i]
+                ti = @inline rand(rng, bucket, f)
+                inds[q] = ti[2]
+                q -= 1
+            end
+            i += 1
+        end
+    end
+    return n_nots
 end
 
 Base.in(i::Int, ns::NestedSampler) = 0 < i <= length(ns.entry_info.presence) && ns.entry_info.presence[i]
