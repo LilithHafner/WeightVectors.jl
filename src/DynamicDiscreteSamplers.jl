@@ -259,7 +259,7 @@ function Base.rand(rng::AbstractRNG, ns::NestedSampler, n::Integer)
     n_nots = 0
     ws = @view(ns.sampled_level_weights[1:lastfull])
     if rand(rng) > r
-        totw = sum(flot(sl[1], exponent(sl[2].data[1][2])) for sl in ns.all_levels if !isempty(sl[2]))
+        totw = sum(flot(sl[1], sl[2].level) for sl in ns.all_levels if !isempty(sl[2]))
         pnots = 1-totws/totw
         if rand(rng) > (1 - (pnots^n)) / (1-r)
             n_nots = rand(rng, Truncated(Binomial(n, pnots), 1, n))
@@ -310,7 +310,7 @@ Base.rand(ns::NestedSampler) = rand(Random.default_rng(), ns)
         track_info.reset_distribution = false
     end
     u = rand(rng, UInt64)
-    if u < MAX_CUT 
+    if u < MAX_CUT
         return _rand(rng, ns, u, lastfull, track_info)
     else
         level_index = rand(rng, FallBackSampler(), ns, lastfull)
