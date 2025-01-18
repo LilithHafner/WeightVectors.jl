@@ -414,8 +414,8 @@ end
     level_sampler.data[len] = (0, 0.0)
     level_sampler.track_info.length -= 1
     if (len & (len-1)) == 0
-        if 4*len <= length(level_sampler.data)
-            resize!(level_sampler.data, 2*len)
+        if 4*(len-1) <= length(level_sampler.data)
+            resize!(level_sampler.data, 2*(len-1))
         end
         level_sampler.track_info.mask = UInt(1) << (8*sizeof(len-1) - leading_zeros(len-1)) - 1
     end
