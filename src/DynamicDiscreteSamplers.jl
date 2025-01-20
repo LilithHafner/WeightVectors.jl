@@ -372,7 +372,7 @@ end
         j, k = ns.level_set_map.indices[level+1075]
         w, level_sampler = ns.all_levels[j]
         push!(level_sampler, i, bucketw)
-        ns.entry_info.indices[i] = length(level_sampler) * 4096 + level + 1075
+        ns.entry_info.indices[i] = length(level_sampler) << 12 + level + 1075
         wn = w+sig(x)
         ns.all_levels[j] = (wn, level_sampler)
 
@@ -398,7 +398,7 @@ end
         j = ns_track_info.lastsampled_idx_in
     else
         c = ns.entry_info.indices[i]
-        level = c % 4096 - 1075
+        level = c & 4095 - 1075
         j = (c - level - 1075) >> 12
     end
     ns_track_info.lastsampled_idx = 0
@@ -417,8 +417,8 @@ end
         level_sampler.track_info.mask = UInt(1) << (8*sizeof(len-1) - leading_zeros(len-1)) - 1
     end
     if moved_entry != i
-        @assert ns.entry_info.indices[moved_entry] == (length(level_sampler)+1) * 4096 + level + 1075
-        ns.entry_info.indices[moved_entry] = j * 4096 + level + 1075
+        @assert ns.entry_info.indices[moved_entry] == (length(level_sampler)+1) << 12 + level + 1075
+        ns.entry_info.indices[moved_entry] = j << 12 + level + 1075
     end
     wn = w-sig(significand*exp2(level+1))
     ns.all_levels[l] = (wn, level_sampler)
