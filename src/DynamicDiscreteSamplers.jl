@@ -182,12 +182,9 @@ end
 
 struct EntryInfo
     presence::BitVector
-    indices::Vector{Tuple{Int, Int}}
-    function EntryInfo()
-        presence = BitVector()
-        indices = Tuple{Int, Int}[]
-        return new(presence, indices)
-    end
+    indices_out::Vector{Int16}
+    indices_in::Vector{Int}
+    EntryInfo() = new(BitVector(), Int16[], Int[])
 end
 
 mutable struct TrackInfo
@@ -286,11 +283,13 @@ function Base.append!(ns::NestedSampler{N}, inds::Union{AbstractRange{Int}, Vect
     ns.track_info.reset_order += length(inds)
     ns.track_info.nvalues += length(inds)
     maxi = maximum(inds)
-    l_info = lastindex(ns.entry_info.indices)
+    l_info = lastindex(ns.entry_info.presence)
     if maxi > l_info
-        resize!(ns.entry_info.indices, maxi)
-        resize!(ns.entry_info.presence, maxi)
-        fill!(@view(ns.entry_info.presence[l_info+1:maxi]), false)
+        newl = max(2*l_info, maxi)
+        resize!(ns.entry_info.indices_out, newl)
+        resize!(ns.entry_info.indices_in, newl)
+        resize!(ns.entry_info.presence, newl)
+        fill!(@view(ns.entry_info.presence[l_info+1:newl]), false)
     end
     for (i, x) in zip(inds, xs)
         if ns.entry_info.presence[i]
@@ -306,11 +305,13 @@ end
     ns.track_info.reset_order += 1
     ns.track_info.nvalues += 1
     i <= 0 && throw(ArgumentError("Elements must be positive"))
-    l_info = lastindex(ns.entry_info.indices)
+    l_info = lastindex(ns.entry_info.presence)
     if i > l_info
-        resize!(ns.entry_info.indices, i)
-        resize!(ns.entry_info.presence, i)
-        fill!(@view(ns.entry_info.presence[l_info+1:i]), false)
+        newl = max(2*l_info, i)
+        resize!(ns.entry_info.indices_out, newl)
+        resize!(ns.entry_info.indices_in, newl)
+        resize!(ns.entry_info.presence, newl)
+        fill!(@view(ns.entry_info.presence[l_info+1:newl]), false)
     elseif ns.entry_info.presence[i]
         throw(ArgumentError("Element $i is already present"))
     end
@@ -324,7 +325,8 @@ end
     ns.entry_info.presence[i] = true
     if level ∉ ns.level_set
         # Log the entry
-        ns.entry_info.indices[i] = (level, 1)
+        ns.entry_info.indices_out[i] = level_b16
+        ns.entry_info.indices_in[i] = 1
 
         # Create a new level (or revive an empty level)
         push!(ns.level_set, level)
@@ -374,7 +376,8 @@ end
         j, k = ns.level_set_map.indices[level+1075]
         w, level_sampler = ns.all_levels[j]
         push!(level_sampler, i, bucketw)
-        ns.entry_info.indices[i] = (level, length(level_sampler))
+        ns.entry_info.indices_out[i] = level_b16
+        ns.entry_info.indices_in[i] = length(level_sampler)
         wn = w+sig(x)
         ns.all_levels[j] = (wn, level_sampler)
 
@@ -392,14 +395,15 @@ end
     ns_track_info.reset_distribution = true
     ns_track_info.reset_order += 1
     ns_track_info.nvalues -= 1
-    if i <= 0 || i > lastindex(ns.entry_info.indices)
+    if i <= 0 || i > lastindex(ns.entry_info.presence)
         throw(ArgumentError("Element $i is not present"))
     end
     if ns_track_info.lastsampled_idx == i
         level = Int(ns.sampled_level_numbers[ns_track_info.lastsampled_idx_out])
         j = ns_track_info.lastsampled_idx_in
     else
-        level, j = ns.entry_info.indices[i]
+        level = Int(ns.entry_info.indices_out[i])
+        j = ns.entry_info.indices_in[i]
     end
     ns_track_info.lastsampled_idx = 0
     !ns.entry_info.presence[i] && throw(ArgumentError("Element $i is not present"))
@@ -417,8 +421,8 @@ end
         level_sampler.track_info.mask = UInt(1) << (8*sizeof(len-1) - leading_zeros(len-1)) - 1
     end
     if moved_entry != i
-        @assert ns.entry_info.indices[moved_entry] == (level, length(level_sampler)+1)
-        ns.entry_info.indices[moved_entry] = (level, j)
+        @assert ns.entry_info.indices_in[moved_entry] == length(level_sampler)+1
+        ns.entry_info.indices_in[moved_entry] = j
     end
     wn = w-sig(significand*exp2(level+1))
     ns.all_levels[l] = (wn, level_sampler)
