@@ -119,7 +119,7 @@ function Base.findnext(x::LinkedListSet, i::Int)
             return j2 << 6 + leading_zeros(x.data[j2]) - 18*64
         end
     end
-    return nothing
+    return -10000
 end
 function Base.findprev(x::LinkedListSet, i::Int)
     j = i >> 6 + 18
@@ -131,7 +131,7 @@ function Base.findprev(x::LinkedListSet, i::Int)
             return j2 << 6 - trailing_zeros(x.data[j2]) - 17*64 - 1
         end
     end
-    return nothing
+    return -10000
 end
 
 # ------------------------------
@@ -437,7 +437,7 @@ end
             ns.track_info.firstchanged = ifelse(k < firstc, k, firstc)
             replacement = findprev(ns.level_set, ns_track_info.least_significant_sampled_level-1)
             ns.level_set_map.indices[level+1075] = (l, 0)
-            if isnothing(replacement) # We'll now have fewer than N sampled levels
+            if replacement == -10000 # We'll now have fewer than N sampled levels
                 ns_track_info.least_significant_sampled_level = -1075
                 sl_length = ns_track_info.lastfull
                 ns_track_info.lastfull -= 1
