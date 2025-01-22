@@ -489,4 +489,84 @@ Base.length(inds::SamplerIndices) = inds.ns.track_info.nvalues
 
 const DynamicDiscreteSampler = NestedSampler
 
+# Take Two!
+# - Exact
+# - O(1) in theory
+# - Fast in practice
+
+#=
+
+levels are powers of two. Each level has a true weight which is the sum of the (Float64) weights of
+the elements in that level and is represented as a UInt128 with an implicit "<< level". Each level
+also has a an approximate weight which is represented as a UInt64 with an implicit "<< level0" where
+level0 is a constant maintained by the sampler so that the sum of the approximate weights is less
+than 2^64 and greator than 2^32. The sum of the approximate weights and index of the highest level
+are also maintained.
+
+To select a level, pick a random number in Base.OneTo(sum of approximate weights) and find that
+level with linear search
+
+maintain the total weight
+
+=#
+
+mutable struct ResizableWeights
+    m::Memory{UInt64}
+end
+struct Weights
+    m::Memory{UInt64}
+end
+
+# Standard memory layout: (TODO: add alternative layout for small cases)
+
+# <memory_length::Int>
+# length::Int
+# max_level::Int
+# level0::Int
+# sum(level weights)::UInt64
+# level weights::[UInt64 2045] # earlier is higher. first is exponent bits 0x7fe, second to last is exponent bits 0x001. Subnormal are not supported.
+# true weights::[UInt128 2045]
+# level location info::[NamedTuple{posm2::Int, length::Int} 2045] indexes into sub_weights, posm2 is absolute into m.
+
+# gc info:
+# allocated_length::Int (used to re-allocate)
+# level allocated length::[UInt8 2045] (2^x is implied)
+
+# edit_map (maps index to current location in sub_weights)::[Int length] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs)
+
+# sub_weights (woven with targets)::[[Tuple{UInt64, Int}]]
+
+# Initial API:
+
+# setindex!, getindex, resize! (auto-zeros), scalar rand
+# Trivial extensions:
+# push!, delete!
+
+Base.rand(rng::AbstractRNG, w::Union{Weights, ResizableWeights}) = _rand(rng, w.m)
+#=@inbounds=# function _rand(rng::AbstractRNG, m::Memory{UInt64})
+
+    # Select level
+    x = rand(rng, Base.OneTo(m[4]))
+    i = m[3]
+    while #=i < 2045+4=# true
+        mi = m[i]
+        x <= mi && break
+        x -= mi
+    end
+
+    # Lookup level info
+    # i == 5 is first, i == 4+2045 is last
+    # j == 5+2045*3 is first, i == 3+2045*5 is last
+    # j = 2i+2045*3-5
+    j = 2i + 6130
+    posm1 = m[j]
+    len = m[j+1]
+
+    # Sample within level
+    while true
+        k = 2rand(rng, Base.OneTo(len))+posm2
+        rand(rng, UInt64) <= m[k] && return Int(signed(m[k+1]))
+    end
+end
+
 end
