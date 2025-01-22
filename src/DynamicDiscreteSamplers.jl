@@ -111,25 +111,21 @@ Base.push!(x::LinkedListSet, i::Int) = (x.data[i >> 6 + 18] |= UInt64(1) << (0x3
 Base.delete!(x::LinkedListSet, i::Int) = (x.data[i >> 6 + 18] &= ~(UInt64(1) << (0x3f - (i & 0x3f))); x)
 function Base.findnext(x::LinkedListSet, i::Int)
     j = i >> 6 + 18
-    k = i & 0x3f
-    y = x.data[j] << k
+    y = x.data[j] << (i & 0x3f)
     y != 0 && return i + leading_zeros(y)
     @inbounds for j2 in j+1:34
-        if !iszero(x.data[j2])
-            return j2 << 6 + leading_zeros(x.data[j2]) - 18*64
-        end
+        c = x.data[j2]
+        !iszero(c) && return j2 << 6 + leading_zeros(c) - 18*64
     end
     return -10000
 end
 function Base.findprev(x::LinkedListSet, i::Int)
     j = i >> 6 + 18
-    k = i & 0x3f
-    y = x.data[j] >> (0x3f - k)
+    y = x.data[j] >> (0x3f - i & 0x3f)
     y != 0 && return i - trailing_zeros(y)
     @inbounds for j2 in j-1:-1:1
-        if !iszero(x.data[j2])
-            return j2 << 6 - trailing_zeros(x.data[j2]) - 17*64 - 1
-        end
+        c = x.data[j2]
+        !iszero(c) && return j2 << 6 - trailing_zeros(c) - 17*64 - 1
     end
     return -10000
 end
