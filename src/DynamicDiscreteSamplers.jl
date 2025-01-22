@@ -114,18 +114,24 @@ function Base.findnext(x::LinkedListSet, i::Int)
     k = i & 0x3f
     y = x.data[j] << k
     y != 0 && return i + leading_zeros(y)
-    j2 = findnext(!iszero, x.data, j+1)
-    isnothing(j2) && return nothing
-    j2 << 6 + leading_zeros(x.data[j2]) - 18*64
+    @inbounds for j2 in j+1:34
+        if !iszero(x.data[j2])
+            return j2 << 6 + leading_zeros(x.data[j2]) - 18*64
+        end
+    end
+    return nothing
 end
 function Base.findprev(x::LinkedListSet, i::Int)
     j = i >> 6 + 18
     k = i & 0x3f
     y = x.data[j] >> (0x3f - k)
     y != 0 && return i - trailing_zeros(y)
-    j2 = findprev(!iszero, x.data, j-1)
-    isnothing(j2) && return nothing
-    j2 << 6 - trailing_zeros(x.data[j2]) - 17*64 - 1
+    @inbounds for j2 in j-1:-1:1
+        if !iszero(x.data[j2])
+            return j2 << 6 - trailing_zeros(x.data[j2]) - 17*64 - 1
+        end
+    end
+    return nothing
 end
 
 # ------------------------------
