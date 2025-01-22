@@ -264,7 +264,7 @@ Base.rand(ns::NestedSampler) = rand(Random.default_rng(), ns)
     track_info.reset_order += 1
     lastfull = track_info.lastfull
     reorder = lastfull > 8 && track_info.reset_order > 300*lastfull
-    if track_info.reset_distribution || reorder 
+    if track_info.reset_distribution || reorder
         @inline set_cum_weights!(ns.distribution_over_levels, ns, reorder)
         track_info.reset_distribution = false
     end
@@ -276,7 +276,7 @@ Base.rand(ns::NestedSampler) = rand(Random.default_rng(), ns)
     return i
 end
 
-function Base.append!(ns::NestedSampler{N}, inds::Union{AbstractRange{Int}, Vector{Int}}, 
+function Base.append!(ns::NestedSampler{N}, inds::Union{AbstractRange{Int}, Vector{Int}},
         xs::Union{AbstractRange{Float64}, Vector{Float64}}) where N
     ns.track_info.reset_distribution = true
     ns.track_info.reset_order += length(inds)
