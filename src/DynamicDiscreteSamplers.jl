@@ -318,9 +318,9 @@ end
 end
 
 @inline function _push!(ns::NestedSampler{N}, i::Int, x::Float64) where N
-    level = exponent(x)
+    bucketw, level = frexp(x)
+    level -= 1
     level_b16 = Int16(level)
-    bucketw = significand(x)/2
     ns.entry_info.presence[i] = true
     if level ∉ ns.level_set
         # Log the entry
