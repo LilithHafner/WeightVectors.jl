@@ -11,3 +11,10 @@ w = DynamicDiscreteSamplers.FixedSizeWeights(10)
 @test 1 === (w[1] = 1)
 
 @test rand(w) === 1
+
+@test_throws BoundsError w[0]
+@test_throws BoundsError w[11]
+@test w[1] === 1.0
+for i in 2:10
+    @test w[i] === 0.0
+end
