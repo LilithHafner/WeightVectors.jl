@@ -513,7 +513,8 @@ maintain the total weight
 abstract type Weights end
 struct FixedSizeWeights <: Weights
     m::Memory{UInt64}
-    _Weights(m::Memory{UInt64}) = new(m)
+    global _FixedSizeWeights
+    _FixedSizeWeights(m::Memory{UInt64}) = new(m)
 end
 struct SemiResizableWeights <: Weights
     m::Memory{UInt64}
@@ -772,16 +773,18 @@ end
 
 
 ResizableWeights(len::Integer) = ResizableWeights(FixedSizeWeights(len))
+SemiResizableWeights(len::Integer) = SemiResizableWeights(FixedSizeWeights(len))
 function FixedSizeWeights(len::Integer)
     m = Memory{UInt64}(undef, allocated_memory(len))
     m[3:10747+2len] .= 0 # metadata and edit map need to be zeroed but the bulk does not
     m[1] = len
     m[2] = 2050
     # m[3]...?
-    src[10235] = 10748+2len
+    m[10235] = 10748+2len
+    _FixedSizeWeights(m)
 end
-allocated_memory(length::Integer) = 10486 + 8*length
-length_from_memory(allocated_memory::Integer) = (allocated_memory-10486) >> 3 # Int((allocated_memory-10486)/8)
+allocated_memory(length::Integer) = 10747 + 8*length
+length_from_memory(allocated_memory::Integer) = (allocated_memory-10747) >> 3 # Int((allocated_memory-10747)/8)
 
 function Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Integer)
     m = w.m
