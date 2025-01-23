@@ -21,3 +21,8 @@ end
 
 @test 0 === (w[1] = 0)
 @test w[1] === 0.0
+
+@test_throws ArgumentError("collection must be non-empty") rand(w)
+
+w[1] = 1.5
+@test_broken w[1] === 1.5
