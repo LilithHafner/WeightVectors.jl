@@ -103,28 +103,28 @@ Base.isempty(rs::RejectionSampler) = length(rs) == 0 # For testing only
 Base.length(rs::RejectionSampler) = rs.track_info.length # For testing only
 
 struct LinkedListSet
-    data::MVector{34, UInt64}
-    LinkedListSet() = new(zero(MVector{34, UInt64}))
+    data::SizedVector{34, UInt64, Vector{UInt64}}
+    LinkedListSet() = new(zeros(UInt64, 34))
 end
 Base.in(i::Int, x::LinkedListSet) = x.data[i >> 6 + 18] & (UInt64(1) << (0x3f - (i & 0x3f))) != 0
 Base.push!(x::LinkedListSet, i::Int) = (x.data[i >> 6 + 18] |= UInt64(1) << (0x3f - (i & 0x3f)); x)
 Base.delete!(x::LinkedListSet, i::Int) = (x.data[i >> 6 + 18] &= ~(UInt64(1) << (0x3f - (i & 0x3f))); x)
 function Base.findnext(x::LinkedListSet, i::Int)
     j = i >> 6 + 18
-    y = x.data[j] << (i & 0x3f)
+    @inbounds y = x.data[j] << (i & 0x3f)
     y != 0 && return i + leading_zeros(y)
-    @inbounds for j2 in j+1:34
-        c = x.data[j2]
+    for j2 in j+1:34
+        @inbounds c = x.data[j2]
         !iszero(c) && return j2 << 6 + leading_zeros(c) - 18*64
     end
     return -10000
 end
 function Base.findprev(x::LinkedListSet, i::Int)
     j = i >> 6 + 18
-    y = x.data[j] >> (0x3f - i & 0x3f)
+    @inbounds y = x.data[j] >> (0x3f - i & 0x3f)
     y != 0 && return i - trailing_zeros(y)
-    @inbounds for j2 in j-1:-1:1
-        c = x.data[j2]
+    for j2 in j-1:-1:1
+        @inbounds c = x.data[j2]
         !iszero(c) && return j2 << 6 - trailing_zeros(c) - 17*64 - 1
     end
     return -10000
