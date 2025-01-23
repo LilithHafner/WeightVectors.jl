@@ -496,8 +496,8 @@ const DynamicDiscreteSampler = NestedSampler
 #=
 
 levels are powers of two. Each level has a true weight which is the sum of the (Float64) weights of
-the elements in that level and is represented as a UInt128 with an implicit "<< level". Each level
-also has a an approximate weight which is represented as a UInt64 with an implicit "<< level0" where
+the elements in that level and is represented as a UInt128 which is the sum of the significands of that level (exponent stored implicitly).
+Each level also has a an approximate weight which is represented as a UInt64 with an implicit "<< level0" where
 level0 is a constant maintained by the sampler so that the sum of the approximate weights is less
 than 2^64 and greator than 2^32. The sum of the approximate weights and index of the highest level
 are also maintained.
@@ -509,63 +509,261 @@ maintain the total weight
 
 =#
 
-mutable struct ResizableWeights
+abstract type Weights end
+mutable struct ResizableWeights <: Weights
     m::Memory{UInt64}
+    ResizableWeights(w::FixedSizeWeights) = new(w.m)
 end
-struct Weights
+struct FixedSizeWeights <: Weights
     m::Memory{UInt64}
+    _Weights(m::Memory{UInt64}) = new(m)
+end
+struct SemiResizableWeights <: Weights
+    m::Memory{UInt64}
+    SemiResizableWeights(w::FixedSizeWeights) = new(w.m)
 end
 
-# Standard memory layout: (TODO: add alternative layout for small cases)
+## Standard memory layout: (TODO: add alternative layout for small cases)
 
 # <memory_length::Int>
 # length::Int
-# max_level::Int
-# level0::Int
+# max_level::Int # absolute pointer to the first element of level weights that is nonzero
+# shift::Int level weights are euqal to shifted_significand_sums<<(exponent_bits+shift) rounded up
 # sum(level weights)::UInt64
-# level weights::[UInt64 2045] # earlier is higher. first is exponent bits 0x7fe, second to last is exponent bits 0x001. Subnormal are not supported.
-# true weights::[UInt128 2045]
-# level location info::[NamedTuple{posm2::Int, length::Int} 2045] indexes into sub_weights, posm2 is absolute into m.
+# level weights::[UInt64 2046] # earlier is higher. first is exponent bits 0x7fe, last is exponent bits 0x001. Subnormal are not supported.
+# shifted_significand_sums::[UInt128 2046] # sum of significands shifted by 11 bits to the left with their leading 1s appended (the maximum significand contributes typemax(UInt64))
+# level location info::[NamedTuple{posm2::Int, length::Int} 2046] indexes into sub_weights, posm2 is absolute into m.
 
 # gc info:
-# allocated_length::Int (used to re-allocate)
-# level allocated length::[UInt8 2045] (2^x is implied)
+# next_free_space::Int (used to re-allocate) <index 10235>
+# 32 unused bits
+# level allocated length::[UInt8 2046] (2^x is implied)
 
-# edit_map (maps index to current location in sub_weights)::[Int length] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs)
+# edit_map (maps index to current location in sub_weights)::[pos::Int, exponent::Int] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. exponent could be UInt11, lots of wasted bits)
 
-# sub_weights (woven with targets)::[[Tuple{UInt64, Int}]]
+# sub_weights (woven with targets)::[[(2^63-significand<<11)::UInt64, target::Int}]] aka 2^64-significand_with_leading_1<<11
 
-# Initial API:
+## Initial API:
 
 # setindex!, getindex, resize! (auto-zeros), scalar rand
 # Trivial extensions:
 # push!, delete!
 
-Base.rand(rng::AbstractRNG, w::Union{Weights, ResizableWeights}) = _rand(rng, w.m)
+Base.rand(rng::AbstractRNG, w::Weights) = _rand(rng, w.m)
+Base.getindex(w::Weights, i::Int) = _getindex(w, i)
+Base.setindex!(w::Weights, v, i::Int) = _setindex!(w, Float64(v), i)
+
 #=@inbounds=# function _rand(rng::AbstractRNG, m::Memory{UInt64})
+
+    @label reject
 
     # Select level
     x = rand(rng, Base.OneTo(m[4]))
-    i = m[3]
-    while #=i < 2045+4=# true
+    i = m[2]
+    while #=i < 2046+4=# true
         mi = m[i]
         x <= mi && break
         x -= mi
     end
 
+    # Low-probability rejection to improve accuracy from very close to perfect
+    if x == mi # mi is the weight rounded up. If they are equal than we should refine futher and possibly reject. This branch is very uncommon and still O(1); constant factors don't matter here.
+        # significand_sum::UInt128 = ...
+        # weight::UInt64 = mi = ceil(significand_sum<<*(exponent_bits+shift))...
+        # rejection_p = ceil(significand_sum<<*(exponent_bits+shift)) - true(ceil(significand_sum<<*(exponent_bits+shift)))
+        # rejection_p = 1-rem(significand_sum<<*(exponent_bits+shift))
+        # acceptance_p = rem(significand_sum<<*(exponent_bits+shift))
+        # acceptance_p = significand_sum<<*(exponent_bits+shift) & ...00000.111111...
+        j = 2i+2041
+        exponent_bits = 0x7fe+5-i
+        shift = exponent_bits + m[3]
+        significand_sum = reinterpret(UInt128, (m[j], m[j+1]))
+        while true
+            x = rand(rng, UInt64)
+            # p_stage = significand_sum << shift & ...00000.111111...64...11110000
+            target = significand_sum << (shift + 64) % UInt64
+            x > target && @goto reject
+            x < target && break
+            shift += 64
+            shift >= 0 && break
+        end
+    end
+
     # Lookup level info
-    # i == 5 is first, i == 4+2045 is last
-    # j == 5+2045*3 is first, i == 3+2045*5 is last
-    # j = 2i+2045*3-5
-    j = 2i + 6130
-    posm1 = m[j]
+    j = 2i + 6133
+    posm2 = m[j]
     len = m[j+1]
 
     # Sample within level
     while true
         k = 2rand(rng, Base.OneTo(len))+posm2
-        rand(rng, UInt64) <= m[k] && return Int(signed(m[k+1]))
+        rand(rng, UInt64) > m[k] && return Int(signed(m[k+1]))
     end
+end
+
+function _getindex(m::Memory{UInt64}, i::Int)
+    @boundscheck 1 <= i <= m[1] || throw(BoundsError(FixedSizeWeights(m), i))
+    j = 2i + 10490
+    pos = m[j]
+    pos == 0 && return 0.0
+    exponent = m[j+1]
+    weight = m[pos+1]
+    reinterpret(Float64, exponent | (weight >> 12))
+end
+
+function _setindex!(m::Memeory, v::Float64, i::Int)
+    @boundscheck 1 <= i <= m[1] || throw(BoundsError(FixedSizeWeights(m), i))
+    uv = reinterpret(UInt64, v)
+    uv == 0 && _set_to_zero!(m, i)
+    0x0010000000000000 <= uv <= 0x7fefffffffffffff || throw(DomainError(v, "Invalid weight")) # Excludes subnormals
+
+
+end
+
+function _set_to_zero!(m::Memory, i::Int)
+    # Find the entry's pos in the edit map table
+    j = 2i + 10490
+    pos = m[j]
+    pos == 0 && return # if the entry is already zero, return
+    # set the entry to zero (no need to zero the exponent)
+    m[j] = 0
+
+    # update group total weight and total weight
+    shifted_significand_sum_index = 5 + 3*2046 + 512 - (exponent >> 51)
+    shifted_significand_sum = reinterpret(UInt128, (m[shifted_significand_sum_index], m[shifted_significand_sum_index+1]))
+    shifted_significand = m[pos]
+    shifted_significand_sum -= -shifted_significand # the negation overflows and the -= does not so these do not cancel.
+    m[shifted_significand_sum_index:shifted_significand_sum_index+1] .= reinterpret(Tuple{UInt64, UInt64}, shifted_significand_sum)
+    # shifted_significand_sum<<(exponent_bits+shift) rounded up
+    shift = (exponent >> 52 + m[3])
+    weight = UInt64(shifted_significand_sum<<shift) # TODO for perf: change to % UInt64
+    # round up
+    weight += (trailing_zeros(shifted_significand_sum)+shift < 0) & (shifted_significand_sum != 0)
+    weight_index = 5 + 0x7fe - exponent >> 52
+    old_weight = m[weight_index]
+    m[weight_index] = weight
+    m[4] += old_weight - weight
+
+    # lookup the group by exponent
+    exponent = m[j+1]
+    group_length_index = shifted_significand_sum_index + 2*2046 + 1
+    group_posm2 = src[group_length_index-1]
+    group_length = src[group_length_index]
+    group_lastpos = group_posm2+2group_length
+
+    # shift the last element of the group into the spot occupied by the removed element
+    m[pos] = m[group_lastpos]
+    m[pos+1] = m[group_lastpos+1]
+
+    # shrink the group
+    src[group_length_index] = group_length-1 # no need to zero group entries
+end
+
+
+ResizableWeights(len::Intger) = ResizableWeights(FixedSizeWeights(len))
+function FixedSizeWeights(len::Integer)
+    m = Memory{UInt64}(undef, allocated_memory(len))
+    m[3:10747+2len] .= 0 # metadata and edit map need to be zeroed but the bulk does not
+    m[1] = len
+    m[2] = 2050
+    # m[3]...?
+    src[10235] = 10748+2len
+end
+allocated_memory(length::Integer) = 10486 + 8*length
+length_from_memory(allocated_memory::Integer) = (allocated_memory-10486) >> 3 # Int((allocated_memory-10486)/8)
+
+function Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Integer)
+    m = w.m
+    old_len = m[1]
+    if len > old_len
+        am = allocated_memory(len)
+        if am > length(m)
+            w isa SemiResizableWeights && throw(ArgumentError("Cannot increase the size of a SemiResizableWeights above its original allocated size. Try using a ResizableWeights instead."))
+            _resize!(w, len)
+        else
+            m[1] = len
+        end
+    else
+        w[len+1:old_len] .= 0 # This is a necessary but highly nontrivial operation
+        m[1] = len
+    end
+    w
+end
+"Reallocate w with the size len, compacting w into that new memory"
+function _resize!(w::ResizableWeights, len::Integer)
+    m = w.m
+    old_len = m[1]
+    m2 = Memory{UInt64}(undef, allocated_memory(len))
+    m2[1] = len
+    if len > old_len # grow
+        unsafe_copyto!(m2, 2, m, 2, 2old_len + 10491)
+        m2[2old_len + 10493:2len + 10492] .= 0
+    else # shrink
+        unsafe_copyto!(m2, 2, m, 2, 2len + 10491)
+    end
+
+    w.m = compact!(new_m, 2len + 10493, m, 2old_len + 10493)
+    w
+end
+
+function compact!(dst::Memory{UInt64}, dst_i::Int, src::Memory{UInt64}, src_i::Int)
+    # len = src[1]
+    next_free_space = src[10235]
+    # dst_i = src_i = 2len + 10493
+
+    while src_i < next_free_space
+
+        # Skip over abandoned groups
+        target = signed(src[src_i])
+        while target < 0
+            src_i -= target
+            target = signed(src[src_i])
+        end
+
+        # Trace an element of the group back to the edit info table to find the group id
+        j = 2target + 10485
+        exponent = m[j+1]
+
+        # Lookup the group in the group location table to find its length (performance optimization for copying, necesary to decide new allocated size)
+        # exponent of 0x7fe0000000000000 is index 6+3*2046
+        # exponent of 0x0010000000000000 is index 4+5*2046
+        group_length_index = 6 + 5*2046 + 512 - (exponent >> 51)
+        group_length = src[group_length_index]
+
+        # Lookup the allocated size (an alternative to scanning for the next nonzero, needed because we are setting allocated size)
+        # exponent of 0x7fe0000000000000 is index 6+5*2046, 2
+        # exponent of 0x7fd0000000000000 is index 6+5*2046, 1
+        # exponent of 0x0040000000000000 is index 5+5*2046+512, 0
+        # exponent of 0x0030000000000000 is index 5+5*2046+512, 3
+        # exponent of 0x0020000000000000 is index 5+5*2046+512, 2
+        # exponent of 0x0010000000000000 is index 5+5*2046+512, 1
+        # allocs_index = 5+5*2046+512 - (exponent >> 54), (exponent >> 52) & 0x3
+        # allocated_size = 2 << ((src[allocs_index[1]] >> (8allocs_index[1])) % UInt8)
+        allocs_index,allocs_subindex = 10747 - exponent >> 54, exponent >> 49 & 0x18
+        allocs_chunk = src[allocs_index]
+        allocated_size = 2 << (allocs_chunk >> allocs_subindex % UInt8)
+        new_allocated_size = 1<<Base.top_set_bit(group_length-1)
+        new_chunk = chunk ⊻ (new_allocated_size ⊻ allocated_size) << allocs_subindex
+        src[allocs_index] = new_chunk
+
+        # Copy the group to a compacted location
+        unsafe_copyto!(dst, dst_i-1, src, src_i-1, 2group_length)
+
+        # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
+        delta = src_i-dst_i
+        dst[j] += delta
+        for k in 1:group_length-1
+            target = src[src_i+2k]
+            j = 2target + 10485
+            dst[j] += delta
+        end
+
+        # Advance indices
+        src_i += allocated_size
+        dst_i += new_allocated_size
+    end
+    dst[10235] = dst_i
+    dst
 end
 
 end
