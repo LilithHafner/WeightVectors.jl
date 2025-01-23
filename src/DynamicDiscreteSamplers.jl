@@ -129,6 +129,7 @@ function Base.findprev(x::LinkedListSet, i::Int)
     end
     return -10000
 end
+
 # ------------------------------
 
 #=
