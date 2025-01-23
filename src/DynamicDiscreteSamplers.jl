@@ -606,7 +606,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 end
 
 function _getindex(m::Memory{UInt64}, i::Int)
-    @boundscheck 1 <= i <= m[1] || throw(BoundsError(FixedSizeWeights(m), i))
+    @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeights(m), i))
     j = 2i + 10490
     pos = m[j]
     pos == 0 && return 0.0
@@ -616,7 +616,7 @@ function _getindex(m::Memory{UInt64}, i::Int)
 end
 
 function _setindex!(m::Memory, v::Float64, i::Int)
-    @boundscheck 1 <= i <= m[1] || throw(BoundsError(FixedSizeWeights(m), i))
+    @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeights(m), i))
     uv = reinterpret(UInt64, v)
     if uv == 0
         _set_to_zero!(m, i)
