@@ -305,6 +305,7 @@ end
     ns.track_info.reset_order += 1
     ns.track_info.nvalues += 1
     i <= 0 && throw(ArgumentError("Elements must be positive"))
+    x <= 0.0 && throw(ArgumentError("Weights must be positive"))
     l_info = lastindex(ns.entry_info.presence)
     if i > l_info
         newl = max(2*l_info, i)
