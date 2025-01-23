@@ -25,4 +25,4 @@ end
 @test_throws ArgumentError("collection must be non-empty") rand(w)
 
 w[1] = 1.5
-@test_broken w[1] === 1.5
+@test w[1] === 1.5

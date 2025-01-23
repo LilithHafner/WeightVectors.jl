@@ -538,7 +538,7 @@ end
 # gc info:
 # next_free_space::Int (used to re-allocate) <index 10235>
 # 32 unused bits
-# level allocated length::[UInt8 2046] (2^x is implied)
+# level allocated length::[UInt8 2046] (2^(x-1) is implied)
 
 # edit_map (maps index to current location in sub_weights)::[pos::Int, exponent::Int] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. exponent could be UInt11, lots of wasted bits)
 
@@ -610,8 +610,8 @@ function _getindex(m::Memory{UInt64}, i::Int)
     pos = m[j]
     pos == 0 && return 0.0
     exponent = m[j+1]
-    weight = m[pos+1]
-    reinterpret(Float64, exponent | (weight >> 12))
+    weight = m[pos]
+    reinterpret(Float64, exponent | ((one(UInt64)<<63 - weight) >> 11))
 end
 
 function _setindex!(m::Memory, v::Float64, i::Int)
@@ -685,11 +685,12 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             m[allocs_index] = new_chunk
             m[10235] = next_free_space+allocated_size
         else # move and reallocate
-            new_next_free_space = next_free_space+allocated_size<<1
+            twice_new_allocated_size = max(0x2,allocated_size<<2)
+            new_next_free_space = next_free_space+twice_new_allocated_size
             if new_next_free_space > length(m)+1 # out of space; compact. TODO for perf, consider resizing at this time slightly eagerly?
                 firstindex_of_compactee = 2m[1] + 10493
                 next_free_space = compact!(m, firstindex_of_compactee, m, firstindex_of_compactee)
-                new_next_free_space = next_free_space+allocated_size<<1
+                new_next_free_space = next_free_space+twice_new_allocated_size
                 @assert new_next_free_space < length(m)+1 # After compaction there should be room TODO for perf, delete this
             end
             # TODO for perf, try removing the moveie before compaction (tricky: where to store that info?)
@@ -722,7 +723,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     m[group_lastpos+1] = i
 
     # log the insertion location in the edit map
-    m[j] = group_lastpos+1
+    m[j] = group_lastpos
 
     nothing
 end
