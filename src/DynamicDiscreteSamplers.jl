@@ -771,8 +771,8 @@ function _set_to_zero!(m::Memory, i::Int)
 
     # lookup the group by exponent
     group_length_index = shifted_significand_sum_index + 2*2046 + 1
-    group_posm2 = src[group_length_index-1]
-    group_length = src[group_length_index]
+    group_posm2 = m[group_length_index-1]
+    group_length = m[group_length_index]
     group_lastpos = group_posm2+2group_length
 
     # shift the last element of the group into the spot occupied by the removed element
@@ -780,7 +780,7 @@ function _set_to_zero!(m::Memory, i::Int)
     m[pos+1] = m[group_lastpos+1]
 
     # shrink the group
-    src[group_length_index] = group_length-1 # no need to zero group entries
+    m[group_length_index] = group_length-1 # no need to zero group entries
 
     nothing
 end
