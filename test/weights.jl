@@ -18,3 +18,6 @@ w = DynamicDiscreteSamplers.FixedSizeWeights(10)
 for i in 2:10
     @test w[i] === 0.0
 end
+
+@test 0 === (w[1] = 0)
+@test w[1] === 0.0
