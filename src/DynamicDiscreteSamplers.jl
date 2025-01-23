@@ -511,10 +511,6 @@ maintain the total weight
 =#
 
 abstract type Weights end
-mutable struct ResizableWeights <: Weights
-    m::Memory{UInt64}
-    ResizableWeights(w::FixedSizeWeights) = new(w.m)
-end
 struct FixedSizeWeights <: Weights
     m::Memory{UInt64}
     _Weights(m::Memory{UInt64}) = new(m)
@@ -522,6 +518,10 @@ end
 struct SemiResizableWeights <: Weights
     m::Memory{UInt64}
     SemiResizableWeights(w::FixedSizeWeights) = new(w.m)
+end
+mutable struct ResizableWeights <: Weights
+    m::Memory{UInt64}
+    ResizableWeights(w::FixedSizeWeights) = new(w.m)
 end
 
 ## Standard memory layout: (TODO: add alternative layout for small cases)
@@ -612,7 +612,7 @@ function _getindex(m::Memory{UInt64}, i::Int)
     reinterpret(Float64, exponent | (weight >> 12))
 end
 
-function _setindex!(m::Memeory, v::Float64, i::Int)
+function _setindex!(m::Memory, v::Float64, i::Int)
     @boundscheck 1 <= i <= m[1] || throw(BoundsError(FixedSizeWeights(m), i))
     uv = reinterpret(UInt64, v)
     if uv == 0
@@ -771,7 +771,7 @@ function _set_to_zero!(m::Memory, i::Int)
 end
 
 
-ResizableWeights(len::Intger) = ResizableWeights(FixedSizeWeights(len))
+ResizableWeights(len::Integer) = ResizableWeights(FixedSizeWeights(len))
 function FixedSizeWeights(len::Integer)
     m = Memory{UInt64}(undef, allocated_memory(len))
     m[3:10747+2len] .= 0 # metadata and edit map need to be zeroed but the bulk does not
