@@ -10,4 +10,4 @@ w = DynamicDiscreteSamplers.FixedSizeWeights(10)
 
 @test 1 === (w[1] = 1)
 
-@test_broken rand(w) === 1
+@test rand(w) === 1
