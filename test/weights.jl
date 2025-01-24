@@ -38,6 +38,14 @@ w[3] = 3
 @test w[2] == 2
 @test w[3] == 3
 
+w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+w[9] = 3
+w[7] = 3
+w[1] = 3
+@test w[9] == 3
+@test_broken w[7] == 3
+@test w[1] == 3
+
 # These tests have never revealed a bug:
 for _ in 1:100
     local w = DynamicDiscreteSamplers.FixedSizeWeights(10)
