@@ -69,6 +69,10 @@ w[1] = 1.7
 @test w[1] === 1.7
 @test w[2] === 1.6
 
+w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+w[1] = 1
+@test_throws InexactError w[2] = 1e8
+
 # These tests have never revealed a bug that was not revealed by one of the above tests:
 for _ in 1:10000
     local w = DynamicDiscreteSamplers.FixedSizeWeights(10)
