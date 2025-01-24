@@ -67,16 +67,15 @@ w[1] = 1.5
 w[2] = 1.6
 w[1] = 1.7
 @test w[1] === 1.7
-@test_broken w[2] === 1.6
+@test w[2] === 1.6
 
-for _ in 1:100
+# These tests have never revealed a bug that was not revealed by one of the above tests:
+for _ in 1:10000
     local w = DynamicDiscreteSamplers.FixedSizeWeights(10)
     local v = [w[i] for i in 1:10]
-    # println()
-    for _ in 1:2
+    for _ in 1:10
         i = rand(1:10)
-        x = exp(randn())
-        # @show i x
+        x = rand((0.0, exp(randn())))
         w[i] = x
         v[i] = x
         @test all(v[i] === w[i] for i in 1:10)
