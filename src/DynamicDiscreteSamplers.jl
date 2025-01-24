@@ -702,12 +702,12 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             m[10235] = new_next_free_space
 
             # Copy the group to new location
-            unsafe_copyto!(m, group_posm2+2, m, next_free_space, group_length-1)
+            unsafe_copyto!(m, next_free_space, m, group_posm2+2, 2group_length-2)
 
             # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
             delta = next_free_space-group_posm2+2
             for k in 1:group_length-1
-                target = m[next_free_space+2k-2]
+                target = m[next_free_space+2k-1]
                 l = 2target + 10485
                 m[l] += delta
             end
