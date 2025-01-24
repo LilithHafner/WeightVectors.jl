@@ -607,7 +607,7 @@ end
 
 function _getindex(m::Memory{UInt64}, i::Int)
     @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeights(m), i))
-    j = 2i + 10488
+    j = 2i + 10490
     pos = m[j]
     pos == 0 && return 0.0
     exponent = m[j+1]
@@ -625,7 +625,7 @@ function _setindex!(m::Memory, v::Float64, i::Int)
     0x0010000000000000 <= uv <= 0x7fefffffffffffff || throw(DomainError(v, "Invalid weight")) # Excludes subnormals
 
     # Find the entry's pos in the edit map table
-    j = 2i + 10488
+    j = 2i + 10490
     pos = m[j]
     if pos == 0
         _set_from_zero!(m, v, i::Int)
@@ -642,7 +642,7 @@ end
 
 function _set_from_zero!(m::Memory, v::Float64, i::Int)
     uv = reinterpret(UInt, v)
-    j = 2i + 10488
+    j = 2i + 10490
     @assert m[j] == 0
 
     exponent = uv & Base.exponent_mask(Float64)
@@ -688,7 +688,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             twice_new_allocated_size = max(0x2,allocated_size<<2)
             new_next_free_space = next_free_space+twice_new_allocated_size
             if new_next_free_space > length(m)+1 # out of space; compact. TODO for perf, consider resizing at this time slightly eagerly?
-                firstindex_of_compactee = 2m[1] + 10493
+                firstindex_of_compactee = 2m[1] + 10492
                 next_free_space = compact!(m, firstindex_of_compactee, m, firstindex_of_compactee)
                 new_next_free_space = next_free_space+twice_new_allocated_size
                 @assert new_next_free_space < length(m)+1 # After compaction there should be room TODO for perf, delete this
@@ -706,10 +706,10 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             unsafe_copyto!(m, next_free_space, m, group_posm2+2, 2group_length-2)
 
             # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
-            delta = next_free_space-group_posm2+2
+            delta = next_free_space-(group_posm2+2)
             for k in 1:group_length-1
                 target = m[next_free_space+2k-1]
-                l = 2target + 10485
+                l = 2target + 10490
                 m[l] += delta
             end
 
@@ -755,7 +755,7 @@ get_alloced_indices(exponent::UInt64) = 10491 - exponent >> 55, exponent >> 49 &
 
 function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
-    j = 2i + 10488
+    j = 2i + 10490
     pos = m[j]
     pos == 0 && return # if the entry is already zero, return
     # set the entry to zero (no need to zero the exponent)
@@ -834,7 +834,7 @@ function _resize!(w::ResizableWeights, len::Integer)
         unsafe_copyto!(m2, 2, m, 2, 2len + 10491)
     end
 
-    compact!(new_m, 2len + 10493, m, 2old_len + 10493)
+    compact!(new_m, 2len + 10492, m, 2old_len + 10492)
     w.m = new_m
     w
 end
@@ -842,7 +842,7 @@ end
 function compact!(dst::Memory{UInt64}, dst_i::Int, src::Memory{UInt64}, src_i::Int)
     # len = src[1]
     next_free_space = src[10235]
-    # dst_i = src_i = 2len + 10493
+    # dst_i = src_i = 2len + 10492
 
     while src_i < next_free_space
 
@@ -887,7 +887,7 @@ function compact!(dst::Memory{UInt64}, dst_i::Int, src::Memory{UInt64}, src_i::I
         dst[j] += delta
         for k in 1:group_length-1
             target = src[src_i+2k]
-            j = 2target + 10485
+            j = 2target + 10490
             dst[j] += delta
         end
 

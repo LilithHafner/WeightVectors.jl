@@ -51,10 +51,17 @@ w[8] = 0.549326222415666
 w[6] = 1.0149666786255531
 w[3] = 0.8210275222825218
 @test w[8] === 0.549326222415666
-@test_broken w[6] === 1.0149666786255531
+@test w[6] === 1.0149666786255531
 @test w[3] === 0.8210275222825218
 
-# These tests have never revealed a bug:
+w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+w[8] = 3.2999782300326728
+w[9] = 0.7329714939310719
+w[3] = 2.397108987310203
+@test w[8] === 3.2999782300326728
+@test w[9] === 0.7329714939310719
+@test w[3] === 2.397108987310203
+
 for _ in 1:100
     local w = DynamicDiscreteSamplers.FixedSizeWeights(10)
     local v = [w[i] for i in 1:10]
