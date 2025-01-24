@@ -43,7 +43,7 @@ w[9] = 3
 w[7] = 3
 w[1] = 3
 @test w[9] == 3
-@test_broken w[7] == 3
+@test w[7] == 3
 @test w[1] == 3
 
 # These tests have never revealed a bug:

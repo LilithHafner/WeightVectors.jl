@@ -683,8 +683,8 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # expand the allocated size and bump next_free_space
             new_chunk = allocs_chunk + 1 << allocs_subindex
             m[allocs_index] = new_chunk
-            m[10235] = next_free_space+allocated_size
-        else # move and reallocate
+            m[10235] = next_free_space+2allocated_size
+        else # move and reallocate (this branch also handles creating new groups: TODO expirment with perf and clarity by splicing that branch out)
             twice_new_allocated_size = max(0x2,allocated_size<<2)
             new_next_free_space = next_free_space+twice_new_allocated_size
             if new_next_free_space > length(m)+1 # out of space; compact. TODO for perf, consider resizing at this time slightly eagerly?
