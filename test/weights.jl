@@ -37,3 +37,16 @@ w[3] = 3
 @test_broken w[1] == 3
 @test w[2] == 2
 @test w[3] == 3
+
+# These tests have never revealed a bug:
+for _ in 1:100
+    local w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+    local v = [w[i] for i in 1:10]
+    for _ in 1:2
+        i = rand(1:10)
+        x = exp(randn())
+        w[i] = x
+        v[i] = x
+        @test all(v[i] === w[i] for i in 1:10)
+    end
+end
