@@ -551,6 +551,9 @@ end
 # Trivial extensions:
 # push!, delete!
 
+# TODO for performance and simplicity, change weights to rounded down instead of rounded up
+# then, leverage the fact that plain bitshifting rounds down by default.
+
 Base.rand(rng::AbstractRNG, w::Weights) = _rand(rng, w.m)
 Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
@@ -736,8 +739,19 @@ get_UInt128(m::Memory, i::Integer) = reinterpret(UInt128, (m[i], m[i+1]))
 set_UInt128!(m::Memory, v::UInt128, i::Integer) = m[i:i+1] .= reinterpret(Tuple{UInt64, UInt64}, v)
 "computes shifted_significand_sum<<(exponent_bits+shift) rounded up"
 function compute_weight(m::Memory, exponent::UInt64, shifted_significand_sum::UInt128)
-    # TODO for correctness mutate m[3] as needed
     shift = signed(exponent >> 52 + m[3])
+    if shifted_significand_sum != 0 && Base.top_set_bit(shifted_significand_sum)+shift > 64
+        # if this would overflow, drop shift so that it renormalizes down to 48.
+        # this drops shift at least ~16 and makes the sum of weights at least ~2^48.
+        # TODO for perf, don't check this on re-compute
+        # Base.top_set_bit(shifted_significand_sum)+shift == 48
+        # Base.top_set_bit(shifted_significand_sum)+signed(exponent >> 52 + m[3]) == 48
+        # Base.top_set_bit(shifted_significand_sum)+signed(exponent >> 52) + signed(m[3]) == 48
+        # signed(m[3]) == 48 - Base.top_set_bit(shifted_significand_sum) - signed(exponent >> 52)
+        m3 = 48 - Base.top_set_bit(shifted_significand_sum) - exponent >> 52
+        set_global_shift!(m, m3) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+        shift = signed(exponent >> 52 + m3)
+    end
     weight = UInt64(shifted_significand_sum<<shift) # TODO for perf: change to % UInt64
     # round up
     weight += (trailing_zeros(shifted_significand_sum)+shift < 0) & (shifted_significand_sum != 0) # TODO for perf: ensure this final clause is const-prop eliminated when it can be (i.e. any time other than setting a weight to zero)
@@ -748,7 +762,60 @@ function update_weights!(m::Memory, exponent::UInt64, shifted_significand_sum::U
     weight_index = 5 + 0x7fe - exponent >> 52
     old_weight = m[weight_index]
     m[weight_index] = weight
-    m[4] += weight - old_weight
+    m4 = m[4]
+    # @show old_weight weight
+    m4 -= old_weight
+    m4, o = Base.add_with_overflow(m4, weight)
+    # @show m4
+    if o
+        # If weights overflow (>2^64) then shift down by 16 bits
+        set_global_shift!(m, m[3]-0x10) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+    elseif 0 < m4 < UInt64(1)<<32
+        # If weights become less than 2^32 (but only if there are any nonzero weights), then for performance reasons (to keep the low probability rejection step sufficiently low probability)
+        # Increase the shift to a reasonable level.
+        # All nonzero true weights correspond to nonzero weights so 0 < m4 is a sufficient check to determine if we have fully emptied out the weights or not
+
+        # TODO for perf: we can almost get away with loading only the most significant word of shifted_significand_sums. Here, we use the most significant 65 bits.
+        j = 2m[2]+2041
+        x = get_UInt128(m, j)
+        while x == 0 # TODO for perf: once we can trust m[2] to be up to date, delete this
+            # TODO once this loop is gone, refactor indexing for simplicity
+            j += 2
+            x = get_UInt128(m, j)
+        end
+        x2 = UInt64(x>>63) #TODO for perf %UInt64
+        for i in 1:Sys.WORD_SIZE # TODO for perf, we can get away with shaving 1 to 10 off of this loop.
+            x2 += UInt64(get_UInt128(m, j+2i) >> (63+i))
+        end
+
+        m3 = -15 - Base.top_set_bit(x2) - (6143-j)>>1
+        # TODO test that this actually achieves the desired shift and results in a new sum of about 2^48
+
+        # @show m[3] m3
+
+        set_global_shift!(m, m3) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+
+        @assert Base.top_set_bit(m[4]) == 48 # TODO for perd: delete
+    else
+        m[4] = m4
+    end
+end
+
+function set_global_shift!(m::Memory, m3::UInt)
+    m[3] = m3
+    m4 = zero(UInt64)
+    for i in 5:2050
+        j = 2i+2041
+        shifted_significand_sum = get_UInt128(m, j)
+        shift = signed(2051-i+m3)
+        weight = UInt64(shifted_significand_sum<<shift) # TODO for perf: change to % UInt64
+        # round up
+        weight += (trailing_zeros(shifted_significand_sum)+shift < 0) & (shifted_significand_sum != 0) # TODO for perf: ensure this final clause is const-prop eliminated when it can be (i.e. any time other than setting a weight to zero)
+
+        m[i] = weight
+        m4 += weight
+    end
+    m[4] = m4
 end
 
 get_alloced_indices(exponent::UInt64) = 10491 - exponent >> 55, exponent >> 49 & 0x38
@@ -770,7 +837,7 @@ function _set_to_zero!(m::Memory, i::Int)
     set_UInt128!(m, shifted_significand_sum, shifted_significand_sum_index)
     update_weights!(m, exponent, shifted_significand_sum)
 
-    # TODO for perf: increment m[2] when zeroing out the first group
+    # TODO for perf: increment m[2] when zeroing out the first group. And try doing this before update_weights! so that update_weights! can use the new value.
 
     # lookup the group by exponent
     group_length_index = shifted_significand_sum_index + 2*2046 + 1
