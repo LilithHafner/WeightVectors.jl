@@ -81,7 +81,7 @@ for _ in 1:10000
     local v = [w[i] for i in 1:10]
     for _ in 1:10
         i = rand(1:10)
-        x = rand((0.0, exp(randn())))
+        x = rand((0.0, exp(10randn())))
         w[i] = x
         v[i] = x
         @test all(v[i] === w[i] for i in 1:10)
