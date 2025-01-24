@@ -76,6 +76,19 @@ w[2] = 1e8
 @test w[2] === 1e8
 
 # These tests have never revealed a bug that was not revealed by one of the above tests:
+w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+w[1] = 1
+w[2] = 1e100
+@test rand(w) === 2
+w[3] = 1e-100
+@test rand(w) === 2
+w[2] = 0
+@test rand(w) === 1
+w[1] = 0
+@test rand(w) === 3
+w[3] = 0
+@test_throws ArgumentError("collection must be non-empty") rand(w)
+
 for _ in 1:10000
     local w = DynamicDiscreteSamplers.FixedSizeWeights(10)
     local v = [w[i] for i in 1:10]
