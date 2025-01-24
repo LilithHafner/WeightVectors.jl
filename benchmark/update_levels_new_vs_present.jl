@@ -16,10 +16,10 @@ end
 
 x = 1:500;
 
-y1 = [(@b push_v!(DynamicDiscreteSampler(), xi) push_v!(_, xi) evals=1 seconds=.01).time for xi in x];
-y2 = [(@b DynamicDiscreteSampler() push_v!(_, xi) evals=1 seconds=.01).time for xi in x];
-y3 = [(@b push_v!(push_v!(DynamicDiscreteSampler(), xi), xi) remove_v!(_, xi) evals=1 seconds=.01).time for xi in x];
-y4 = [(@b push_v!(DynamicDiscreteSampler(), xi) remove_v!(_, xi) evals=1 seconds=.01).time for xi in x];
+y1 = [(@b push_v!(DynamicDiscreteSampler(), xi) push_v!(_, xi) evals=1 seconds=.02).time for xi in x];
+y2 = [(@b DynamicDiscreteSampler() push_v!(_, xi) evals=1 seconds=.02).time for xi in x];
+y3 = [(@b push_v!(push_v!(DynamicDiscreteSampler(), xi), xi) remove_v!(_, xi) evals=1 seconds=.02).time for xi in x];
+y4 = [(@b push_v!(DynamicDiscreteSampler(), xi) remove_v!(_, xi) evals=1 seconds=.02).time for xi in x];
 
 plot(x,y2,label="add element + level");
 plot!(x,y1,label="add element");
