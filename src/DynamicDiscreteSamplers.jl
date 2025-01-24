@@ -527,22 +527,22 @@ end
 ## Standard memory layout: (TODO: add alternative layout for small cases)
 
 # <memory_length::Int>
-# length::Int
-# max_level::Int # absolute pointer to the first element of level weights that is nonzero
-# shift::Int level weights are euqal to shifted_significand_sums<<(exponent_bits+shift) rounded up
-# sum(level weights)::UInt64
-# level weights::[UInt64 2046] # earlier is higher. first is exponent bits 0x7fe, last is exponent bits 0x001. Subnormal are not supported.
-# shifted_significand_sums::[UInt128 2046] # sum of significands shifted by 11 bits to the left with their leading 1s appended (the maximum significand contributes typemax(UInt64))
-# level location info::[NamedTuple{posm2::Int, length::Int} 2046] indexes into sub_weights, posm2 is absolute into m.
+# 1                      length::Int
+# 2                      max_level::Int # absolute pointer to the first element of level weights that is nonzero
+# 3                      shift::Int level weights are euqal to shifted_significand_sums<<(exponent_bits+shift) rounded up
+# 4                      sum(level weights)::UInt64
+# 5..2050                level weights::[UInt64 2046] # earlier is higher. first is exponent bits 0x7fe, last is exponent bits 0x001. Subnormal are not supported.
+# 2051..6142             shifted_significand_sums::[UInt128 2046] # sum of significands shifted by 11 bits to the left with their leading 1s appended (the maximum significand contributes typemax(UInt64))
+# 6143..10234            level location info::[NamedTuple{posm2::Int, length::Int} 2046] indexes into sub_weights, posm2 is absolute into m.
 
 # gc info:
-# next_free_space::Int (used to re-allocate) <index 10235>
-# 32 unused bits
-# level allocated length::[UInt8 2046] (2^(x-1) is implied)
+# 10235                  next_free_space::Int (used to re-allocate) <index 10235>
+# 16 unused bits
+# 10236..10491           level allocated length::[UInt8 2046] (2^(x-1) is implied)
 
-# edit_map (maps index to current location in sub_weights)::[pos::Int, exponent::Int] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. exponent could be UInt11, lots of wasted bits)
+# 10492..10491+2len      edit_map (maps index to current location in sub_weights)::[pos::Int, exponent::Int] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. exponent could be UInt11, lots of wasted bits)
 
-# sub_weights (woven with targets)::[[(2^63-significand<<11)::UInt64, target::Int}]] aka 2^64-significand_with_leading_1<<11
+# 10492+2len..10491+8len sub_weights (woven with targets)::[[(2^63-significand<<11)::UInt64, target::Int}]] aka 2^64-significand_with_leading_1<<11
 
 ## Initial API:
 
@@ -606,12 +606,12 @@ end
 
 function _getindex(m::Memory{UInt64}, i::Int)
     @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeights(m), i))
-    j = 2i + 10490
+    j = 2i + 10488
     pos = m[j]
     pos == 0 && return 0.0
     exponent = m[j+1]
     weight = m[pos]
-    reinterpret(Float64, exponent | ((one(UInt64)<<63 - weight) >> 11))
+    reinterpret(Float64, exponent | ((-weight) >> 11))
 end
 
 function _setindex!(m::Memory, v::Float64, i::Int)
@@ -624,7 +624,7 @@ function _setindex!(m::Memory, v::Float64, i::Int)
     0x0010000000000000 <= uv <= 0x7fefffffffffffff || throw(DomainError(v, "Invalid weight")) # Excludes subnormals
 
     # Find the entry's pos in the edit map table
-    j = 2i + 10490
+    j = 2i + 10488
     pos = m[j]
     if pos == 0
         _set_from_zero!(m, v, i::Int)
@@ -636,17 +636,16 @@ end
 function _set_nonzero!(m, v, i)
     # TODO for performance: join these two opperations
     _set_to_zero!(m, i)
-    _set_nonzero!(m, v, i)
+    _set_from_zero!(m, v, i)
 end
 
 function _set_from_zero!(m::Memory, v::Float64, i::Int)
     uv = reinterpret(UInt, v)
-    j = 2i + 10490
+    j = 2i + 10488
     @assert m[j] == 0
 
     exponent = uv & Base.exponent_mask(Float64)
     m[j+1] = exponent
-
     # update group total weight and total weight
     shifted_significand_sum_index = get_shifted_significand_sum_index(exponent)
     shifted_significand_sum = get_UInt128(m, shifted_significand_sum_index)
@@ -699,6 +698,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # expand the allocated size and bump next_free_space
             new_chunk = allocs_chunk + 1 << allocs_subindex
             m[allocs_index] = new_chunk
+
             m[10235] = new_next_free_space
 
             # Copy the group to new location
@@ -711,6 +711,8 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
                 l = 2target + 10485
                 m[l] += delta
             end
+
+            # Mark the old group as moved for compaction TODO for correctness
 
             # update group start location
             group_posm2 = m[group_length_index-1] = next_free_space-2
@@ -748,11 +750,11 @@ function update_weights!(m::Memory, exponent::UInt64, shifted_significand_sum::U
     m[4] += weight - old_weight
 end
 
-get_alloced_indices(exponent::UInt64) = 10747 - exponent >> 54, exponent >> 49 & 0x18
+get_alloced_indices(exponent::UInt64) = 10491 - exponent >> 55, exponent >> 49 & 0x38
 
 function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
-    j = 2i + 10490
+    j = 2i + 10488
     pos = m[j]
     pos == 0 && return # if the entry is already zero, return
     # set the entry to zero (no need to zero the exponent)
@@ -791,15 +793,15 @@ SemiResizableWeights(len::Integer) = SemiResizableWeights(FixedSizeWeights(len))
 function FixedSizeWeights(len::Integer)
     m = Memory{UInt64}(undef, allocated_memory(len))
     m .= 0 # TODO for perf: delete this. It's here so that a sparse rendering for debugging is easier TODO for tests: set this to 0xdeadbeefdeadbeed
-    m[4:10747+2len] .= 0 # metadata and edit map need to be zeroed but the bulk does not
+    m[4:10491+2len] .= 0 # metadata and edit map need to be zeroed but the bulk does not
     m[1] = len
     m[2] = 2050
     # no need to set m[3]
-    m[10235] = 10748+2len
+    m[10235] = 10492+2len
     _FixedSizeWeights(m)
 end
-allocated_memory(length::Integer) = 10747 + 8*length
-length_from_memory(allocated_memory::Integer) = (allocated_memory-10747) >> 3 # Int((allocated_memory-10747)/8)
+allocated_memory(length::Integer) = 10491 + 8*length
+length_from_memory(allocated_memory::Integer) = (allocated_memory-10491) >> 3 # Int((allocated_memory-10491)/8)
 
 function Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Integer)
     m = w.m
