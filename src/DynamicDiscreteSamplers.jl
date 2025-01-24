@@ -759,7 +759,7 @@ function _set_to_zero!(m::Memory, i::Int)
     pos = m[j]
     pos == 0 && return # if the entry is already zero, return
     # set the entry to zero (no need to zero the exponent)
-    m[j] = 0
+    # m[j] = 0 is moved to after we adjust the edit_map entry for the shifted element, in case there is no shifted element
     exponent = m[j+1]
 
     # update group total weight and total weight
@@ -778,9 +778,14 @@ function _set_to_zero!(m::Memory, i::Int)
     group_length = m[group_length_index]
     group_lastpos = group_posm2+2group_length
 
+    # TODO for perf: see if it's helpful to gate this on pos != group_lastpos
     # shift the last element of the group into the spot occupied by the removed element
     m[pos] = m[group_lastpos]
-    m[pos+1] = m[group_lastpos+1]
+    shifted_element = m[pos+1] = m[group_lastpos+1]
+
+    # adjust the edit map entry of the shifted element
+    m[2shifted_element + 10490] = pos
+    m[j] = 0
 
     # shrink the group
     m[group_length_index] = group_length-1 # no need to zero group entries
