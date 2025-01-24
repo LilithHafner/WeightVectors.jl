@@ -603,8 +603,11 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 
     # Sample within level
     while true
-        k = 2rand(rng, Base.OneTo(len))+posm2
-        rand(rng, UInt64) > m[k] && return Int(signed(m[k+1]))
+        r = rand(rng, UInt64)
+        k1 = (r>>leading_zeros(len-1))
+        k2 = k1<<1+posm2+2
+        # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to typemax(UInt64)
+        k1 < len && rand(rng, UInt64) > m[k2] && return Int(signed(m[k2+1]))
     end
 end
 
