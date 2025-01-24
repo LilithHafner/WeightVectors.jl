@@ -414,7 +414,6 @@ end
     @assert _i == i
     len = level_sampler.track_info.length
     moved_entry, _ = level_sampler.data[j] = level_sampler.data[len]
-    level_sampler.data[len] = (0, 0.0)
     level_sampler.track_info.length -= 1
     if (len & (len-1)) == 0
         level_sampler.track_info.mask = UInt(1) << (8*sizeof(len-1) - leading_zeros(len-1)) - 1
@@ -428,7 +427,6 @@ end
 
     if isempty(level_sampler) # Remove a level
         delete!(ns.level_set, level)
-        ns.all_levels[l] = (zero(UInt128), level_sampler) # Fixup for rounding error
         if k != 0 # Remove a sampled level
             firstc = ns.track_info.firstchanged
             ns.track_info.firstchanged = ifelse(k < firstc, k, firstc)
