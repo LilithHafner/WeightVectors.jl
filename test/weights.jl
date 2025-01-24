@@ -62,6 +62,13 @@ w[3] = 2.397108987310203
 @test w[9] === 0.7329714939310719
 @test w[3] === 2.397108987310203
 
+w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+w[1] = 1.5
+w[2] = 1.6
+w[1] = 1.7
+@test w[1] === 1.7
+@test_broken w[2] === 1.6
+
 for _ in 1:100
     local w = DynamicDiscreteSamplers.FixedSizeWeights(10)
     local v = [w[i] for i in 1:10]
