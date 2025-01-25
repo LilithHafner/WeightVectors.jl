@@ -90,7 +90,7 @@ let w = DynamicDiscreteSamplers.FixedSizeWeights(2)
     @test (w[2]/(w[1]+w[2])) === 1.9/3
     expected = n*1.9/3
     stdev = .5sqrt(n)
-    @test_broken abs(twos-expected) < 4stdev
+    @test abs(twos-expected) < 4stdev
 end
 
 # These tests have never revealed a bug that was not revealed by one of the above tests:

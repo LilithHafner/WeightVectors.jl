@@ -533,7 +533,7 @@ end
 # 3                      shift::Int level weights are euqal to shifted_significand_sums<<(exponent_bits+shift) rounded up
 # 4                      sum(level weights)::UInt64
 # 5..2050                level weights::[UInt64 2046] # earlier is higher. first is exponent bits 0x7fe, last is exponent bits 0x001. Subnormal are not supported.
-# 2051..6142             shifted_significand_sums::[UInt128 2046] # sum of significands shifted by 11 bits to the left with their leading 1s appended (the maximum significand contributes typemax(UInt64))
+# 2051..6142             shifted_significand_sums::[UInt128 2046] # sum of significands shifted by 11 bits to the left with their leading 1s appended (the maximum significand contributes 0xfffffffffffff800)
 # 6143..10234            level location info::[NamedTuple{posm2::Int, length::Int} 2046] indexes into sub_weights, posm2 is absolute into m.
 
 # gc info:
@@ -543,7 +543,23 @@ end
 
 # 10492..10491+2len      edit_map (maps index to current location in sub_weights)::[pos::Int, exponent::Int] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. exponent could be UInt11, lots of wasted bits)
 
-# 10492+2len..10491+8len sub_weights (woven with targets)::[[(2^63-significand<<11)::UInt64, target::Int}]] aka 2^64-significand_with_leading_1<<11
+# 10492+2len..10491+8len sub_weights (woven with targets)::[[shifted_significand::UInt64, target::Int}]]
+
+# shifted significands are stored in sub_weights with their implicit leading 1 adding and shifted left 11 bits
+#     element_from_sub_weights = 0x8000000000000000 | (reinterpret(UInt64, weight::Float64) << 11)
+# And sampled with
+#     rand(UInt64) < element_from_sub_weights
+# this means that for the lowest normal significand (52 zeros with an implicit leading one),
+# achieved by 2.0, 4.0, etc the shifted significand stored in sub_weights is 0x8000000000000000
+# and there are 2^63 pips less than that value (1/2 probability). For the
+# highest normal significand (52 ones with an implicit leading 1) the shifted significand
+# stored in sub_weights is 0xfffffffffffff800 and there are 2^64-2^11 pips less than
+# that value for a probability of (2^64-2^11) / 2^64 == (2^53-1) / 2^53 == prevfloat(2.0)/2.0
+@assert 0xfffffffffffff800//big(2)^64 == (2^53-1)//2^53 == big(prevfloat(2.0))/big(2.0)
+@assert 0x8000000000000000 | (reinterpret(UInt64, 1.0::Float64) << 11) === 0x8000000000000000
+@assert 0x8000000000000000 | (reinterpret(UInt64, prevfloat(1.0)::Float64) << 11) === 0xfffffffffffff800
+# shifted significand sums are literal sums of the element_from_sub_weights's (though stored
+# as UInt128s because any two element_from_sub_weights's will overflow when added).
 
 ## Initial API:
 
@@ -606,8 +622,8 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
         r = rand(rng, UInt64)
         k1 = (r>>leading_zeros(len-1))
         k2 = k1<<1+posm2+2
-        # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to typemax(UInt64)
-        k1 < len && rand(rng, UInt64) > m[k2] && return Int(signed(m[k2+1]))
+        # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to 0
+        k1 < len && rand(rng, UInt64) < m[k2] && return Int(signed(m[k2+1]))
     end
 end
 
@@ -618,7 +634,7 @@ function _getindex(m::Memory{UInt64}, i::Int)
     pos == 0 && return 0.0
     exponent = m[j+1]
     weight = m[pos]
-    reinterpret(Float64, exponent | ((-weight) >> 11))
+    reinterpret(Float64, exponent | (weight - 0x8000000000000000) >> 11)
 end
 
 function _setindex!(m::Memory, v::Float64, i::Int)
@@ -656,8 +672,8 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     # update group total weight and total weight
     shifted_significand_sum_index = get_shifted_significand_sum_index(exponent)
     shifted_significand_sum = get_UInt128(m, shifted_significand_sum_index)
-    shifted_significand = -((uv & Base.significand_mask(Float64)) << 11)
-    shifted_significand_sum += UInt64(1)<<63-shifted_significand
+    shifted_significand = 0x8000000000000000 | uv << 11
+    shifted_significand_sum += shifted_significand
     set_UInt128!(m, shifted_significand_sum, shifted_significand_sum_index)
     weight_index = 5 + 0x7fe - exponent >> 52
     m[2] = min(m[2], weight_index)
@@ -836,7 +852,7 @@ function _set_to_zero!(m::Memory, i::Int)
     shifted_significand_sum_index = get_shifted_significand_sum_index(exponent)
     shifted_significand_sum = get_UInt128(m, shifted_significand_sum_index)
     shifted_significand = m[pos]
-    shifted_significand_sum -= UInt64(1)<<63-shifted_significand
+    shifted_significand_sum -= shifted_significand
     set_UInt128!(m, shifted_significand_sum, shifted_significand_sum_index)
     update_weights!(m, exponent, shifted_significand_sum)
 
