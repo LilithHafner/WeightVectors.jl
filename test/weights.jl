@@ -95,8 +95,8 @@ end
 
 let w = DynamicDiscreteSamplers.FixedSizeWeights(10)
     for i in 1:40
-        # w[1] = 1.5*2.0^i
-        # @test w[1] === 1.5*2.0^i
+        w[1] = 1.5*2.0^i
+        @test w[1] === 1.5*2.0^i
     end
 end
 
