@@ -93,6 +93,13 @@ let w = DynamicDiscreteSamplers.FixedSizeWeights(2)
     @test abs(twos-expected) < 4stdev
 end
 
+let w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+    for i in 1:40
+        # w[1] = 1.5*2.0^i
+        # @test w[1] === 1.5*2.0^i
+    end
+end
+
 # These tests have never revealed a bug that was not revealed by one of the above tests:
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)
 w[1] = 1
