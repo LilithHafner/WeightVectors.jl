@@ -75,6 +75,24 @@ w[2] = 1e8
 @test w[1] == 1
 @test w[2] === 1e8
 
+let w = DynamicDiscreteSamplers.FixedSizeWeights(2)
+    w[1] = 1.1
+    w[2] = 1.9
+    twos = 0
+    n = 10_000
+    for _ in 1:n
+        x = rand(w)
+        @test x ∈ 1:2
+        if x == 2
+            twos += 1
+        end
+    end
+    @test (w[2]/(w[1]+w[2])) === 1.9/3
+    expected = n*1.9/3
+    stdev = .5sqrt(n)
+    @test_broken abs(twos-expected) < 4stdev
+end
+
 # These tests have never revealed a bug that was not revealed by one of the above tests:
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)
 w[1] = 1
@@ -89,14 +107,16 @@ w[1] = 0
 w[3] = 0
 @test_throws ArgumentError("collection must be non-empty") rand(w)
 
-for _ in 1:10000
-    local w = DynamicDiscreteSamplers.FixedSizeWeights(10)
-    local v = [w[i] for i in 1:10]
-    for _ in 1:10
-        i = rand(1:10)
-        x = rand((0.0, exp(10randn())))
-        w[i] = x
-        v[i] = x
-        @test all(v[i] === w[i] for i in 1:10)
+let
+    for _ in 1:10000
+        w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+        v = [w[i] for i in 1:10]
+        for _ in 1:10
+            i = rand(1:10)
+            x = rand((0.0, exp(10randn())))
+            w[i] = x
+            v[i] = x
+            @test all(v[i] === w[i] for i in 1:10)
+        end
     end
 end
