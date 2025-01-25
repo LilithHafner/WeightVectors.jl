@@ -621,7 +621,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
     while true
         r = rand(rng, UInt64)
         k1 = (r>>leading_zeros(len-1))
-        k2 = k1<<1+posm2+2
+        k2 = k1<<1+posm2+2 # TODO for perf: try %Int here (and everywhere)
         # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to 0
         k1 < len && rand(rng, UInt64) < m[k2] && return Int(signed(m[k2+1]))
     end
