@@ -928,12 +928,13 @@ function _resize!(w::ResizableWeights, len::Integer)
     m = w.m
     old_len = m[1]
     m2 = Memory{UInt64}(undef, allocated_memory(len))
+    m2 .= 0 # For debugging; TODO: delete, TODO: set to 0xdeadbeefdeadbeef to test
     m2[1] = len
     if len > old_len # grow
-        unsafe_copyto!(m2, 2, m, 2, 2old_len + 10491)
+        unsafe_copyto!(m2, 2, m, 2, 2old_len + 10490)
         m2[2old_len + 10493:2len + 10492] .= 0
     else # shrink
-        unsafe_copyto!(m2, 2, m, 2, 2len + 10491)
+        unsafe_copyto!(m2, 2, m, 2, 2len + 10490)
     end
 
     compact!(m2, Int(2len + 10492), m, Int(2old_len + 10492))
@@ -942,9 +943,7 @@ function _resize!(w::ResizableWeights, len::Integer)
 end
 
 function compact!(dst::Memory{UInt64}, dst_i::Int, src::Memory{UInt64}, src_i::Int)
-    # len = src[1]
     next_free_space = src[10235]
-    # dst_i = src_i = 2len + 10492
 
     while src_i < next_free_space
 
@@ -969,7 +968,7 @@ function compact!(dst::Memory{UInt64}, dst_i::Int, src::Memory{UInt64}, src_i::I
         end
 
         # Trace an element of the group back to the edit info table to find the group id
-        j = 2target + 10485
+        j = 2target + 10490
         exponent = src[j+1]
 
         # Lookup the group in the group location table to find its length (performance optimization for copying, necesary to decide new allocated size)

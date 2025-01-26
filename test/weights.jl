@@ -104,6 +104,13 @@ w = DynamicDiscreteSamplers.ResizableWeights(10)
 resize!(w, 20)
 resize!(w, unsigned(30))
 
+w = DynamicDiscreteSamplers.ResizableWeights(10)
+w[5] = 3
+resize!(w, 20)
+v = fill(0.0, 20)
+v[5] = 3
+@test w == v
+
 # These tests have never revealed a bug that was not revealed by one of the above tests:
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)
 w[1] = 1
