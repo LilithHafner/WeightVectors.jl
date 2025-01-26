@@ -2,16 +2,23 @@ module DynamicDiscreteSamplers
 
 export DynamicDiscreteSampler, SamplerIndices
 
-using Distributions, Random, StaticArrays
+using Distributions, DoubleFloats, Random, StaticArrays
+
+@inline function two_sum(a::NTuple{2, Float64}, b::Float64)
+    @fastmath hi = a[1] + b
+    v  = hi - a[1]
+    lo = (a[1] - (hi - v)) + (b - v)
+    return (hi, a[2] + lo)
+end
 
 struct SelectionSampler{N}
-    p::MVector{N, Float64}
+    p::MVector{N, NTuple{2, Float64}}
     o::MVector{N, Int16}
 end
 function Base.rand(rng::AbstractRNG, ss::SelectionSampler, lastfull::Int)
-    u = rand(rng)*ss.p[lastfull]
+    u = rand(rng, Double64) * Double64(ss.p[lastfull])
     @inbounds for i in lastfull-1:-1:1
-        ss.p[i] < u && return i+1
+        Double64(ss.p[i]) < u && return i+1
     end
     return 1
 end
@@ -26,10 +33,10 @@ function set_cum_weights!(ss::SelectionSampler, ns, reorder)
         ns.track_info.firstchanged = 1
     end
     firstc = ns.track_info.firstchanged
-    ss.p[1] = p[1]
+    ss.p[1] = (p[1], 0.0)
     f = firstc + Int(firstc == 1)
     @inbounds for i in f:lastfull
-        ss.p[i] = ss.p[i-1] + p[i]
+        ss.p[i] = two_sum(ss.p[i-1], p[i])
     end
     ns.track_info.firstchanged = lastfull
     return ss
@@ -226,7 +233,7 @@ end
 
 NestedSampler() = NestedSampler{64}()
 NestedSampler{N}() where N = NestedSampler{N}(
-    SelectionSampler(zero(MVector{N, Float64}), MVector{N, Int16}(1:N)),
+    SelectionSampler(MVector{N, NTuple{2, Float64}}((0.0, 0.0) for _ in 1:N), MVector{N, Int16}(1:N)),
     zero(MVector{N, Int16}),
     Tuple{UInt128, RejectionSampler}[],
     zero(MVector{N, Float64}),
