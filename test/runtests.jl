@@ -62,6 +62,8 @@ end
 end
 
 @testset "interleaved randomized end to end tests" begin
+    Random.setstate!(Random.default_rng(), (0x0b527b41667f00d2, 0x3205bcffb78af6c5, 0x3ef2cf8e34009401, 0x91ed702049ae7ef4, 0xd99fd0e994e841d2))
+    @show Random.getstate(Random.default_rng())
     ds = DynamicDiscreteSampler()
     elements = Set{Int}()
     for i in 1:30000
@@ -98,7 +100,7 @@ end
         end
     end
 end
-  
+
 @testset "Randomized statistical tests" begin
     rng = StableRNG(42)
     b = 100
@@ -136,7 +138,7 @@ end
     @test pvalue(chisq_test) > 0.002
 
     ds2 = DynamicDiscreteSampler()
-    
+
     append!(ds2, range, weights)
 
     delete!(ds2, 1)
