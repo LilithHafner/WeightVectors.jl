@@ -111,6 +111,9 @@ v = fill(0.0, 20)
 v[5] = 3
 @test w == v
 
+# w[11] = v[11] = 3.5
+# @test w == v
+
 # These tests have never revealed a bug that was not revealed by one of the above tests:
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)
 w[1] = 1
