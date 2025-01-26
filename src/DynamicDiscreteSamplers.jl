@@ -487,7 +487,7 @@ Base.eltype(::Type{<:SamplerIndices}) = Int
 Base.IteratorSize(::Type{<:SamplerIndices}) = Base.HasLength()
 Base.length(inds::SamplerIndices) = inds.ns.track_info.nvalues
 
-const DynamicDiscreteSampler = NestedSampler
+# const DynamicDiscreteSampler = NestedSampler
 
 # Take Two!
 # - Exact
@@ -1019,5 +1019,27 @@ end
 
 # Conform to the AbstractArray API
 Base.size(w::Weights) = (w.m[1],)
+
+# Shoe-horn into the legacy DynamicDiscreteSampler API so that we can leverage existing tests
+struct WeightBasedSampler
+    w::ResizableWeights
+end
+WeightBasedSampler() = WeightBasedSampler(ResizableWeights(512))
+
+function Base.push!(wbs::WeightBasedSampler, index, weight)
+    index > length(wbs.w) && resize!(wbs.w, max(index, 2length(wbs.w)))
+    wbs.w[index] = weight
+    wbs
+end
+function Base.delete!(wbs::WeightBasedSampler, index)
+    index ∈ eachindex(wbs.w) && wbs.w[index] != 0 || throw(ArgumentError("Element $index is not present"))
+    wbs.w[index] = 0
+    wbs
+end
+function Base.rand(rng::AbstractRNG, wbs::WeightBasedSampler)
+    rand(rng, wbs.w)
+end
+
+const DynamicDiscreteSampler = WeightBasedSampler
 
 end
