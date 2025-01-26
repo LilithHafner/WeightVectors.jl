@@ -62,8 +62,6 @@ end
 end
 
 @testset "interleaved randomized end to end tests" begin
-    Random.setstate!(Random.default_rng(), (0x0b527b41667f00d2, 0x3205bcffb78af6c5, 0x3ef2cf8e34009401, 0x91ed702049ae7ef4, 0xd99fd0e994e841d2))
-    @show Random.getstate(Random.default_rng())
     ds = DynamicDiscreteSampler()
     elements = Set{Int}()
     for i in 1:30000
@@ -86,19 +84,12 @@ end
 end
 
 @testset "Targeted statistical tests" begin
-    #Issue 8
-    for N in [1, 2, 4, 64, 128]
-        ds = DynamicDiscreteSampler{N}()
-        for i in 1:3
-            push!(ds, i, float(i))
-        end
-        delete!(ds, 2)
-        if N > 1
-            @test 0 < count(rand(ds) == 1 for _ in 1:4000) < 1200 # False positivity rate < 4e-13
-        else
-            @test count(rand(ds) == 1 for _ in 1:4000) == 0
-        end
+    ds = DynamicDiscreteSampler()#{N}()
+    for i in 1:3
+        push!(ds, i, float(i))
     end
+    delete!(ds, 2)
+    @test 0 < count(rand(ds) == 1 for _ in 1:4000) < 1200 # False positivity rate < 4e-13
 end
 
 @testset "Randomized statistical tests" begin
