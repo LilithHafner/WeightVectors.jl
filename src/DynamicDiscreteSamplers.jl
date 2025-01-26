@@ -1007,8 +1007,8 @@ function compact!(dst::Memory{UInt64}, dst_i::Int, src::Memory{UInt64}, src_i::I
         end
 
         # Advance indices
-        src_i += 1<<log2_allocated_size
-        dst_i += 1<<log2_new_allocated_size
+        src_i += 2*1<<log2_allocated_size # TODO add test that fails if the 2* part is removed
+        dst_i += 2*1<<log2_new_allocated_size
     end
     @label break_outer
     dst[10235] = dst_i
