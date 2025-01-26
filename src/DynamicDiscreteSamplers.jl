@@ -972,11 +972,14 @@ function compact!(dst::Memory{UInt64}, dst_i::Int, src::Memory{UInt64}, src_i::I
         j = 2target + 10490
         exponent = src[j+1]
 
-        # Lookup the group in the group location table to find its length (performance optimization for copying, necesary to decide new allocated size)
+        # Lookup the group in the group location table to find its length (performance optimization for copying, necesary to decide new allocated size and update pos)
         # exponent of 0x7fe0000000000000 is index 6+3*2046
         # exponent of 0x0010000000000000 is index 4+5*2046
         group_length_index = 6 + 5*2046 - exponent >> 51
         group_length = src[group_length_index]
+
+        # Update group pos in level_location_info
+        dst[group_length_index-1] += unsigned(dst_i-src_i)
 
         # Lookup the allocated size (an alternative to scanning for the next nonzero, needed because we are setting allocated size)
         # exponent of 0x7fe0000000000000 is index 6+5*2046, 2
@@ -995,7 +998,7 @@ function compact!(dst::Memory{UInt64}, dst_i::Int, src::Memory{UInt64}, src_i::I
         src[allocs_index] = new_chunk
 
         # Copy the group to a compacted location
-        unsafe_copyto!(dst, dst_i-1, src, src_i-1, 2group_length)
+        unsafe_copyto!(dst, dst_i, src, src_i, 2group_length)
 
         # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
         delta = unsigned(dst_i-src_i)
