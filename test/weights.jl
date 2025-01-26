@@ -100,6 +100,9 @@ let w = DynamicDiscreteSamplers.FixedSizeWeights(10)
     end
 end
 
+w = DynamicDiscreteSamplers.ResizableWeights(10)
+resize!(w, 20)
+
 # These tests have never revealed a bug that was not revealed by one of the above tests:
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)
 w[1] = 1

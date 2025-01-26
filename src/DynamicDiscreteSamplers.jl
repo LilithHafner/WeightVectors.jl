@@ -510,7 +510,7 @@ maintain the total weight
 
 =#
 
-abstract type Weights end
+abstract type Weights <: AbstractVector{Float64} end
 struct FixedSizeWeights <: Weights
     m::Memory{UInt64}
     global _FixedSizeWeights
@@ -936,8 +936,8 @@ function _resize!(w::ResizableWeights, len::Integer)
         unsafe_copyto!(m2, 2, m, 2, 2len + 10491)
     end
 
-    compact!(new_m, 2len + 10492, m, 2old_len + 10492)
-    w.m = new_m
+    compact!(m2, Int(2len + 10492), m, Int(2old_len + 10492))
+    w.m = m2
     w
 end
 
@@ -1013,5 +1013,8 @@ function compact!(dst::Memory{UInt64}, dst_i::Int, src::Memory{UInt64}, src_i::I
     @label break_outer
     dst[10235] = dst_i
 end
+
+# Conform to the AbstractArray API
+Base.size(w::Weights) = (w.m[1],)
 
 end
