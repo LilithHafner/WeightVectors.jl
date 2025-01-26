@@ -120,7 +120,13 @@ w[1] = 1.2
 w[1] = 0
 resize!(w, 20)
 w[15] = 1.3
-@test_broken w[11] == 0
+@test w[11] == 0
+
+w = DynamicDiscreteSamplers.ResizableWeights(10)
+w[1] = 1.2
+w[2] = 1.3
+w[2] = 0
+resize!(w, 20)
 
 # These tests have never revealed a bug that was not revealed by one of the above tests:
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)

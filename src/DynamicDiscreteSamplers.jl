@@ -705,11 +705,11 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     if group_length > allocated_size
         next_free_space = m[10235]
         # if at end already, simply extend the allocation # TODO see if removing this optimization is problematic; TODO verify the optimization is triggering
-        if next_free_space == group_posm2+2group_length
+        if next_free_space == group_posm2+2group_length # note that this is valid even if group_length is 1 (previously zero).
             # expand the allocated size and bump next_free_space
-            new_chunk = allocs_chunk + 1 << allocs_subindex
+            new_chunk = allocs_chunk + UInt64(1) << allocs_subindex
             m[allocs_index] = new_chunk
-            m[10235] = next_free_space+2allocated_size
+            m[10235] = next_free_space+2allocated_size # TODO for correctness: it is a bug to bump next_free_space without checking for overflow; it may require compaction.
         else # move and reallocate (this branch also handles creating new groups: TODO expirment with perf and clarity by splicing that branch out)
             twice_new_allocated_size = max(0x2,allocated_size<<2)
             new_next_free_space = next_free_space+twice_new_allocated_size
@@ -723,7 +723,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # TODO make this whole alg dry, but only after setting up robust benchmarks in CI
 
             # expand the allocated size and bump next_free_space
-            new_chunk = allocs_chunk + 1 << allocs_subindex
+            new_chunk = allocs_chunk + UInt64(1) << allocs_subindex
             m[allocs_index] = new_chunk
 
             m[10235] = new_next_free_space
@@ -957,7 +957,7 @@ function compact!(dst::Memory{UInt64}, dst_i::Int, src::Memory{UInt64}, src_i::I
                 allocs_chunk = dst[allocs_index] # TODO for perf: consider not copying metadata on out of place compaction (and consider the impact here)
                 log2_allocated_size_p1 = allocs_chunk >> allocs_subindex % UInt8
                 allocated_size = 1<<(log2_allocated_size_p1-1)
-                new_chunk = allocs_chunk - log2_allocated_size_p1 << allocs_subindex
+                new_chunk = allocs_chunk - UInt64(log2_allocated_size_p1) << allocs_subindex
                 dst[allocs_index] = new_chunk # zero out allocated size (this will force re-allocation so we can let the old, wrong pos info stand)
                 src_i += 2allocated_size # skip the group
             else # the decaying corpse of an abandoned group. Ignore it.
@@ -993,7 +993,7 @@ function compact!(dst::Memory{UInt64}, dst_i::Int, src::Memory{UInt64}, src_i::I
         allocs_chunk = src[allocs_index]
         log2_allocated_size = allocs_chunk >> allocs_subindex % UInt8 - 1
         log2_new_allocated_size = group_length == 0 ? 0 : Base.top_set_bit(group_length-1)
-        new_chunk = allocs_chunk + (log2_new_allocated_size - log2_allocated_size) << allocs_subindex
+        new_chunk = allocs_chunk + Int64(log2_new_allocated_size - log2_allocated_size) << allocs_subindex
         src[allocs_index] = new_chunk
 
         # Copy the group to a compacted location
