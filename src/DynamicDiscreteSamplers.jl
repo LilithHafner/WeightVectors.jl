@@ -905,7 +905,8 @@ end
 allocated_memory(length::Integer) = 10491 + 8*length # TODO for perf: consider giving some extra constant factor allocation to avoid repeated compaction at small sizes
 length_from_memory(allocated_memory::Integer) = (allocated_memory-10491) >> 3 # Int((allocated_memory-10491)/8)
 
-function Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Integer)
+Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Integer) = resize!(w, Int(len))
+function Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Int)
     m = w.m
     old_len = m[1]
     if len > old_len
