@@ -604,7 +604,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
         j = 2i+2041
         exponent_bits = 0x7fe+5-i
         shift = signed(exponent_bits + m[3])
-        significand_sum = reinterpret(UInt128, (m[j], m[j+1]))
+        significand_sum = merge_uint64(m[j], m[j+1])
         while true
             x = rand(rng, UInt64)
             # p_stage = significand_sum << shift & ...00000.111111...64...11110000
@@ -762,9 +762,11 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     nothing
 end
 
+merge_uint64(x::UInt64, y::UInt64) = UInt128(x) | (UInt128(y) << 64) 
+split_uint128(x::UInt128) = (x % UInt64, (x >>> 64) % UInt64)
 get_shifted_significand_sum_index(exponent::UInt64) = 5 + 3*2046 - exponent >> 51
-get_UInt128(m::Memory, i::Integer) = reinterpret(UInt128, (m[i], m[i+1]))
-set_UInt128!(m::Memory, v::UInt128, i::Integer) = m[i:i+1] .= reinterpret(Tuple{UInt64, UInt64}, v)
+get_UInt128(m::Memory, i::Integer) = merge_uint64(m[i], m[i+1])
+set_UInt128!(m::Memory, v::UInt128, i::Integer) = m[i:i+1] .= split_uint128(v)
 "computes shifted_significand_sum<<(exponent_bits+shift) rounded up"
 function compute_weight(m::Memory, exponent::UInt64, shifted_significand_sum::UInt128)
     shift = signed(exponent >> 52 + m[3])
