@@ -179,7 +179,7 @@ let
         len = rand(1:100)
         w = DynamicDiscreteSamplers.ResizableWeights(len)
         v = fill(0.0, len)
-        for _ in 1:2#rand((10,100,3000))
+        for _ in 1:4#rand((10,100,3000))
             @test v == w
             x = rand()
             if x < .5
