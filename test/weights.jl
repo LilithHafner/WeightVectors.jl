@@ -165,3 +165,39 @@ let
         end
     end
 end
+
+# This alone probably catches all bugs that are caught by tests above except for rng correctness.
+# However, whenever we identify and fix a bug, we add a specific test for it above.
+# let
+#     for _ in 1:1000
+#         len = rand(1:100)
+#         w = DynamicDiscreteSamplers.ResizableWeights(len)
+#         v = fill(0.0, len)
+#         for _ in 1:rand((10,100,3000))
+#             @test v == w
+#             x = rand()
+#             if x < .5
+#                 i = rand(eachindex(v))
+#                 x = exp(rand((.1, 7, 100))*randn())
+#                 v[i] = x
+#                 w[i] = x
+#             elseif x < .7 && !all(iszero, v)
+#                 i = rand(findall(!iszero, v))
+#                 v[i] = 0
+#                 w[i] = 0
+#             elseif x < .9 && !all(iszero, v)
+#                 i = rand(w)
+#                 v[i] = 0
+#                 w[i] = 0
+#             else
+#                 l_old = length(v)
+#                 l_new = rand(1:rand((10,100,3000)))
+#                 resize!(v, l_new)
+#                 resize!(w, l_new)
+#                 if l_new > l_old
+#                     v[l_old+1:l_new] .= 0
+#                 end
+#             end
+#         end
+#     end
+# end
