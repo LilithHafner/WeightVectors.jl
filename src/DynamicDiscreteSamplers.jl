@@ -991,11 +991,11 @@ function compact!(dst::Memory{UInt64}, dst_i::Int, src::Memory{UInt64}, src_i::I
         # allocs_index = 5+5*2046+512 - (exponent >> 54), (exponent >> 52) & 0x3
         # allocated_size = 2 << ((src[allocs_index[1]] >> (8allocs_index[1])) % UInt8)
         allocs_index,allocs_subindex = get_alloced_indices(exponent)
-        allocs_chunk = src[allocs_index]
+        allocs_chunk = dst[allocs_index]
         log2_allocated_size = allocs_chunk >> allocs_subindex % UInt8 - 1
         log2_new_allocated_size = group_length == 0 ? 0 : Base.top_set_bit(group_length-1)
         new_chunk = allocs_chunk + Int64(log2_new_allocated_size - log2_allocated_size) << allocs_subindex
-        src[allocs_index] = new_chunk
+        dst[allocs_index] = new_chunk
 
         # Copy the group to a compacted location
         unsafe_copyto!(dst, dst_i, src, src_i, 2group_length)
