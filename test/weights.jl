@@ -138,6 +138,12 @@ resize!(w, 40)
 w[30] = 4.1
 w[22] = 2.2 # This previously threw
 
+w = DynamicDiscreteSamplers.ResizableWeights(10);
+w[5] = 1.5
+resize!(w, 3)
+resize!(w, 20) # This previously threw
+@test w == fill(0.0, 20)
+
 # These tests have never revealed a bug that was not revealed by one of the above tests:
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)
 w[1] = 1

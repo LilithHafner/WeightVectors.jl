@@ -543,7 +543,7 @@ end
 
 # 10492..10491+2len      edit_map (maps index to current location in sub_weights)::[pos::Int, exponent::Int] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. exponent could be UInt11, lots of wasted bits)
 
-# 10492+2len..10491+8len sub_weights (woven with targets)::[[shifted_significand::UInt64, target::Int}]]
+# 10492+2allocated_len..10491+8len sub_weights (woven with targets)::[[shifted_significand::UInt64, target::Int}]]. allocated_len == length_from_memory(length(m))
 
 # shifted significands are stored in sub_weights with their implicit leading 1 adding and shifted left 11 bits
 #     element_from_sub_weights = 0x8000000000000000 | (reinterpret(UInt64, weight::Float64) << 11)
@@ -715,7 +715,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             twice_new_allocated_size = max(0x2,allocated_size<<2)
             new_next_free_space = next_free_space+twice_new_allocated_size
             if new_next_free_space > length(m)+1 # out of space; compact. TODO for perf, consider resizing at this time slightly eagerly?
-                firstindex_of_compactee = 2m[1] + 10492
+                firstindex_of_compactee = 2length_from_memory(length(m)) + 10492
                 next_free_space = compact!(m, Int(firstindex_of_compactee), m, Int(firstindex_of_compactee))
                 new_next_free_space = next_free_space+twice_new_allocated_size
                 @assert new_next_free_space < length(m)+1 # After compaction there should be room TODO for perf, delete this
@@ -924,7 +924,11 @@ function Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Int
     end
     w
 end
-"Reallocate w with the size len, compacting w into that new memory"
+"""
+Reallocate w with the size len, compacting w into that new memory.
+Any elements if w past len must be set to zero already (that's a general invariant for
+Weigths, though, not just this function).
+"""
 function _resize!(w::ResizableWeights, len::Integer)
     m = w.m
     old_len = m[1]
@@ -933,12 +937,12 @@ function _resize!(w::ResizableWeights, len::Integer)
     m2[1] = len
     if len > old_len # grow
         unsafe_copyto!(m2, 2, m, 2, 2old_len + 10490)
-        m2[2old_len + 10493:2len + 10492] .= 0
+        m2[2old_len + 10492:2len + 10491] .= 0
     else # shrink
         unsafe_copyto!(m2, 2, m, 2, 2len + 10490)
     end
 
-    compact!(m2, Int(2len + 10492), m, Int(2old_len + 10492))
+    compact!(m2, Int(2len + 10492), m, Int(2length_from_memory(length(m)) + 10492))
     w.m = m2
     w
 end
