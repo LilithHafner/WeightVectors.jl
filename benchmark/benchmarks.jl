@@ -10,6 +10,7 @@ function gaussian_weights_sequential_push(n, σ)
     for i in 1:n
         push!(ds, i, exp(σ*randn()))
     end
+    ds
 end
 
 for n in [100, 1000, 10000], σ in [.1, 1, 10, 100]
