@@ -543,7 +543,7 @@ end
 
 # 10492..10491+2len      edit_map (maps index to current location in sub_weights)::[pos::Int, exponent::Int] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. exponent could be UInt11, lots of wasted bits)
 
-# 10492+2allocated_len..10491+8len sub_weights (woven with targets)::[[shifted_significand::UInt64, target::Int}]]. allocated_len == length_from_memory(length(m))
+# 10492+2allocated_len..10491+2allocated_len+6len sub_weights (woven with targets)::[[shifted_significand::UInt64, target::Int}]]. allocated_len == length_from_memory(length(m))
 
 # shifted significands are stored in sub_weights with their implicit leading 1 adding and shifted left 11 bits
 #     element_from_sub_weights = 0x8000000000000000 | (reinterpret(UInt64, weight::Float64) << 11)
@@ -696,7 +696,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     group_length_index = shifted_significand_sum_index + 2*2046 + 1
     group_posm2 = m[group_length_index-1]
     group_length = m[group_length_index]+1
-    m[group_length_index] = group_length
+    m[group_length_index] = group_length # setting this before compaction means that compaction will ensure there is enough space for this expanded group, but will also copy one index (16 bytes) of junk which could access past the end of m. The junk isn't an issue once coppied because we immediately overwrite it. The former (copying past the end of m) only happens if the group to be expanded is already kissing the end. In this case, it will end up at the end after compaction and be easily expanded afterwords. Consequently, we treat that case specially and bump group length and manually expand after compaction
     allocs_index,allocs_subindex = get_alloced_indices(exponent)
     allocs_chunk = m[allocs_index]
     log2_allocated_size = allocs_chunk >> allocs_subindex % UInt8 - 1
@@ -707,10 +707,20 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         next_free_space = m[10235]
         # if at end already, simply extend the allocation # TODO see if removing this optimization is problematic; TODO verify the optimization is triggering
         if next_free_space == group_posm2+2group_length # note that this is valid even if group_length is 1 (previously zero).
+            new_next_free_space = next_free_space+2allocated_size
+            if new_next_free_space > length(m)+1 # There isn't room; we need to compact
+                m[group_length_index] = group_length-1 # See comment above; we don't want to copy past the end of m
+                firstindex_of_compactee = 2length_from_memory(length(m)) + 10492 # TODO for clarity: move this into compact!
+                next_free_space = compact!(m, Int(firstindex_of_compactee), m, Int(firstindex_of_compactee))
+                group_posm2 = next_free_space-2allocated_size-2 # The group will move but remian the last group
+                new_next_free_space = next_free_space+2allocated_size
+                @assert new_next_free_space < length(m)+1 # TODO for perf, delete this
+                m[group_length_index] = group_length
+            end
             # expand the allocated size and bump next_free_space
             new_chunk = allocs_chunk + UInt64(1) << allocs_subindex
             m[allocs_index] = new_chunk
-            m[10235] = next_free_space+2allocated_size # TODO for correctness: it is a bug to bump next_free_space without checking for overflow; it may require compaction.
+            m[10235] = new_next_free_space
         else # move and reallocate (this branch also handles creating new groups: TODO expirment with perf and clarity by splicing that branch out)
             twice_new_allocated_size = max(0x2,allocated_size<<2)
             new_next_free_space = next_free_space+twice_new_allocated_size
@@ -720,6 +730,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
                 new_next_free_space = next_free_space+twice_new_allocated_size
                 @assert new_next_free_space < length(m)+1 # After compaction there should be room TODO for perf, delete this
             end
+            # TODO for perf and maybe for correctness: compact! already re-allocates the expanded group larger, no need to double the allocated size here if the compact branch is taken
             # TODO for perf, try removing the moveie before compaction (tricky: where to store that info?)
             # TODO make this whole alg dry, but only after setting up robust benchmarks in CI
 

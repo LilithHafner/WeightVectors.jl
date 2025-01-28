@@ -150,8 +150,8 @@ w[2] = 1.1
 w[2] = .4
 w[2] = 2.1
 w[1] = .6
-# w[2] = .7 # This used to throw
-# @test w == [.6, .7]
+w[2] = .7 # This used to throw
+@test w == [.6, .7]
 
 # These tests have never revealed a bug that was not revealed by one of the above tests:
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)
