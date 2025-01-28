@@ -1,9 +1,16 @@
 name: Benchmark a pull request
 
 on:
-  pull_request_target:
+  push:
     branches:
       - main
+    tags: ['*']
+  pull_request:
+concurrency:
+  # Skip intermediate builds: always.
+  # Cancel intermediate builds: only if it is a pull request build.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 
 permissions:
   pull-requests: write
