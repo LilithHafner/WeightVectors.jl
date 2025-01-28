@@ -8,7 +8,7 @@ on:
   pull_request:
 concurrency:
   # Skip intermediate builds: always.
-  # Cancel intermediate builds: only if it is a pull request build.
+  # Cancel intermediate builds: only if benchmarking a pull request.
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
 
@@ -32,6 +32,7 @@ jobs:
               env:
                 JULIA_NUM_THREADS: 2
               run: |
+                # TODO: cache this build step and skip it if the cache hits (but still receive updates)
                 # Lightweight build step, as sometimes the runner runs out of memory:
                 julia -e 'ENV["JULIA_PKG_PRECOMPILE_AUTO"]=0; import Pkg; Pkg.add(;url="https://github.com/LilithHafner/AirspeedVelocity.jl.git")'
                 julia -e 'ENV["JULIA_PKG_PRECOMPILE_AUTO"]=0; import Pkg; Pkg.build("AirspeedVelocity")'
@@ -40,9 +41,11 @@ jobs:
                 echo "$HOME/.julia/bin" >> $GITHUB_PATH
             - name: Run benchmarks
               run: |
+                # TODO: delete these debug print statements:
                 echo $PATH
                 ls -l ~/.julia/bin
                 mkdir results
+                # TODO: make this step work even for commits to the default branch
                 benchpkg --add https://github.com/LilithHafner/ChairmarksForAirspeedVelocity.jl ${{ steps.extract-package-name.outputs.package_name }} --rev="${{github.event.repository.default_branch}},${{github.event.pull_request.head.sha}}" --url=${{ github.event.repository.clone_url }} --bench-on="${{github.event.pull_request.head.sha}}" --output-dir=results/ --tune
             - name: Create plots from benchmarks
               run: |
