@@ -1,16 +1,12 @@
 name: Benchmark a pull request
+# Keep this in sync with benchmark_push.yml
 
 on:
-  push:
-    branches:
-      - main
-    tags: ['*']
   pull_request:
 concurrency:
-  # Skip intermediate builds: always.
-  # Cancel intermediate builds: only if benchmarking a pull request.
+  # Skip and cancel intermediate builds:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+  cancel-in-progress: true
 
 permissions:
   pull-requests: write
@@ -45,7 +41,6 @@ jobs:
                 echo $PATH
                 ls -l ~/.julia/bin
                 mkdir results
-                # TODO: make this step work even for commits to the default branch
                 benchpkg --add https://github.com/LilithHafner/ChairmarksForAirspeedVelocity.jl ${{ steps.extract-package-name.outputs.package_name }} --rev="${{github.event.repository.default_branch}},${{github.event.pull_request.head.sha}}" --url=${{ github.event.repository.clone_url }} --bench-on="${{github.event.pull_request.head.sha}}" --output-dir=results/ --tune
             - name: Create plots from benchmarks
               run: |
