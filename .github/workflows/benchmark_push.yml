@@ -9,7 +9,7 @@ on:
     tags: ['*']
 
 permissions:
-  issues: write
+  contents: read
 
 jobs:
     generate_table:
