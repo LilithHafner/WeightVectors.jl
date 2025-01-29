@@ -4,8 +4,7 @@ name: Benchmark a commit
 on:
   push:
     branches:
-      # - main
-      - '*'
+      - main
     tags: ['*']
 
 permissions:
