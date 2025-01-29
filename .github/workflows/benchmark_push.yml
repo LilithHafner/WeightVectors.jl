@@ -29,7 +29,7 @@ jobs:
               run: |
                 # TODO: cache this build step and skip it if the cache hits (but still receive updates)
                 # Lightweight build step, as sometimes the runner runs out of memory:
-                julia -e 'ENV["JULIA_PKG_PRECOMPILE_AUTO"]=0; import Pkg; Pkg.add(;url="https://github.com/LilithHafner/AirspeedVelocity.jl.git")'
+                julia -e 'ENV["JULIA_PKG_PRECOMPILE_AUTO"]=0; import Pkg; Pkg.add(;url="https://github.com/MilesCranmer/AirspeedVelocity.jl.git")'
                 julia -e 'ENV["JULIA_PKG_PRECOMPILE_AUTO"]=0; import Pkg; Pkg.build("AirspeedVelocity")'
             - name: Add ~/.julia/bin to PATH
               run: |
