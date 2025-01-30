@@ -188,3 +188,5 @@ if "CI" in keys(ENV)
         Aqua.test_deps_compat(DynamicDiscreteSamplers, check_extras=false)
     end
 end
+
+include("weights.jl")
