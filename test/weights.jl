@@ -161,7 +161,7 @@ w[1] = .01
 w[1] = .9
 @test w == [.9]
 resize!(w, 2)
-@test_broken w == [.9, 0]
+@test w == [.9, 0]
 
 # These tests have never revealed a bug that was not revealed by one of the above tests:
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)
