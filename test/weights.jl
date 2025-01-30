@@ -153,6 +153,16 @@ w[1] = .6
 w[2] = .7 # This used to throw
 @test w == [.6, .7]
 
+w = DynamicDiscreteSamplers.ResizableWeights(1)
+w[1] = 18
+w[1] = .9
+w[1] = 1.3
+w[1] = .01
+w[1] = .9
+@test w == [.9]
+resize!(w, 2)
+@test_broken w == [.9, 0]
+
 # These tests have never revealed a bug that was not revealed by one of the above tests:
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)
 w[1] = 1
@@ -186,7 +196,9 @@ end
 # include("statistical.jl")
 let
     for _ in 1:1000
+        global LOG = []
         len = rand(1:100)
+        push!(LOG, len)
         w = DynamicDiscreteSamplers.ResizableWeights(len)
         v = fill(0.0, len)
         for _ in 1:4#rand((10,100,3000))
@@ -199,19 +211,23 @@ let
             if x < .5
                 i = rand(eachindex(v))
                 x = exp(rand((.1, 7, 100))*randn())
+                push!(LOG, i => x)
                 v[i] = x
                 w[i] = x
             elseif x < .7 && !all(iszero, v)
                 i = rand(findall(!iszero, v))
+                push!(LOG, i => 0)
                 v[i] = 0
                 w[i] = 0
             elseif x < .9 && !all(iszero, v)
                 i = rand(w)
+                push!(LOG, i => 0)
                 v[i] = 0
                 w[i] = 0
             else
                 l_old = length(v)
                 l_new = rand(1:rand((10,100,3000)))
+                push!(LOG, resize! => l_new)
                 resize!(v, l_new)
                 resize!(w, l_new)
                 if l_new > l_old
