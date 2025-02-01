@@ -170,7 +170,7 @@ w[2] = .9
 w[1] = 2.1
 w[1] = 1.1
 w[1] = 0.7
-@test_broken w == [.7, .9]
+@test w == [.7, .9]
 
 # These tests have never revealed a bug that was not revealed by one of the above tests:
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)
@@ -210,7 +210,7 @@ let
         push!(LOG, len)
         w = DynamicDiscreteSamplers.ResizableWeights(len)
         v = fill(0.0, len)
-        for _ in 1:4#rand((10,100,3000))
+        for _ in 1:7#rand((10,100,3000))
             @test v == w
             # if rand() < .01
             #     sm = sum(v)

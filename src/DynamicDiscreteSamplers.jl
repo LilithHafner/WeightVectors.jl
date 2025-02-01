@@ -740,6 +740,8 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
                 new_next_free_space = next_free_space+twice_new_allocated_size
                 @assert new_next_free_space < length(m)+1 # After compaction there should be room TODO for perf, delete this
 
+                group_posm2 = m[group_length_index-1] # The group likely moved during compaction
+
                 # Re-lookup allocated chunk because compaction could have changed other
                 # chunk elements. However, the allocated size of this group could not have
                 # changed because it was previously maxed out.
