@@ -221,9 +221,9 @@ let
     end
 end
 
-# This alone probably catches all bugs that are caught by tests above except for rng correctness.
+# This alone probably catches all bugs that are caught by tests above.
 # However, whenever we identify and fix a bug, we add a specific test for it above.
-# include("statistical.jl")
+include("statistical.jl")
 let
     for _ in 1:1000
         global LOG = []
@@ -233,10 +233,10 @@ let
         v = fill(0.0, len)
         for _ in 1:rand((10,100,3000))
             @test v == w
-            # if rand() < .01
-            #     sm = sum(v)
-            #     sm == 0 || statistical_test(w, v ./ sm)
-            # end
+            if rand() < .01
+                sm = sum(v)
+                sm == 0 || statistical_test(w, v ./ sm)
+            end
             x = rand()
             if x < .5
                 i = rand(eachindex(v))
@@ -267,4 +267,4 @@ let
         end
     end
 end
-# @show FALSE_POSITIVITY_ACCUMULATOR
+println("These tests should fail due to random noise no more than $FALSE_POSITIVITY_ACCUMULATOR of the time")
