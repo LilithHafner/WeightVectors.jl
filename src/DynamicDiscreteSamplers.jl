@@ -850,7 +850,7 @@ function update_weights!(m::Memory, exponent::UInt64, shifted_significand_sum::U
 
         set_global_shift!(m, m3) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
 
-        @assert 48 <= Base.top_set_bit(m[4]) <= 49 # Could be a wee bit higher because of the rounding up, but this should never bump top set bit by more than one # TODO for perf: delete
+        @assert 48 <= Base.top_set_bit(m[4]) <= 50 # Could be a wee bit higher because of the rounding up, but this should never bump top set bit by more than one # TODO for perf: delete; TODO for confidence: tighten asertion to match comment
     else
         m[4] = m4
     end

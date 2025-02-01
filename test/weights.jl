@@ -172,6 +172,27 @@ w[1] = 1.1
 w[1] = 0.7
 @test w == [.7, .9]
 
+w = DynamicDiscreteSamplers.ResizableWeights(6)
+resize!(w, 2108)
+w[296] = 3.686559798150465e39
+w[296] = 0
+w[1527] = 1.0763380850925863
+w[355] = 0.01640346013465141
+w[881] = 79.54017710382257
+w[437] = 3.848925751307115
+w[571] = 1.0339246678117338
+w[762] = 0.7965409844985439
+w[1814] = 1.3864105787251011e-12
+w[881] = 0
+w[1059] = 0.9443147177405427
+w[668] = 255825.83047903617
+w[23] = 1.0173292806984486
+w[377] = 6.652796808681465
+w[668] = 0
+w[1939] = 7.075668919342077e18
+w[979] = 0.8922993294513122
+resize!(w, 1612) # This previously threw an AssertionError: 48 <= Base.top_set_bit(m[4]) <= 49
+
 # These tests have never revealed a bug that was not revealed by one of the above tests:
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)
 w[1] = 1
@@ -210,7 +231,7 @@ let
         push!(LOG, len)
         w = DynamicDiscreteSamplers.ResizableWeights(len)
         v = fill(0.0, len)
-        for _ in 1:7#rand((10,100,3000))
+        for _ in 1:rand((10,100,3000))
             @test v == w
             # if rand() < .01
             #     sm = sum(v)
