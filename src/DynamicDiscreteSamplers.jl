@@ -655,20 +655,19 @@ function _setindex!(m::Memory, v::Float64, i::Int)
     j = 2i + 10490
     pos = m[j]
     if pos == 0
-        _set_from_zero!(m, v, i::Int)
+        _set_from_zero!(m, uv, i)
     else
-        _set_nonzero!(m, v, i::Int)
+        _set_nonzero!(m, uv, i)
     end
 end
 
-function _set_nonzero!(m, v, i)
+function _set_nonzero!(m, uv, i)
     # TODO for performance: join these two opperations
     _set_to_zero!(m, i)
-    _set_from_zero!(m, v, i)
+    _set_from_zero!(m, uv, i)
 end
 
-function _set_from_zero!(m::Memory, v::Float64, i::Int)
-    uv = reinterpret(UInt, v)
+function _set_from_zero!(m::Memory, uv::UInt64, i::Int)
     j = 2i + 10490
     @assert m[j] == 0
 
