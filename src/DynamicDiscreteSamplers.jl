@@ -675,7 +675,7 @@ function _set_nonzero!(m, uv, i)
     _set_from_zero!(m, uv, i)
 end
 
-function _set_from_zero!(m::Memory, uv::UInt64, i::Int)
+function _set_from_zero!(m::Memory, uv::UInt64, i::Int64)
     j = 2i + 10490
     @assert m[j] == 0
 
@@ -863,7 +863,7 @@ function update_weights!(m::Memory, exponent::UInt64, shifted_significand_sum::U
     end
 end
 
-function set_global_shift!(m::Memory, m3::UInt)
+function set_global_shift!(m::Memory, m3::UInt64)
     m[3] = m3
     m4 = zero(UInt64)
     for i in 5:2050
@@ -882,7 +882,7 @@ end
 
 get_alloced_indices(exponent::UInt64) = 10491 - exponent >> 55, exponent >> 49 & 0x38
 
-function _set_to_zero!(m::Memory, i::Int)
+function _set_to_zero!(m::Memory, i::Int64)
     # Find the entry's pos in the edit map table
     j = 2i + 10490
     pos = m[j]
