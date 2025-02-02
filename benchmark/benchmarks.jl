@@ -13,7 +13,50 @@ function gaussian_weights_sequential_push(n, σ)
     ds
 end
 
+function rand_delete(ds, n)
+    res = 0
+    for i in 1:n
+        j = rand(ds)
+        delete!(ds, j)
+        res = res >> 1 + j
+    end
+    res
+end
+
+function rand_update(ds, σ)
+    j = rand(ds)
+    delete!(ds, j)
+    push!(ds, j, exp(σ*randn()))
+    j
+end
+
+function intermixed_h(n, σ)
+    ds = DynamicDiscreteSampler()
+    elements = Set{Int}()
+    res = 0
+    for i in 1:n
+        if rand() < 0.5
+            element = rand(1:n)
+            if element ∉ elements
+                push!(ds, element, exp(σ*randn()))
+                push!(elements, element)
+            end
+        elseif length(elements) > 0
+            element = rand(elements)
+            delete!(ds, element)
+            delete!(elements, element)
+        end
+        if length(elements) > 0
+            res += rand(ds)
+        end
+    end
+    res
+end
+
 for n in [100, 1000, 10000], σ in [.1, 1, 10, 100]
-    SUITE["constructor n=$n σ=$σ"] = @benchmarkable n,σ gaussian_weights_sequential_push(_...)
+    SUITE["constructor n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push($n, $σ)
     SUITE["sample n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand
+    SUITE["delete ∘ rand n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand_delete(_, $n) evals=1
+    SUITE["update ∘ rand n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand_update(_, $σ)
+    SUITE["intermixed_h n=$n σ=$σ"] = @benchmarkable intermixed_h($n, $σ)
 end
