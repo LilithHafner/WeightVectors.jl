@@ -584,8 +584,8 @@ end
 # then, leverage the fact that plain bitshifting rounds down by default.
 
 Base.rand(rng::AbstractRNG, w::Weights) = _rand(rng, w.m)
-Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
-Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
+Base.getindex(w::Weights, i::Int) = _getindex(w.m, Int64(i))
+Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), Int64(i)); w)
 
 #=@inbounds=# function _rand(rng::AbstractRNG, m::Memory{UInt64})
 
