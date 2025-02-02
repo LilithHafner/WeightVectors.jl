@@ -510,6 +510,15 @@ maintain the total weight
 
 =#
 
+const Memory = isdefined(Base, :Memory) ? Base.Memory : Vector # VERSION <= 1.10
+
+if isdefined(Base, :top_set_bit)
+    const top_set_bit = Base.top_set_bit
+else
+    top_set_bit(x::Integer) = top_set_bit(UInt64(x)) # VERSION <= 1.9
+    top_set_bit(x::Base.BitInteger) = 8sizeof(x) - leading_zeros(x)
+end
+
 abstract type Weights <: AbstractVector{Float64} end
 struct FixedSizeWeights <: Weights
     m::Memory{UInt64}
