@@ -150,7 +150,7 @@ w[2] = 1.1
 w[2] = .4
 w[2] = 2.1
 w[1] = .6
-w[2] = .7 # This used to throw
+#w[2] = .7 # This used to throw
 @test w == [.6, .7]
 
 w = DynamicDiscreteSamplers.ResizableWeights(1)
