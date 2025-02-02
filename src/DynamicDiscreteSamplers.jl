@@ -516,7 +516,6 @@ if isdefined(Base, :top_set_bit)
     const top_set_bit = Base.top_set_bit
 else
     top_set_bit(x::Integer) = top_set_bit(UInt64(x)) # VERSION <= 1.9
-    top_set_bit(x::Base.BitInteger) = 8sizeof(x) - leading_zeros(x)
 end
 
 abstract type Weights <: AbstractVector{Float64} end
@@ -564,7 +563,7 @@ end
 # highest normal significand (52 ones with an implicit leading 1) the shifted significand
 # stored in sub_weights is 0xfffffffffffff800 and there are 2^64-2^11 pips less than
 # that value for a probability of (2^64-2^11) / 2^64 == (2^53-1) / 2^53 == prevfloat(2.0)/2.0
-@assert 0xfffffffffffff800//big(2)^64 == (2^53-1)//2^53 == big(prevfloat(2.0))/big(2.0)
+@assert 0xfffffffffffff800//big(2)^64 == (UInt64(2)^53-1)//UInt64(2)^53 == big(prevfloat(2.0))/big(2.0)
 @assert 0x8000000000000000 | (reinterpret(UInt64, 1.0::Float64) << 11) === 0x8000000000000000
 @assert 0x8000000000000000 | (reinterpret(UInt64, prevfloat(1.0)::Float64) << 11) === 0xfffffffffffff800
 # shifted significand sums are literal sums of the element_from_sub_weights's (though stored
