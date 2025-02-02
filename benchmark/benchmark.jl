@@ -19,41 +19,54 @@ end
 function sample_variable_dist_fixed_range(rng, ds, n)
     inds = Vector{Int}(undef, n)
     @inbounds for i in 1:n
-        j = rand(rng, 1:n)
+        j = rand(rng, ds)
         delete!(ds, j)
-        inds[i] = rand(rng, ds)
         push!(ds, j, (10.0^200)*rand(rng))
+        inds[i] = j
     end
-    return ds
+    return inds
 end
 
-# Sampling Variable Distribution with Variable Range
+# Sampling Variable Distribution with Growing Range
 
-function sample_variable_dist_variable_range(rng, ds, n)
+function sample_variable_dist_growing_range(rng, ds, n)
     inds = Vector{Int}(undef, n)
     @inbounds for i in 1:n
-        j = rand(rng, 1:n)
-        delete!(ds, j)
-        inds[i] = rand(rng, ds)
-        push!(ds, j, (10.0^200)*rand(rng))
         push!(ds, n+i, (10.0^200)*rand(rng))
+        inds[i] = rand(rng, ds)
     end
-    return ds
+    return inds
+end
+
+# Sampling Variable Distribution with Shrinking Range
+
+function sample_variable_dist_shrinking_range(rng, ds, n)
+    inds = Vector{Int}(undef, n)
+    @inbounds for i in 1:n
+        j = rand(rng, ds)
+        delete!(ds, j)
+        inds[i] = j
+    end
+    return inds
 end
 
 rng = Xoshiro(42)
-times = [[],[],[]]
+times = [[],[],[],[]]
 for s in [[10^i for i in 1:7]..., 8*10^7]
     b1 = @benchmark sample_fixed_dist($rng, ds, $s) setup=(ds=setup($rng, 1:$s)) evals=1 seconds=10
     b2 = @benchmark sample_variable_dist_fixed_range($rng, ds, $s) setup=(ds=setup($rng, 1:$s)) evals=1 seconds=10
-    b3 = @benchmark sample_variable_dist_variable_range($rng, ds, $s) setup=(ds=setup($rng, 1:$s)) evals=1 seconds=10
+    b3 = @benchmark sample_variable_dist_growing_range($rng, ds, $s) setup=(ds=setup($rng, 1:$s)) evals=1 seconds=10
+    b3 = @benchmark sample_variable_dist_shrinking_range($rng, ds, $s) setup=(ds=setup($rng, 1:$s)) evals=1 seconds=10
     push!(times[1], mean(b1.times)/s)
     push!(times[2], mean(b2.times)/s)
     push!(times[3], mean(b3.times)/s)
+    push!(times[4], mean(b3.times)/s)
 end
 
 using Plots
 
 plot!(1:8, times[1], marker=:circle, label="fixed dist", ylabel="time per element (ns)", xlabel="size", xticks=(1:8, [["10^$i" for i in 1:7]..., "8*10^7"]))
 plot!(1:8, times[2], marker=:square, label="variable dist fixed range")
-plot!(1:8, times[3], marker=:utriangle, label="variable dist variable range")
+plot!(1:8, times[3], marker=:utriangle, label="variable dist growing range")
+plot!(1:8, times[4], marker=:dtriangle, label="variable dist shrinking range")
+
