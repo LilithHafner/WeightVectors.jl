@@ -3,7 +3,7 @@ using DynamicDiscreteSamplers, BenchmarkTools, Random, Statistics
 function setup(rng, indices)
     ds = DynamicDiscreteSampler()
     for i in indices
-        push!(ds, i, (10.0^200)*rand(rng))
+        push!(ds, i, exp2(200)*randexp(rng))
     end
     return ds
 end
@@ -21,7 +21,7 @@ function sample_variable_dist_fixed_range(rng, ds, n)
     @inbounds for i in 1:n
         j = rand(rng, ds)
         delete!(ds, j)
-        push!(ds, j, (10.0^200)*rand(rng))
+        push!(ds, j, exp2(200)*randexp(rng))
         inds[i] = j
     end
     return inds
@@ -32,7 +32,7 @@ end
 function sample_variable_dist_growing_range(rng, ds, n)
     inds = Vector{Int}(undef, n)
     @inbounds for i in 1:n
-        push!(ds, n+i, (10.0^200)*rand(rng))
+        push!(ds, n+i, exp2(200)*randexp(rng))
         inds[i] = rand(rng, ds)
     end
     return inds
@@ -60,7 +60,7 @@ for s in [[10^i for i in 1:7]..., 8*10^7]
     push!(times[1], mean(b1.times)/s)
     push!(times[2], mean(b2.times)/s)
     push!(times[3], mean(b3.times)/s)
-    push!(times[4], mean(b3.times)/s)
+    push!(times[4], mean(b4.times)/s)
 end
 
 using Plots
