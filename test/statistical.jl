@@ -32,7 +32,7 @@ function _statistical_test(rng, sampler, expected_probabilities, n)
         end
     end
 
-    mn = 1/2nonzeros # TODO: I think this 2 can go away.
+    mn = 1/nonzeros # TODO: justify why we can get away with not dividing by 2 without false positives
     for i in eachindex(expected_probabilities, sample)
         if !iszero(expected_probabilities[i])
             p_le = binomcdf(n, expected_probabilities[i], sample[i])
@@ -40,7 +40,7 @@ function _statistical_test(rng, sampler, expected_probabilities, n)
             mn = min(mn, p_le, p_ge)
         end
     end
-    mn*2nonzeros
+    mn*nonzeros
 end
 
 FALSE_POSITIVITY_ACCUMULATOR::Float64 = isdefined(@__MODULE__, :FALSE_POSITIVITY_ACCUMULATOR) ? FALSE_POSITIVITY_ACCUMULATOR : 0.0;
