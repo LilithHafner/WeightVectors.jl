@@ -56,7 +56,7 @@ for s in [[10^i for i in 1:7]..., 8*10^7]
     b1 = @benchmark sample_fixed_dist($rng, ds, $s) setup=(ds=setup($rng, 1:$s)) evals=1 seconds=10
     b2 = @benchmark sample_variable_dist_fixed_range($rng, ds, $s) setup=(ds=setup($rng, 1:$s)) evals=1 seconds=10
     b3 = @benchmark sample_variable_dist_growing_range($rng, ds, $s) setup=(ds=setup($rng, 1:$s)) evals=1 seconds=10
-    b3 = @benchmark sample_variable_dist_shrinking_range($rng, ds, $s) setup=(ds=setup($rng, 1:$s)) evals=1 seconds=10
+    b4 = @benchmark sample_variable_dist_shrinking_range($rng, ds, $s) setup=(ds=setup($rng, 1:$s)) evals=1 seconds=10
     push!(times[1], mean(b1.times)/s)
     push!(times[2], mean(b2.times)/s)
     push!(times[3], mean(b3.times)/s)
