@@ -840,7 +840,7 @@ function update_weights!(m::Memory, exponent::UInt64, shifted_significand_sum::U
         while x == 0 # TODO for perf: once we can trust m[2] to be up to date, delete this
             # TODO once this loop is gone, refactor indexing for simplicity
             j += 2
-            x = get_UInt128(m, j)
+            x = get_UInt128(m, j) # TODO for perf, this loop could probably be compiled better and is a bottlenek in the pathological2 case.
         end
         x2 = UInt64(x>>63) #TODO for perf %UInt64
         for i in 1:Sys.WORD_SIZE # TODO for perf, we can get away with shaving 1 to 10 off of this loop.
