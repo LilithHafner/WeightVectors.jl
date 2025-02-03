@@ -61,3 +61,14 @@ for n in [100, 1000, 10000], σ in [.1, 1, 10, 100]
     SUITE["update ∘ rand n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand_update(_, $σ) evals=n
     SUITE["intermixed_h n=$n σ=$σ"] = @benchmarkable intermixed_h($n, $σ)
 end
+
+function pathological_setup()
+    ds = DynamicDiscreteSampler()
+    push!(ds, 1, 1e50)
+    ds
+end
+function pathological_update(ds)
+    push!(ds, 2, 1e100)
+    delete!(ds, 2)
+end
+SUITE["pathological for WeightBasedSampler"] = @benchmarkable pathological_setup pathological_update
