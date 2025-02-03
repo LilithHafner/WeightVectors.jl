@@ -919,7 +919,7 @@ function set_global_shift!(m::Memory, m3::UInt, m4=m[4], j0=nothing) # TODO for 
         2051+128+signed(m3) <= i
         =#
         # So for all i >= 2051+128+signed(m3), this holds. This means i1 = 2051+128+signed(m3)-1.
-        i1 = 2051+128+signed(m3)-1
+        i1 = min(2051+128+signed(m3)-1, 2050)
 
         for i in i0:i1 # TODO using i1-1 here passes tests (and is actually valid, I think. using i1-2 may fail if there are about 2^63 elements in the (i1-1)^th level. It would be possible to scale this range with length (m[1]) in which case testing could be stricter and performance could be (marginally) better, though not in large cases so possibly not worth doing at all)
             j = 2i+2041
@@ -945,14 +945,13 @@ function set_global_shift!(m::Memory, m3::UInt, m4=m[4], j0=nothing) # TODO for 
         # signed(2051)-signed(i)+signed(m3) <= 64
         # signed(2051)-64+signed(m3) <= signed(i)
         # 2051-64+signed(m3) <= signed(i)
-        i0 = 2051-64+signed(m3)
+        i0 = max(2051-64+signed(m3), 5)
         i1 = 2051+128+signed(m3)-1 # see above, anything after this will have weight 1 or 0
-        i1_old = 2051+128+signed(m3_old)-1 # anything after this is already weight 1 or 0
+        i1_old = min(2051+128+signed(m3_old)-1, 2050) # anything after this is already weight 1 or 0
         # between i1 (exclusive) and i1_old (inclusive), we should set nonzero weights to 1
         # between i0 (inclusive) and i1 (inclusive) we should recompute weights.
 
-
-        for i in i0:i1 # recompute weights
+        for i in i0:min(i1, 2050) # recompute weights
             j = 2i+2041
             shifted_significand_sum = get_UInt128(m, j)
             shift = signed(2051-i+m3)
@@ -964,7 +963,7 @@ function set_global_shift!(m::Memory, m3::UInt, m4=m[4], j0=nothing) # TODO for 
             m[i] = weight
             m4 += weight-old_weight
         end
-        for i in i1+1:i1_old # set nonzeros to 1
+        for i in max(5, i1+1):i1_old # set nonzeros to 1
             old_weight = m[i]
             weight = old_weight != 0
             m[i] = weight
