@@ -876,7 +876,7 @@ function set_global_shift!(m::Memory, m3::UInt)
         j = 2i+2041
         shifted_significand_sum = get_UInt128(m, j)
         shift = signed(2051-i+m3)
-        weight = UInt64(shifted_significand_sum<<shift) # TODO for perf: change to % UInt64
+        weight = (shifted_significand_sum<<shift) % UInt64
         # round up
         weight += (trailing_zeros(shifted_significand_sum)+shift < 0) & (shifted_significand_sum != 0) # TODO for perf: ensure this final clause is const-prop eliminated when it can be (i.e. any time other than setting a weight to zero)
 
