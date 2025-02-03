@@ -200,4 +200,16 @@ function error_d03fb()
         push!(ds, rand(ds), exp(8randn()))
     end
 end
-# error_d03fb() # This threw AssertionError: 48 <= Base.top_set_bit(m[4]) <= 50 90% of the time on d03fb84d1b62272c5d6ab54c49e643af9b87201b
+error_d03fb() # This threw AssertionError: 48 <= Base.top_set_bit(m[4]) <= 50 90% of the time on d03fb84d1b62272c5d6ab54c49e643af9b87201b
+
+function error_d03fb_2(n)
+    w = DynamicDiscreteSamplers.FixedSizeWeights(2^n+1);
+    for i in 1:2^n-1
+        w[i] = .99*.5^Base.top_set_bit(i)
+    end
+    w[2^n] = .99
+    w[2^n+1] = 1e100
+    w[2^n+1] = 0
+    @test UInt64(2)^32 < w.m[3]
+end
+error_d03fb_2.(1:15)

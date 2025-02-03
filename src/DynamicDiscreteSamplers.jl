@@ -845,12 +845,23 @@ function update_weights!(m::Memory, exponent::UInt64, shifted_significand_sum::U
             x2 += UInt64(get_UInt128(m, j+2i) >> (63+i))
         end
 
-        m3 = -15 - Base.top_set_bit(x2) - (6143-j)>>1
+        # x2 is computed by rounding down at a certian level and then summing
+        # m[4] will be computed by rounding up at a more precise level and then summing
+        # x2 could be 1, composed of 1.9 + .9 + .9 + ... for up to about log2(length) levels
+        # meaning m[4] could be up to 1+log2(length) times greater than predicted according to x2
+        # if length is 2^64 than this could push m[4]'s top set bbit up to 8 bits higher.
+
+        # If, on the other hand, x2 was computed with significantly higher precision, then
+        # it could overflow if there were 2^64 elements in a weight. TODO: We could probably
+        # squeeze a few more bits out of this, but targeting 46 with a window of 46 to 52 is
+        # plenty good enough.
+
+        m3 = -17 - Base.top_set_bit(x2) - (6143-j)>>1
         # TODO test that this actually achieves the desired shift and results in a new sum of about 2^48
 
         set_global_shift!(m, m3) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
 
-        @assert 48 <= Base.top_set_bit(m[4]) <= 50 # Could be a wee bit higher because of the rounding up, but this should never bump top set bit by more than one # TODO for perf: delete; TODO for confidence: tighten asertion to match comment
+        @assert 46 <= Base.top_set_bit(m[4]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8 # TODO for perf: delete
     else
         m[4] = m4
     end
