@@ -189,6 +189,16 @@ if "CI" in keys(ENV)
     end
 end
 
+@testset "stress test huge probability swings" begin
+    ds = DynamicDiscreteSampler()
+    push!(ds, 1, 1e-300)
+    @test rand(ds) == 1
+    push!(ds, 2, 1e300)
+    @test rand(ds) == 2
+    delete!(ds, 2)
+    @test rand(ds) == 1
+end
+
 include("weights.jl")
 
 function error_d03fb()

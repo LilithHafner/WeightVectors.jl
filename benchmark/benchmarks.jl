@@ -72,3 +72,14 @@ function pathological_update(ds)
     delete!(ds, 2)
 end
 SUITE["pathological for WeightBasedSampler"] = @benchmarkable pathological_setup pathological_update
+
+function pathological2_setup()
+    ds = DynamicDiscreteSampler()
+    push!(ds, 1, 1e-300)
+    ds
+end
+function pathological2_update(ds)
+    push!(ds, 2, 1e300)
+    delete!(ds, 2)
+end
+SUITE["pathological2 for WeightBasedSampler"] = @benchmarkable pathological2_setup pathological2_update
