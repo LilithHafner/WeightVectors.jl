@@ -1043,7 +1043,7 @@ function FixedSizeWeights(len::Integer)
     m .= 0 # TODO for perf: delete this. It's here so that a sparse rendering for debugging is easier TODO for tests: set this to 0xdeadbeefdeadbeed
     m[4:10491+2len] .= 0 # metadata and edit map need to be zeroed but the bulk does not
     m[1] = len
-    m[2] = 2050
+    m[2] = 2051
     # no need to set m[3]
     m[10235] = 10492+2len
     _FixedSizeWeights(m)
