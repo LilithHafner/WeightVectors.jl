@@ -992,7 +992,22 @@ function _set_to_zero!(m::Memory, i::Int)
     set_UInt128!(m, shifted_significand_sum, shifted_significand_sum_index)
     update_weights!(m, exponent, shifted_significand_sum)
 
-    # TODO for perf: increment m[2] when zeroing out the first group. And try doing this before update_weights! so that update_weights! can use the new value.
+    # TODO for perf: Try doing this before update_weights! so that update_weights! can use the new value of m[2].
+    if shifted_significand_sum == 0 # We zeroed out a group
+        if m[4] == 0 # There are no groups left
+            m[2] = 2051
+        else
+            m2 = m[2]
+            weight_index = 5 + 0x7fe - exponent >> 52
+            if weight_index == m2 # We zeroed out the first group
+                while true # Update m[2]
+                    m2 += 1
+                    m[m2] != 0 && break
+                end
+                m[2] = m2
+            end
+        end
+    end
 
     # lookup the group by exponent
     group_length_index = shifted_significand_sum_index + 2*2046 + 1
