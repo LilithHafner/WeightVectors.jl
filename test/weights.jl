@@ -225,7 +225,11 @@ end
 # However, whenever we identify and fix a bug, we add a specific test for it above.
 include("statistical.jl")
 let
-    for _ in 1:1000
+    print("weights.jl randomized tests: 0%")
+    for rep in 1:1000
+        if rep % 10 == 0
+            print("\rweights.jl randomized tests: $(rep÷10)%")
+        end
         global LOG = []
         len = rand(1:100)
         push!(LOG, len)
@@ -266,5 +270,6 @@ let
             end
         end
     end
+    println()
 end
 println("These tests should fail due to random noise no more than $FALSE_POSITIVITY_ACCUMULATOR of the time")

@@ -54,9 +54,38 @@ function intermixed_h(n, σ)
 end
 
 for n in [100, 1000, 10000], σ in [.1, 1, 10, 100]
+    # TODO: try to use min over noise, average over rng, and max over treatment in analysis
     SUITE["constructor n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push($n, $σ)
     SUITE["sample n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand
     SUITE["delete ∘ rand n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand_delete(_, $n) evals=1
-    SUITE["update ∘ rand n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand_update(_, $σ)
+    SUITE["update ∘ rand n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand_update(_, $σ) evals=n
     SUITE["intermixed_h n=$n σ=$σ"] = @benchmarkable intermixed_h($n, $σ)
 end
+
+function pathological1_setup()
+    ds = DynamicDiscreteSampler()
+    push!(ds, 1, 1e50)
+    ds
+end
+function pathological1_update(ds)
+    push!(ds, 2, 1e100)
+    delete!(ds, 2)
+end
+SUITE["pathological 1"] = @benchmarkable pathological1_setup pathological1_update
+
+function pathological2_setup()
+    ds = DynamicDiscreteSampler()
+    push!(ds, 1, 1e-300)
+    ds
+end
+function pathological2_update(ds)
+    push!(ds, 2, 1e300)
+    delete!(ds, 2)
+end
+SUITE["pathological 2"] = @benchmarkable pathological2_setup pathological2_update
+
+pathological3 = DynamicDiscreteSampler()
+push!(pathological3, 1, 1e300)
+delete!(pathological3, 1)
+push!(pathological3, 1, 1e-300)
+SUITE["pathological 3"] = @benchmarkable pathological3 rand
