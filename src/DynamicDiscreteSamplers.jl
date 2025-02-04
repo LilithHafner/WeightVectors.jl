@@ -681,7 +681,6 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     shifted_significand_sum += shifted_significand
     set_UInt128!(m, shifted_significand_sum, shifted_significand_sum_index)
     weight_index = 5 + 0x7fe - exponent >> 52
-    m[2] = min(m[2], weight_index)
     if m[4] == 0 # if we were empty, set global shift (m[3]) so that m[4] will become ~2^40.
         m[3] = -24 - exponent >> 52
         weight = compute_weight(m, exponent, shifted_significand_sum) # TODO for perf: inline
@@ -691,6 +690,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     else
         update_weights!(m, exponent, shifted_significand_sum) # TODO for perf: inline
     end
+    m[2] = min(m[2], weight_index) # Set after insertion because update_weights! may need to update the global shift, in which case knowing the old m[2] will help it skip checking empty levels
 
     # lookup the group by exponent and bump length
     group_length_index = shifted_significand_sum_index + 2*2046 + 1
@@ -810,7 +810,7 @@ function compute_weight(m::Memory, exponent::UInt64, shifted_significand_sum::UI
         # Base.top_set_bit(shifted_significand_sum)+signed(exponent >> 52) + signed(m[3]) == 48
         # signed(m[3]) == 48 - Base.top_set_bit(shifted_significand_sum) - signed(exponent >> 52)
         m3 = 48 - Base.top_set_bit(shifted_significand_sum) - exponent >> 52
-        set_global_shift!(m, m3) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+        set_global_shift_decrease!(m, m3) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
         shift = signed(exponent >> 52 + m3)
     end
     weight = UInt64(shifted_significand_sum<<shift) # TODO for perf: change to % UInt64
@@ -828,113 +828,127 @@ function update_weights!(m::Memory, exponent::UInt64, shifted_significand_sum::U
     m4, o = Base.add_with_overflow(m4, weight)
     if o
         # If weights overflow (>2^64) then shift down by 16 bits
-        set_global_shift!(m, m[3]-0x10, m4) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+        m3 = m[3]-0x10
+        set_global_shift_decrease!(m, m3, m4) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+        if weight_index < m[2] # if the new weight was not adjusted by set_global_shift_decrease!, then adjust it manually
+            shift = signed(2051-weight_index+m3)
+            new_weight = (shifted_significand_sum<<shift) % UInt64
+            # round up
+            new_weight += trailing_zeros(shifted_significand_sum)+shift < 0
+
+            @assert shifted_significand_sum != 0
+            @assert m[weight_index] == weight
+
+            m[weight_index] = new_weight
+            m[4] += new_weight-weight
+        end
     else
         m[4] = m4
     end
 end
 
-function set_global_shift!(m::Memory, m3::UInt, m4=m[4], j0=nothing) # TODO for perf and maybe clarity: separate increse and decrease into different functions
+function set_global_shift_increase!(m::Memory, m3::UInt, m4, j0) # Increase shift, on deletion of elements
+    @assert signed(m[3]) < signed(m3)
+    m[3] = m3
+    # Story:
+    # In the likely case that the weight decrease resulted in a level's weight hitting zero
+    # that level's weight is already updated and m[4] adjusted accordingly TODO for perf don't adjust, pass the values around instead
+    # In any event, m4 is accurate for current weights and all weights and sss's above (before) i0 are zero so we don't need to touch them
+    # Between i0 and i1, weights that were previously 1 may need to be increased. Below (past, after) i1, all weights will round up to 1 or 0 so we don't need to touch them
+    i0 = (j0 - 2041) >> 1
+
+    # i1 is the lowest number such that for all i > i1, typemax(UInt128) (and therefore anything lower) will result in a weight of 1 (or 0 in the case of sss=0).
+    #= TODO for clarity: delete this overlong comment
+    weight = (typemax(UInt128)<<shift) % UInt64
+    weight += (trailing_zeros(typemax(UInt128))+shift < 0) & (typemax(UInt128) != 0)
+    weight == 1
+
+    weight = (typemax(UInt128)<<shift) % UInt64
+    weight += shift < 0
+    weight == 1
+
+    # shift should be < 0
+
+    weight = (typemax(UInt128)<<shift) % UInt64
+    weight += 1
+    weight == 1
+
+    (typemax(UInt128)<<shift) % UInt64 == 0
+
+    (typemax(UInt128)>>-shift) % UInt64 == 0
+
+    -shift >= 128
+
+    -128 >= shift
+
+    shift <= -128
+
+    shift = signed(2051-i+m3)
+    shift <= -128
+
+
+    signed(2051-i+m3) <= -128
+    signed(2051)-signed(i)+signed(m3) <= -128
+    signed(2051)+signed(m3)+128 <= signed(i)
+    signed(2051+128)+signed(m3) <= signed(i)
+
+    2051+128+signed(m3) <= i
+    =#
+    # So for all i >= 2051+128+signed(m3), this holds. This means i1 = 2051+128+signed(m3)-1.
+    i1 = min(2051+128+signed(m3)-1, 2050)
+
+    for i in i0:i1 # TODO using i1-1 here passes tests (and is actually valid, I think. using i1-2 may fail if there are about 2^63 elements in the (i1-1)^th level. It would be possible to scale this range with length (m[1]) in which case testing could be stricter and performance could be (marginally) better, though not in large cases so possibly not worth doing at all)
+        j = 2i+2041
+        shifted_significand_sum = get_UInt128(m, j)
+        shift = signed(2051-i+m3)
+        weight = (shifted_significand_sum<<shift) % UInt64
+        # round up
+        weight += (trailing_zeros(shifted_significand_sum)+shift < 0) & (shifted_significand_sum != 0) # TODO for perf: ensure this final clause is const-prop eliminated when it can be (i.e. any time other than setting a weight to zero)
+
+        old_weight = m[i]
+        m[i] = weight
+        m4 += weight-old_weight
+    end
+
+    m[4] = m4
+end
+
+function set_global_shift_decrease!(m::Memory, m3::UInt, m4=m[4]) # Decrease shift, on insertion of elements
     m3_old = m[3]
     m[3] = m3
-    @assert m3 != m3_old # if this is the case we're leaving preformance on the table in a big way
-    if signed(m3_old) < signed(m3) # Increase shift, on removal of elements TODO for security: add a test that fails when `signed` is removed here.
-        # Story:
-        # In the likely case that the weight decrease resulted in a level's weight hitting zero
-        # that level's weight is already updated and m[4] adjusted accordingly TODO for perf don't adjust, pass the values around instead
-        # In any event, m4 is accurate for current weights and all weights and sss's above (before) i0 are zero so we don't need to touch them
-        # Between i0 and i1, weights that were previously 1 may need to be increased. Below (past, after) i1, all weights will round up to 1 or 0 so we don't need to touch them
-        i0 = (j0 - 2041) >> 1
+    @assert signed(m3) < signed(m3_old)
 
-        # i1 is the lowest number such that for all i > i1, typemax(UInt128) (and therefore anything lower) will result in a weight of 1 (or 0 in the case of sss=0).
-        #= TODO for clarity: delete this overlong comment
-        weight = (typemax(UInt128)<<shift) % UInt64
-        weight += (trailing_zeros(typemax(UInt128))+shift < 0) & (typemax(UInt128) != 0)
-        weight == 1
+    # In the case of adding a giant element, call this first, then add the element.
+    # In any case, this only adjusts elements at or after m[2]
+    # from m[2] to the last index that could have a weight > 1 (possibly empty), recompute weights.
+    # from max(m[2], the first index that can't have a weight > 1) to the last index that previously could have had a weight > 1, (never empty), set weights to 1 or 0
+    m2 = signed(m[2])
+    i1 = 2051+128+signed(m3)-1 # see above, this is the last index that could have weight > 1 (anything after this will have weight 1 or 0)
+    i1_old = 2051+128+signed(m3_old)-1 # anything after this is already weight 1 or 0
+    recompute_range = m2:min(i1, 2050)
+    flatten_range = max(m2, i1+1):min(i1_old, 2050)
+    @assert length(recompute_range) <= 128 # TODO for perf: why is this not 64?
+    @assert length(flatten_range) <= 128 # TODO for perf: why is this not 64?
 
-        weight = (typemax(UInt128)<<shift) % UInt64
-        weight += shift < 0
-        weight == 1
-
-        # shift should be < 0
-
-        weight = (typemax(UInt128)<<shift) % UInt64
-        weight += 1
-        weight == 1
-
-        (typemax(UInt128)<<shift) % UInt64 == 0
-
-        (typemax(UInt128)>>-shift) % UInt64 == 0
-
-        -shift >= 128
-
-        -128 >= shift
-
-        shift <= -128
-
+    for i in recompute_range
+        j = 2i+2041
+        shifted_significand_sum = get_UInt128(m, j)
         shift = signed(2051-i+m3)
-        shift <= -128
+        weight = (shifted_significand_sum<<shift) % UInt64
+        # round up
+        weight += (trailing_zeros(shifted_significand_sum)+shift < 0) & (shifted_significand_sum != 0) # TODO for perf: ensure this final clause is const-prop eliminated when it can be (i.e. any time other than setting a weight to zero)
 
-
-        signed(2051-i+m3) <= -128
-        signed(2051)-signed(i)+signed(m3) <= -128
-        signed(2051)+signed(m3)+128 <= signed(i)
-        signed(2051+128)+signed(m3) <= signed(i)
-
-        2051+128+signed(m3) <= i
-        =#
-        # So for all i >= 2051+128+signed(m3), this holds. This means i1 = 2051+128+signed(m3)-1.
-        i1 = min(2051+128+signed(m3)-1, 2050)
-
-        for i in i0:i1 # TODO using i1-1 here passes tests (and is actually valid, I think. using i1-2 may fail if there are about 2^63 elements in the (i1-1)^th level. It would be possible to scale this range with length (m[1]) in which case testing could be stricter and performance could be (marginally) better, though not in large cases so possibly not worth doing at all)
-            j = 2i+2041
-            shifted_significand_sum = get_UInt128(m, j)
-            shift = signed(2051-i+m3)
-            weight = (shifted_significand_sum<<shift) % UInt64
-            # round up
-            weight += (trailing_zeros(shifted_significand_sum)+shift < 0) & (shifted_significand_sum != 0) # TODO for perf: ensure this final clause is const-prop eliminated when it can be (i.e. any time other than setting a weight to zero)
-
-            old_weight = m[i]
-            m[i] = weight
-            m4 += weight-old_weight
-        end
-    else # Decrease shift, on insertion of elements
-        # In one range, weights that were previously >1 will be shifted to 1.
-        # In another range, weights need to be recomputed
-        # i0 is the first plausible nonzero weight TODO for perf: use m[2] once we can trust it.
-        # i0 could be much higher than it is right now.
-        # The lowest nonzero sss is 0x8000000000000000 (2^63), shifting that << by 65 overflows.
-        # consequently i0 corresponds to a shify of << 64. Anything prior to that will overflow.
-        # shift = signed(2051-i+m3) <= 64
-        # signed(2051-i+m3) <= 64
-        # signed(2051)-signed(i)+signed(m3) <= 64
-        # signed(2051)-64+signed(m3) <= signed(i)
-        # 2051-64+signed(m3) <= signed(i)
-        i0 = max(2051-64+signed(m3), 5)
-        i1 = 2051+128+signed(m3)-1 # see above, anything after this will have weight 1 or 0
-        i1_old = min(2051+128+signed(m3_old)-1, 2050) # anything after this is already weight 1 or 0
-        # between i1 (exclusive) and i1_old (inclusive), we should set nonzero weights to 1
-        # between i0 (inclusive) and i1 (inclusive) we should recompute weights.
-
-        for i in i0:min(i1, 2050) # recompute weights
-            j = 2i+2041
-            shifted_significand_sum = get_UInt128(m, j)
-            shift = signed(2051-i+m3)
-            weight = (shifted_significand_sum<<shift) % UInt64
-            # round up
-            weight += (trailing_zeros(shifted_significand_sum)+shift < 0) & (shifted_significand_sum != 0) # TODO for perf: ensure this final clause is const-prop eliminated when it can be (i.e. any time other than setting a weight to zero)
-
-            old_weight = m[i]
-            m[i] = weight
-            m4 += weight-old_weight
-        end
-        for i in max(5, i1+1):i1_old # set nonzeros to 1
-            old_weight = m[i]
-            weight = old_weight != 0
-            m[i] = weight
-            m4 += weight-old_weight
-        end
+        old_weight = m[i]
+        m[i] = weight
+        m4 += weight-old_weight
     end
+    for i in flatten_range # set nonzeros to 1
+        old_weight = m[i]
+        weight = old_weight != 0
+        m[i] = weight
+        m4 += weight-old_weight
+    end
+
     m[4] = m4
 end
 
@@ -1013,7 +1027,7 @@ function _set_to_zero!(m::Memory, i::Int)
         m3 = -17 - Base.top_set_bit(x2) - (6143-j2)>>1
         # TODO test that this actually achieves the desired shift and results in a new sum of about 2^48
 
-        set_global_shift!(m, m3, m4, j2) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+        set_global_shift_increase!(m, m3, m4, j2) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
 
         @assert 46 <= Base.top_set_bit(m[4]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8 # TODO for perf: delete
     else
