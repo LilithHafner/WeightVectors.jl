@@ -876,12 +876,8 @@ function update_weights!(m::Memory, exponent::UInt64, shifted_significand_sum::U
     end
 end
 
-
-
-
 function set_global_shift!(m::Memory, m3::UInt, m4=m[4], j0=nothing) # TODO for perf and maybe clarity: separate increse and decrease into different functions
     m3_old = m[3]
-
     m[3] = m3
     @assert m3 != m3_old # if this is the case we're leaving preformance on the table in a big way
     if m3_old < m3 # Increase shift, on removal of elements
