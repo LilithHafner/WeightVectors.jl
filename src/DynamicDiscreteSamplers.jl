@@ -873,7 +873,7 @@ function set_global_shift!(m::Memory, m3::UInt, m4=m[4], j0=nothing) # TODO for 
     m3_old = m[3]
     m[3] = m3
     @assert m3 != m3_old # if this is the case we're leaving preformance on the table in a big way
-    if m3_old < m3 # Increase shift, on removal of elements
+    if signed(m3_old) < signed(m3) # Increase shift, on removal of elements TODO for security: add a test that fails when `signed` is removed here.
         # Story:
         # In the likely case that the weight decrease resulted in a level's weight hitting zero
         # that level's weight is already updated and m[4] adjusted accordingly TODO for perf don't adjust, pass the values around instead
