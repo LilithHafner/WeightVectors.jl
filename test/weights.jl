@@ -193,6 +193,14 @@ w[1939] = 7.075668919342077e18
 w[979] = 0.8922993294513122
 resize!(w, 1612) # This previously threw an AssertionError: 48 <= Base.top_set_bit(m[4]) <= 49
 
+include("invariants.jl")
+
+w = DynamicDiscreteSamplers.ResizableWeights(31)
+w[11] = 9.923269000574892e-8
+w[23] = 0.9876032886161744
+w[31] = 1.1160998022859043
+# verify(w.m)
+
 # These tests have never revealed a bug that was not revealed by one of the above tests:
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)
 w[1] = 1
@@ -238,6 +246,7 @@ try
             v = fill(0.0, len)
             for _ in 1:rand((10,100,3000))
                 @test v == w
+                # verify(w.m)
                 if rand() < .01
                     sm = sum(v)
                     sm == 0 || statistical_test(w, v ./ sm)

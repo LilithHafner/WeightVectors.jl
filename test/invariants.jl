@@ -1,3 +1,5 @@
+merge_uint64(x::UInt64, y::UInt64) = UInt128(x) | (UInt128(y) << 64)
+get_UInt128(m::Memory, i::Integer) = merge_uint64(m[i], m[i+1])
 function verify_weights(m::Memory)
     m3 = m[3]
     for i in 5:2050
