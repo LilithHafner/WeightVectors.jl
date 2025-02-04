@@ -62,16 +62,16 @@ for n in [100, 1000, 10000], σ in [.1, 1, 10, 100]
     SUITE["intermixed_h n=$n σ=$σ"] = @benchmarkable intermixed_h($n, $σ)
 end
 
-function pathological_setup()
+function pathological1_setup()
     ds = DynamicDiscreteSampler()
     push!(ds, 1, 1e50)
     ds
 end
-function pathological_update(ds)
+function pathological1_update(ds)
     push!(ds, 2, 1e100)
     delete!(ds, 2)
 end
-SUITE["pathological for WeightBasedSampler"] = @benchmarkable pathological_setup pathological_update
+SUITE["pathological 1"] = @benchmarkable pathological1_setup pathological1_update
 
 function pathological2_setup()
     ds = DynamicDiscreteSampler()
@@ -82,4 +82,10 @@ function pathological2_update(ds)
     push!(ds, 2, 1e300)
     delete!(ds, 2)
 end
-SUITE["pathological2 for WeightBasedSampler"] = @benchmarkable pathological2_setup pathological2_update
+SUITE["pathological 2"] = @benchmarkable pathological2_setup pathological2_update
+
+pathological3 = DynamicDiscreteSampler()
+push!(pathological3, 1, 1e300)
+delete!(pathological3, 1)
+push!(pathological3, 1, 1e-300)
+SUITE["pathological 3"] = @benchmarkable pathological3 rand
