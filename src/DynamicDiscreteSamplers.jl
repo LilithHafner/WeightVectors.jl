@@ -829,41 +829,6 @@ function update_weights!(m::Memory, exponent::UInt64, shifted_significand_sum::U
     if o
         # If weights overflow (>2^64) then shift down by 16 bits
         set_global_shift!(m, m[3]-0x10, m4) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
-    elseif 0 < m4 < UInt64(1)<<32
-        # If weights become less than 2^32 (but only if there are any nonzero weights), then for performance reasons (to keep the low probability rejection step sufficiently low probability)
-        # Increase the shift to a reasonable level.
-        # All nonzero true weights correspond to nonzero weights so 0 < m4 is a sufficient check to determine if we have fully emptied out the weights or not
-
-        # TODO for perf: we can almost get away with loading only the most significant word of shifted_significand_sums. Here, we use the most significant 65 bits.
-        j = 2m[2]+2041
-        x = get_UInt128(m, j)
-        while x == 0 # TODO for perf: once we can trust m[2] to be up to date, delete this
-            # TODO once this loop is gone, refactor indexing for simplicity
-            j += 2
-            x = get_UInt128(m, j) # TODO for perf, this loop could probably be compiled better and is a bottlenek in the pathological2 case.
-        end
-        x2 = UInt64(x>>63) #TODO for perf %UInt64
-        for i in 1:Sys.WORD_SIZE # TODO for perf, we can get away with shaving 1 to 10 off of this loop.
-            x2 += UInt64(get_UInt128(m, j+2i) >> (63+i))
-        end
-
-        # x2 is computed by rounding down at a certian level and then summing
-        # m[4] will be computed by rounding up at a more precise level and then summing
-        # x2 could be 1, composed of 1.9 + .9 + .9 + ... for up to about log2(length) levels
-        # meaning m[4] could be up to 1+log2(length) times greater than predicted according to x2
-        # if length is 2^64 than this could push m[4]'s top set bbit up to 8 bits higher.
-
-        # If, on the other hand, x2 was computed with significantly higher precision, then
-        # it could overflow if there were 2^64 elements in a weight. TODO: We could probably
-        # squeeze a few more bits out of this, but targeting 46 with a window of 46 to 52 is
-        # plenty good enough.
-
-        m3 = -17 - Base.top_set_bit(x2) - (6143-j)>>1
-        # TODO test that this actually achieves the desired shift and results in a new sum of about 2^48
-
-        set_global_shift!(m, m3, m4, j) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
-
-        @assert 46 <= Base.top_set_bit(m[4]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8 # TODO for perf: delete
     else
         m[4] = m4
     end
@@ -990,15 +955,17 @@ function _set_to_zero!(m::Memory, i::Int)
     shifted_significand = m[pos]
     shifted_significand_sum -= shifted_significand
     set_UInt128!(m, shifted_significand_sum, shifted_significand_sum_index)
-    update_weights!(m, exponent, shifted_significand_sum)
 
-    # TODO for perf: Try doing this before update_weights! so that update_weights! can use the new value of m[2].
+    weight_index = 5 + 0x7fe - exponent >> 52
+    old_weight = m[weight_index]
+    m4 = m[4]
+    m4 -= old_weight
     if shifted_significand_sum == 0 # We zeroed out a group
-        if m[4] == 0 # There are no groups left
+        m[weight_index] = 0
+        if m4 == 0 # There are no groups left
             m[2] = 2051
         else
             m2 = m[2]
-            weight_index = 5 + 0x7fe - exponent >> 52
             if weight_index == m2 # We zeroed out the first group
                 while true # Update m[2]
                     m2 += 1
@@ -1007,6 +974,49 @@ function _set_to_zero!(m::Memory, i::Int)
                 m[2] = m2
             end
         end
+    else # We did not zero out a group
+        shift = signed(exponent >> 52 + m[3])
+        new_weight = UInt64(shifted_significand_sum<<shift) # TODO for perf: change to % UInt64
+        # round up
+        new_weight += trailing_zeros(shifted_significand_sum)+shift < 0
+        m[weight_index] = new_weight
+        m4 += new_weight
+    end
+
+    if 0 < m4 < UInt64(1)<<32
+        # If weights become less than 2^32 (but only if there are any nonzero weights), then for performance reasons (to keep the low probability rejection step sufficiently low probability)
+        # Increase the shift to a reasonable level.
+        # All nonzero true weights correspond to nonzero weights so 0 < m4 is a sufficient check to determine if we have fully emptied out the weights or not
+
+        # TODO for perf: we can almost get away with loading only the most significant word of shifted_significand_sums. Here, we use the most significant 65 bits.
+        j2 = 2m[2]+2041
+        x = get_UInt128(m, j2)
+        # TODO refactor indexing for simplicity
+        x2 = UInt64(x>>63) #TODO for perf %UInt64
+        @assert x2 != 0
+        for i in 1:Sys.WORD_SIZE # TODO for perf, we can get away with shaving 1 to 10 off of this loop.
+            x2 += UInt64(get_UInt128(m, j2+2i) >> (63+i))
+        end
+
+        # x2 is computed by rounding down at a certian level and then summing
+        # m[4] will be computed by rounding up at a more precise level and then summing
+        # x2 could be 1, composed of 1.9 + .9 + .9 + ... for up to about log2(length) levels
+        # meaning m[4] could be up to 1+log2(length) times greater than predicted according to x2
+        # if length is 2^64 than this could push m[4]'s top set bbit up to 8 bits higher.
+
+        # If, on the other hand, x2 was computed with significantly higher precision, then
+        # it could overflow if there were 2^64 elements in a weight. TODO: We could probably
+        # squeeze a few more bits out of this, but targeting 46 with a window of 46 to 52 is
+        # plenty good enough.
+
+        m3 = -17 - Base.top_set_bit(x2) - (6143-j2)>>1
+        # TODO test that this actually achieves the desired shift and results in a new sum of about 2^48
+
+        set_global_shift!(m, m3, m4, j2) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+
+        @assert 46 <= Base.top_set_bit(m[4]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8 # TODO for perf: delete
+    else
+        m[4] = m4
     end
 
     # lookup the group by exponent
