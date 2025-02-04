@@ -199,7 +199,7 @@ w = DynamicDiscreteSamplers.ResizableWeights(31)
 w[11] = 9.923269000574892e-8
 w[23] = 0.9876032886161744
 w[31] = 1.1160998022859043
-# verify(w.m)
+verify(w.m)
 
 # These tests have never revealed a bug that was not revealed by one of the above tests:
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)
@@ -246,7 +246,7 @@ try
             v = fill(0.0, len)
             for _ in 1:rand((10,100,3000))
                 @test v == w
-                # verify(w.m)
+                verify(w.m)
                 if rand() < .01
                     sm = sum(v)
                     sm == 0 || statistical_test(w, v ./ sm)

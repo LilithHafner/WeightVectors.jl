@@ -828,7 +828,20 @@ function update_weights!(m::Memory, exponent::UInt64, shifted_significand_sum::U
     m4, o = Base.add_with_overflow(m4, weight)
     if o
         # If weights overflow (>2^64) then shift down by 16 bits
-        set_global_shift_decrease!(m, m[3]-0x10, m4) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+        m3 = m[3]-0x10
+        set_global_shift_decrease!(m, m3, m4) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+        if weight_index < m[2] # if the new weight was not adjusted by set_global_shift_decrease!, then adjust it manually
+            shift = signed(2051-weight_index+m3)
+            new_weight = (shifted_significand_sum<<shift) % UInt64
+            # round up
+            new_weight += trailing_zeros(shifted_significand_sum)+shift < 0
+
+            @assert shifted_significand_sum != 0
+            @assert m[weight_index] == weight
+
+            m[weight_index] = new_weight
+            m[4] += new_weight-weight
+        end
     else
         m[4] = m4
     end
