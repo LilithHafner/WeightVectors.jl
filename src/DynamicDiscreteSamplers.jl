@@ -681,7 +681,6 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     shifted_significand_sum += shifted_significand
     set_UInt128!(m, shifted_significand_sum, shifted_significand_sum_index)
     weight_index = 5 + 0x7fe - exponent >> 52
-    m[2] = min(m[2], weight_index)
     if m[4] == 0 # if we were empty, set global shift (m[3]) so that m[4] will become ~2^40.
         m[3] = -24 - exponent >> 52
         weight = compute_weight(m, exponent, shifted_significand_sum) # TODO for perf: inline
@@ -691,6 +690,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     else
         update_weights!(m, exponent, shifted_significand_sum) # TODO for perf: inline
     end
+    m[2] = min(m[2], weight_index) # Set after insertion because update_weights! may need to update the global shift, in which case knowing the old m[2] will help it skip checking empty levels
 
     # lookup the group by exponent and bump length
     group_length_index = shifted_significand_sum_index + 2*2046 + 1
@@ -904,24 +904,20 @@ function set_global_shift_decrease!(m::Memory, m3::UInt, m4=m[4]) # Decrease shi
     m3_old = m[3]
     m[3] = m3
     @assert signed(m3) < signed(m3_old)
-    # In one range, weights that were previously >1 will be shifted to 1.
-    # In another range, weights need to be recomputed
-    # i0 is the first plausible nonzero weight TODO for perf: use m[2] once we can trust it.
-    # i0 could be much higher than it is right now.
-    # The lowest nonzero sss is 0x8000000000000000 (2^63), shifting that << by 65 overflows.
-    # consequently i0 corresponds to a shify of << 64. Anything prior to that will overflow.
-    # shift = signed(2051-i+m3) <= 64
-    # signed(2051-i+m3) <= 64
-    # signed(2051)-signed(i)+signed(m3) <= 64
-    # signed(2051)-64+signed(m3) <= signed(i)
-    # 2051-64+signed(m3) <= signed(i)
-    i0 = max(2051-64+signed(m3), 5)
-    i1 = 2051+128+signed(m3)-1 # see above, anything after this will have weight 1 or 0
-    i1_old = min(2051+128+signed(m3_old)-1, 2050) # anything after this is already weight 1 or 0
-    # between i1 (exclusive) and i1_old (inclusive), we should set nonzero weights to 1
-    # between i0 (inclusive) and i1 (inclusive) we should recompute weights.
 
-    for i in i0:min(i1, 2050) # recompute weights
+    # In the case of adding a giant element, call this first, then add the element.
+    # In any case, this only adjusts elements at or after m[2]
+    # from m[2] to the last index that could have a weight > 1 (possibly empty), recompute weights.
+    # from max(m[2], the first index that can't have a weight > 1) to the last index that previously could have had a weight > 1, (never empty), set weights to 1 or 0
+    m2 = signed(m[2])
+    i1 = 2051+128+signed(m3)-1 # see above, this is the last index that could have weight > 1 (anything after this will have weight 1 or 0)
+    i1_old = 2051+128+signed(m3_old)-1 # anything after this is already weight 1 or 0
+    recompute_range = m2:min(i1, 2050)
+    flatten_range = max(m2, i1+1):min(i1_old, 2050)
+    @assert length(recompute_range) <= 128 # TODO for perf: why is this not 64?
+    @assert length(flatten_range) <= 128 # TODO for perf: why is this not 64?
+
+    for i in recompute_range
         j = 2i+2041
         shifted_significand_sum = get_UInt128(m, j)
         shift = signed(2051-i+m3)
@@ -933,7 +929,7 @@ function set_global_shift_decrease!(m::Memory, m3::UInt, m4=m[4]) # Decrease shi
         m[i] = weight
         m4 += weight-old_weight
     end
-    for i in max(5, i1+1):i1_old # set nonzeros to 1
+    for i in flatten_range # set nonzeros to 1
         old_weight = m[i]
         weight = old_weight != 0
         m[i] = weight
@@ -974,7 +970,7 @@ function _set_to_zero!(m::Memory, i::Int)
             if weight_index == m2 # We zeroed out the first group
                 while true # Update m[2]
                     m2 += 1
-                    m[m2] != 0 && break
+                    #=@inbounds=# m[m2] != 0 && break # TODO for perf: add @inbounds here for the pathological2 case
                 end
                 m[2] = m2
             end
