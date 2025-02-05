@@ -557,7 +557,7 @@ end
 # highest normal significand (52 ones with an implicit leading 1) the shifted significand
 # stored in sub_weights is 0xfffffffffffff800 and there are 2^64-2^11 pips less than
 # that value for a probability of (2^64-2^11) / 2^64 == (2^53-1) / 2^53 == prevfloat(2.0)/2.0
-@assert 0xfffffffffffff800//big(2)^64 == (2^53-1)//2^53 == big(prevfloat(2.0))/big(2.0)
+@assert 0xfffffffffffff800//big(2)^64 == (UInt64(2)^53-1)//UInt64(2)^53 == big(prevfloat(2.0))/big(2.0)
 @assert 0x8000000000000000 | (reinterpret(UInt64, 1.0::Float64) << 11) === 0x8000000000000000
 @assert 0x8000000000000000 | (reinterpret(UInt64, prevfloat(1.0)::Float64) << 11) === 0xfffffffffffff800
 # shifted significand sums are literal sums of the element_from_sub_weights's (though stored
@@ -670,7 +670,7 @@ function _set_nonzero!(m, v, i)
 end
 
 function _set_from_zero!(m::Memory, v::Float64, i::Int)
-    uv = reinterpret(UInt, v)
+    uv = reinterpret(UInt64, v)
     j = 2i + 10490
     @assert m[j] == 0
 
@@ -776,7 +776,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # TODO for perf: delete this and instead have compaction check if the index
             # pointed to by the start of the group points back (in the edit map) to that location
             if allocated_size != 0
-                m[group_posm2 + 3] = unsigned(-allocated_size)
+                m[group_posm2 + 3] = unsigned(Int64(-allocated_size))
             end
 
             # update group start location
@@ -849,7 +849,7 @@ function update_weights!(m::Memory, exponent::UInt64, shifted_significand_sum::U
     end
 end
 
-function set_global_shift_increase!(m::Memory, m3::UInt, m4, j0) # Increase shift, on deletion of elements
+function set_global_shift_increase!(m::Memory, m3::UInt64, m4, j0) # Increase shift, on deletion of elements
     @assert signed(m[3]) < signed(m3)
     m[3] = m3
     # Story:
@@ -915,7 +915,7 @@ function set_global_shift_increase!(m::Memory, m3::UInt, m4, j0) # Increase shif
     m[4] = m4
 end
 
-function set_global_shift_decrease!(m::Memory, m3::UInt, m4=m[4]) # Decrease shift, on insertion of elements
+function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease shift, on insertion of elements
     m3_old = m[3]
     m[3] = m3
     @assert signed(m3) < signed(m3_old)
@@ -1155,7 +1155,7 @@ function compact!(dst::Memory{UInt64}, dst_i::Int, src::Memory{UInt64}, src_i::I
         group_length = src[group_length_index]
 
         # Update group pos in level_location_info
-        dst[group_length_index-1] += unsigned(dst_i-src_i)
+        dst[group_length_index-1] += unsigned(Int64(dst_i-src_i))
 
         # Lookup the allocated size (an alternative to scanning for the next nonzero, needed because we are setting allocated size)
         # exponent of 0x7fe0000000000000 is index 6+5*2046, 2
@@ -1177,7 +1177,7 @@ function compact!(dst::Memory{UInt64}, dst_i::Int, src::Memory{UInt64}, src_i::I
         unsafe_copyto!(dst, dst_i, src, src_i, 2group_length)
 
         # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
-        delta = unsigned(dst_i-src_i)
+        delta = unsigned(Int64(dst_i-src_i))
         dst[j] += delta
         for k in 1:signed(group_length)-1
             target = src[src_i+2k+1]
