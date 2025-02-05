@@ -489,6 +489,8 @@ Base.length(inds::SamplerIndices) = inds.ns.track_info.nvalues
 
 # const DynamicDiscreteSampler = NestedSampler
 
+isdefined(@__MODULE__, :Memory) || const Memory = Vector # Compat for Julia < 1.11
+
 # Take Two!
 # - Exact
 # - O(1) in theory
