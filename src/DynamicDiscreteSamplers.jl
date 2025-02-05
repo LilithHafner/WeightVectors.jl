@@ -631,7 +631,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
     while true
         r = rand(rng, UInt64)
         k1 = (r>>leading_zeros(len-1))
-        k2 = _convert(Int, k1<<1+posm2+2) # TODO for perf: try %Int here (and everywhere)
+        k2 = _convert(Int, k1<<1+posm2+2)
         # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to 0
         k1 < len && rand(rng, UInt64) < m[k2] && return _convert(Int, signed(m[k2+1]))
     end
@@ -998,7 +998,7 @@ function _set_to_zero!(m::Memory, i::Int)
         end
     else # We did not zero out a group
         shift = signed(exponent >> 52 + m[3])
-        new_weight = _convert(UInt64, shifted_significand_sum<<shift) # TODO for perf: change to % UInt64
+        new_weight = _convert(UInt64, shifted_significand_sum<<shift)
         # round up
         new_weight += trailing_zeros(shifted_significand_sum)+shift < 0
         m[weight_index] = new_weight
@@ -1014,7 +1014,7 @@ function _set_to_zero!(m::Memory, i::Int)
         j2 = 2m[2]+2041
         x = get_UInt128(m, j2)
         # TODO refactor indexing for simplicity
-        x2 = _convert(UInt64, x>>63) #TODO for perf %UInt64
+        x2 = _convert(UInt64, x>>63)
         @assert x2 != 0
         for i in 1:Sys.WORD_SIZE # TODO for perf, we can get away with shaving 1 to 10 off of this loop.
             x2 += _convert(UInt, get_UInt128(m, j2+2i) >> (63+i))
