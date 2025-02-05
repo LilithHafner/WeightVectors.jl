@@ -593,7 +593,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
     i = m[2]
     local mi
     while #=i < 2046+4=# true
-        mi = m[i]
+        mi = m[_convert(Int, i)]
         x <= mi && break
         x -= mi
         i += 1
@@ -607,7 +607,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
         # rejection_p = 1-rem(significand_sum<<*(exponent_bits+shift))
         # acceptance_p = rem(significand_sum<<*(exponent_bits+shift))
         # acceptance_p = significand_sum<<*(exponent_bits+shift) & ...00000.111111...
-        j = 2i+2041
+        j = _convert(Int, 2i+2041)
         exponent_bits = 0x7fe+5-i
         shift = signed(exponent_bits + m[3])
         significand_sum = merge_uint64(m[j], m[j+1])
@@ -623,7 +623,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
     end
 
     # Lookup level info
-    j = 2i + 6133
+    j = _convert(Int, 2i + 6133)
     posm2 = m[j]
     len = m[j+1]
 
@@ -631,9 +631,9 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
     while true
         r = rand(rng, UInt64)
         k1 = (r>>leading_zeros(len-1))
-        k2 = k1<<1+posm2+2 # TODO for perf: try %Int here (and everywhere)
+        k2 = _convert(Int, k1<<1+posm2+2) # TODO for perf: try %Int here (and everywhere)
         # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to 0
-        k1 < len && rand(rng, UInt64) < m[k2] && return Int(signed(m[k2+1]))
+        k1 < len && rand(rng, UInt64) < m[k2] && return _convert(Int, signed(m[k2+1]))
     end
 end
 
@@ -716,8 +716,8 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             new_next_free_space = next_free_space+new_allocation_length
             if new_next_free_space > length(m)+1 # There isn't room; we need to compact
                 m[group_length_index] = group_length-1 # See comment above; we don't want to copy past the end of m
-                firstindex_of_compactee = 2length_from_memory(length(m)) + 10492 # TODO for clarity: move this into compact!
-                next_free_space = compact!(m, Int(firstindex_of_compactee), m, Int(firstindex_of_compactee))
+                firstindex_of_compactee = _convert(Int, 2length_from_memory(length(m)) + 10492) # TODO for clarity: move this into compact!
+                next_free_space = compact!(m, firstindex_of_compactee, m, firstindex_of_compactee)
                 group_posm2 = next_free_space-new_allocation_length-2 # The group will move but remian the last group
                 new_next_free_space = next_free_space+new_allocation_length
                 @assert new_next_free_space < length(m)+1 # TODO for perf, delete this
@@ -739,8 +739,8 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             new_next_free_space = next_free_space+twice_new_allocated_size
             if new_next_free_space > length(m)+1 # out of space; compact. TODO for perf, consider resizing at this time slightly eagerly?
                 firstindex_of_compactee = 2length_from_memory(length(m)) + 10492
-                m[group_length_index] = group_length-1 # incrementing the group length before compaction is spotty because if the group was previously empty then this new group length will be ignored (compact! loops over sub_weights, not levels)
-                next_free_space = compact!(m, Int(firstindex_of_compactee), m, Int(firstindex_of_compactee))
+                m[group_length_index] = _convert(Int, group_length-1) # incrementing the group length before compaction is spotty because if the group was previously empty then this new group length will be ignored (compact! loops over sub_weights, not levels)
+                next_free_space = compact!(m, firstindex_of_compactee, m, firstindex_of_compactee)
                 m[group_length_index] = group_length
                 new_next_free_space = next_free_space+twice_new_allocated_size
                 @assert new_next_free_space < length(m)+1 # After compaction there should be room TODO for perf, delete this
@@ -819,7 +819,7 @@ function compute_weight(m::Memory, exponent::UInt64, shifted_significand_sum::UI
         set_global_shift_decrease!(m, m3) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
         shift = signed(exponent >> 52 + m3)
     end
-    weight = UInt64(shifted_significand_sum<<shift) # TODO for perf: change to % UInt64
+    weight = _convert(UInt64, shifted_significand_sum<<shift)
     # round up
     weight += (trailing_zeros(shifted_significand_sum)+shift < 0) & (shifted_significand_sum != 0) # TODO for perf: ensure this final clause is const-prop eliminated when it can be (i.e. any time other than setting a weight to zero)
     weight
@@ -986,7 +986,7 @@ function _set_to_zero!(m::Memory, i::Int)
         if m4 == 0 # There are no groups left
             m[2] = 2051
         else
-            m2 = Int(m[2])
+            m2 = _convert(Int, m[2])
             if weight_index == m2 # We zeroed out the first group
                 m[10235] != 0 && firstindex(m) <= m2 < 10235 && m2 isa Int || error() # This makes the following @inbounds safe. If the comiler can follow my reasoning, then the error checking can also improive effect analysis and therefore performance.
                 while true # Update m[2]
@@ -998,7 +998,7 @@ function _set_to_zero!(m::Memory, i::Int)
         end
     else # We did not zero out a group
         shift = signed(exponent >> 52 + m[3])
-        new_weight = UInt64(shifted_significand_sum<<shift) # TODO for perf: change to % UInt64
+        new_weight = _convert(UInt64, shifted_significand_sum<<shift) # TODO for perf: change to % UInt64
         # round up
         new_weight += trailing_zeros(shifted_significand_sum)+shift < 0
         m[weight_index] = new_weight
@@ -1014,7 +1014,7 @@ function _set_to_zero!(m::Memory, i::Int)
         j2 = 2m[2]+2041
         x = get_UInt128(m, j2)
         # TODO refactor indexing for simplicity
-        x2 = UInt64(x>>63) #TODO for perf %UInt64
+        x2 = _convert(UInt64, x>>63) #TODO for perf %UInt64
         @assert x2 != 0
         for i in 1:Sys.WORD_SIZE # TODO for perf, we can get away with shaving 1 to 10 off of this loop.
             x2 += _convert(UInt, get_UInt128(m, j2+2i) >> (63+i))
@@ -1139,7 +1139,7 @@ function compact!(dst::Memory{UInt64}, dst_i::Int, src::Memory{UInt64}, src_i::I
                 allocs_chunk = dst[allocs_index] # TODO for perf: consider not copying metadata on out of place compaction (and consider the impact here)
                 log2_allocated_size_p1 = allocs_chunk >> allocs_subindex % UInt8
                 allocated_size = 1<<(log2_allocated_size_p1-1)
-                new_chunk = allocs_chunk - UInt64(log2_allocated_size_p1) << allocs_subindex
+                new_chunk = allocs_chunk - _convert(UInt64, log2_allocated_size_p1) << allocs_subindex
                 dst[allocs_index] = new_chunk # zero out allocated size (this will force re-allocation so we can let the old, wrong pos info stand)
                 src_i += 2allocated_size # skip the group
             else # the decaying corpse of an abandoned group. Ignore it.
