@@ -1,3 +1,4 @@
+isdefined(@__MODULE__, :Memory) || const Memory = Vector # Compat for Julia < 1.11
 _get_UInt128(m::Memory, i::Integer) = UInt128(m[i]) | (UInt128(m[i+1]) << 64)
 function verify_weights(m::Memory)
     m3 = m[3]
