@@ -7,6 +7,8 @@ using Random
 using StableRNGs
 using StatsBase
 
+@test DynamicDiscreteSamplers.DEBUG === true
+
 @testset "unit tests" begin
     lls = DynamicDiscreteSamplers.LinkedListSet()
     push!(lls, 2)
