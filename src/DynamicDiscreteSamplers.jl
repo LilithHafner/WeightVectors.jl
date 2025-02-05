@@ -491,6 +491,9 @@ Base.length(inds::SamplerIndices) = inds.ns.track_info.nvalues
 
 isdefined(@__MODULE__, :Memory) || const Memory = Vector # Compat for Julia < 1.11
 
+const DEBUG = Base.JLOptions().check_bounds == 1
+_convert(T, x) = DEBUG ? T(x) : x%T
+
 # Take Two!
 # - Exact
 # - O(1) in theory
@@ -798,7 +801,8 @@ end
 merge_uint64(x::UInt64, y::UInt64) = UInt128(x) | (UInt128(y) << 64)
 split_uint128(x::UInt128) = (x % UInt64, (x >>> 64) % UInt64)
 get_shifted_significand_sum_index(exponent::UInt64) = 5 + 3*2046 - exponent >> 51
-get_UInt128(m::Memory, i::Integer) = merge_uint64(m[i], m[i+1])
+get_UInt128(m::Memory, i::Integer) = get_UInt128(m, _convert(Int, i))
+get_UInt128(m::Memory, i::Int) = merge_uint64(m[i], m[i+1])
 set_UInt128!(m::Memory, v::UInt128, i::Integer) = m[i:i+1] .= split_uint128(v)
 "computes shifted_significand_sum<<(exponent_bits+shift) rounded up"
 function compute_weight(m::Memory, exponent::UInt64, shifted_significand_sum::UInt128)
@@ -902,10 +906,11 @@ function set_global_shift_increase!(m::Memory, m3::UInt64, m4, j0) # Increase sh
     for i in i0:i1 # TODO using i1-1 here passes tests (and is actually valid, I think. using i1-2 may fail if there are about 2^63 elements in the (i1-1)^th level. It would be possible to scale this range with length (m[1]) in which case testing could be stricter and performance could be (marginally) better, though not in large cases so possibly not worth doing at all)
         j = 2i+2041
         shifted_significand_sum = get_UInt128(m, j)
+        shifted_significand_sum == 0 && continue # in this case, the weight was and still is zero
         shift = signed(2051-i+m3)
         weight = (shifted_significand_sum<<shift) % UInt64
         # round up
-        weight += (trailing_zeros(shifted_significand_sum)+shift < 0) & (shifted_significand_sum != 0) # TODO for perf: ensure this final clause is const-prop eliminated when it can be (i.e. any time other than setting a weight to zero)
+        weight += (trailing_zeros(shifted_significand_sum)+shift < 0)
 
         old_weight = m[i]
         m[i] = weight
@@ -981,9 +986,9 @@ function _set_to_zero!(m::Memory, i::Int)
         if m4 == 0 # There are no groups left
             m[2] = 2051
         else
-            m2 = m[2]
+            m2 = Int(m[2])
             if weight_index == m2 # We zeroed out the first group
-                m[10235] != 0 && firstindex(m) <= m2 < 10235 && m2 isa UInt64 || error() # This makes the following @inbounds safe. If the comiler can follow my reasoning, then the error checking can also improive effect analysis and therefore performance.
+                m[10235] != 0 && firstindex(m) <= m2 < 10235 && m2 isa Int || error() # This makes the following @inbounds safe. If the comiler can follow my reasoning, then the error checking can also improive effect analysis and therefore performance.
                 while true # Update m[2]
                     m2 += 1
                     @inbounds m[m2] != 0 && break # TODO, see if the compiler can infer noub
@@ -1012,7 +1017,7 @@ function _set_to_zero!(m::Memory, i::Int)
         x2 = UInt64(x>>63) #TODO for perf %UInt64
         @assert x2 != 0
         for i in 1:Sys.WORD_SIZE # TODO for perf, we can get away with shaving 1 to 10 off of this loop.
-            x2 += UInt64(get_UInt128(m, j2+2i) >> (63+i))
+            x2 += _convert(UInt, get_UInt128(m, j2+2i) >> (63+i))
         end
 
         # x2 is computed by rounding down at a certian level and then summing
