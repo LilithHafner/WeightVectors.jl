@@ -223,3 +223,9 @@ function error_d03fb_2(n)
     @test UInt64(2)^32 < w.m[3]
 end
 error_d03fb_2.(1:15)
+
+ds = DynamicDiscreteSampler()
+push!(ds, 2, 1e308)
+delete!(ds, 2)
+push!(ds, 2, 1e308) # This previously threw
+@test rand(ds) == 2
