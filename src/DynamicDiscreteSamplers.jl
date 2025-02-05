@@ -981,9 +981,10 @@ function _set_to_zero!(m::Memory, i::Int)
         else
             m2 = m[2]
             if weight_index == m2 # We zeroed out the first group
+                m[10235] != 0 && firstindex(m) <= m2 < 10235 && m2 isa UInt64 || error() # This makes the following @inbounds safe. If the comiler can follow my reasoning, then the error checking can also improive effect analysis and therefore performance.
                 while true # Update m[2]
                     m2 += 1
-                    #=@inbounds=# m[m2] != 0 && break # TODO for perf: add @inbounds here for the pathological2 case
+                    @inbounds m[m2] != 0 && break # TODO, see if the compiler can infer noub
                 end
                 m[2] = m2
             end
