@@ -89,3 +89,14 @@ push!(pathological3, 1, 1e300)
 delete!(pathological3, 1)
 push!(pathological3, 1, 1e-300)
 SUITE["pathological 3"] = @benchmarkable pathological3 rand
+
+function pathological4_setup()
+    ds = DynamicDiscreteSampler()
+    push!(ds, 1, 1e-270)
+    ds
+end
+function pathological4_update(ds)
+    push!(ds, 2, 1e308)
+    delete!(ds, 2)
+end
+SUITE["pathological 4"] = @benchmarkable pathological4_setup pathological4_update
