@@ -96,7 +96,7 @@ function pathological4_setup()
     ds
 end
 function pathological4_update(ds)
-    push!(ds, 2, 1e308)
+    push!(ds, 2, 1e307)
     delete!(ds, 2)
 end
 SUITE["pathological 4"] = @benchmarkable pathological4_setup pathological4_update
