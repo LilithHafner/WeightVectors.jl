@@ -5,6 +5,10 @@ SUITE = BenchmarkGroup()
 
 SUITE["empty constructor"] = @benchmarkable DynamicDiscreteSampler()
 
+if haskey(ENV, "CI")
+    ChairmarksForAirspeedVelocity.Chairmarks.DEFAULTS.seconds = 1.0
+end
+
 function gaussian_weights_sequential_push(n, σ)
     ds = DynamicDiscreteSampler()
     for i in 1:n
