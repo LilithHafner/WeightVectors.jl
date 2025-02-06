@@ -753,4 +753,11 @@ Base.rand(rng::AbstractRNG, wbs::WeightBasedSampler, n::Integer) = [rand(rng, wb
 
 const DynamicDiscreteSampler = WeightBasedSampler
 
+# Precompile
+precompile(WeightBasedSampler, ())
+precompile(push!, (WeightBasedSampler, Int, Float64))
+precompile(delete!, (WeightBasedSampler, Int))
+precompile(rand, (typeof(Random.default_rng()), WeightBasedSampler))
+precompile(rand, (WeightBasedSampler,))
+
 end
