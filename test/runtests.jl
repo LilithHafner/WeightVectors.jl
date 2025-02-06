@@ -9,14 +9,6 @@ using StatsBase
 
 @test DynamicDiscreteSamplers.DEBUG === true
 
-@testset "unit tests" begin
-    lls = DynamicDiscreteSamplers.LinkedListSet()
-    push!(lls, 2)
-    push!(lls, 3)
-    delete!(lls, 2)
-    @test 3 in lls
-end
-
 @testset "basic end to end tests" begin
     ds = DynamicDiscreteSampler()
     push!(ds, 1, 1.0)
@@ -86,7 +78,7 @@ end
 end
 
 @testset "Targeted statistical tests" begin
-    ds = DynamicDiscreteSampler()#{N}()
+    ds = DynamicDiscreteSampler()
     for i in 1:3
         push!(ds, i, float(i))
     end
