@@ -10,7 +10,8 @@ t1 = time()
 using ChairmarksForAirspeedVelocity
 
 "Convert a constant into a format that AirspeedVelocity can understand"
-constant(n) = ChairmarksForAirspeedVelocity.Runnable(Returns(ChairmarksForAirspeedVelocity.BenchmarkTools.Trial(ChairmarksForAirspeedVelocity.BenchmarkTools.Parameters(seconds=0,samples=2,evals=1,overhead=0,gctrial=false,gcsample=false),1e9Float64[n,n],Float64[0,0],0,0)))
+vector_to_trial(v) = ChairmarksForAirspeedVelocity.BenchmarkTools.Trial(ChairmarksForAirspeedVelocity.BenchmarkTools.Parameters(seconds=0,samples=length(v),evals=1,overhead=0,gctrial=false,gcsample=false),1e9v,zeros(length(v)),0,0)
+constant(n) = ChairmarksForAirspeedVelocity.Runnable(Returns(vector_to_trial([n, n])))
 
 # SUITE is a magic global variable that AirspeedVelocity looks for
 SUITE = BenchmarkGroup()
@@ -74,6 +75,9 @@ for n in [100, 1000, 10000], σ in [.1, 1, 10, 100]
     SUITE["delete ∘ rand n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand_delete(_, $n) evals=1
     SUITE["update ∘ rand n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand_update(_, $σ) evals=n
     SUITE["intermixed_h n=$n σ=$σ"] = @benchmarkable intermixed_h($n, $σ)
+    SUITE["summarysize n=$n σ=$σ"] = ChairmarksForAirspeedVelocity.Runnable() do
+        vector_to_trial([3600Base.summarysize(gaussian_weights_sequential_push(n, σ)) for _ in 1:1_000_000÷n])
+    end
 end
 
 function pathological1_setup()
