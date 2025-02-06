@@ -2,7 +2,7 @@ module DynamicDiscreteSamplers
 
 export DynamicDiscreteSampler
 
-import Random: rand
+using Random
 
 isdefined(@__MODULE__, :Memory) || const Memory = Vector # Compat for Julia < 1.11
 
