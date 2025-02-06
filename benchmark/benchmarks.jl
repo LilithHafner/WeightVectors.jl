@@ -16,7 +16,7 @@ constant(n) = ChairmarksForAirspeedVelocity.Runnable(Returns(vector_to_trial([n,
 # SUITE is a magic global variable that AirspeedVelocity looks for
 SUITE = BenchmarkGroup()
 
-SUITE["TTFX"] = constant(t1-t0)
+SUITE["TTFX excluding time to load"] = constant(t1-t0)
 
 SUITE["empty constructor"] = @benchmarkable DynamicDiscreteSampler()
 
