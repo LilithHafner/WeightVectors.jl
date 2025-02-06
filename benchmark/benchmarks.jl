@@ -1,7 +1,21 @@
-using DynamicDiscreteSamplers, ChairmarksForAirspeedVelocity
+using DynamicDiscreteSamplers
+
+t0 = time()
+ds = DynamicDiscreteSampler()
+push!(ds, 1, rand())
+push!(ds, 2, rand())
+x = rand(ds) + rand(ds)
+t1 = time()
+
+using ChairmarksForAirspeedVelocity
+
+"Convert a constant into a format that AirspeedVelocity can understand"
+constant(n) = ChairmarksForAirspeedVelocity.Runnable(Returns(ChairmarksForAirspeedVelocity.BenchmarkTools.Trial(ChairmarksForAirspeedVelocity.BenchmarkTools.Parameters(seconds=0,samples=2,evals=1,overhead=0,gctrial=false,gcsample=false),1e9Float64[n,n],Float64[0,0],0,0)))
 
 # SUITE is a magic global variable that AirspeedVelocity looks for
 SUITE = BenchmarkGroup()
+
+SUITE["TTFX"] = constant(t1-t0)
 
 SUITE["empty constructor"] = @benchmarkable DynamicDiscreteSampler()
 
@@ -104,8 +118,6 @@ SUITE["pathological 4"] = @benchmarkable pathological4_setup pathological4_updat
 include("code_size.jl")
 _code_size = code_size(pathof(DynamicDiscreteSamplers))
 
-constant(n) = ChairmarksForAirspeedVelocity.Runnable(Returns(ChairmarksForAirspeedVelocity.BenchmarkTools.Trial(ChairmarksForAirspeedVelocity.BenchmarkTools.Parameters(seconds=0,samples=2,evals=1,overhead=0,gctrial=false,gcsample=false),60^2*1e9Float64[n,n],Float64[0,0],0,0)))
-
-SUITE["code size in lines"] = constant(_code_size.lines)
-SUITE["code size in bytes"] = constant(_code_size.bytes)
-SUITE["code size in syntax nodes"] = constant(_code_size.syntax_nodes)
+SUITE["code size in lines"] = constant(3600_code_size.lines)
+SUITE["code size in bytes"] = constant(3600_code_size.bytes)
+SUITE["code size in syntax nodes"] = constant(3600_code_size.syntax_nodes)
