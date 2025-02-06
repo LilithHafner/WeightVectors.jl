@@ -100,3 +100,12 @@ function pathological4_update(ds)
     delete!(ds, 2)
 end
 SUITE["pathological 4"] = @benchmarkable pathological4_setup pathological4_update
+
+include("code_size.jl")
+_code_size = code_size(pathof(DynamicDiscreteSamplers))
+
+constant(n) = ChairmarksForAirspeedVelocity.Runnable(Returns(ChairmarksForAirspeedVelocity.BenchmarkTools.Trial(ChairmarksForAirspeedVelocity.BenchmarkTools.Parameters(seconds=0,samples=2,evals=1,overhead=0,gctrial=false,gcsample=false),60^2*1e9Float64[n,n],Float64[0,0],0,0)))
+
+SUITE["code size in lines"] = constant(_code_size.lines)
+SUITE["code size in bytes"] = constant(_code_size.bytes)
+SUITE["code size in syntax nodes"] = constant(_code_size.syntax_nodes)
