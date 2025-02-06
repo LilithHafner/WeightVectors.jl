@@ -9,7 +9,7 @@ t1 = time()
 
 using ChairmarksForAirspeedVelocity
 
-"Convert a constant into a format that AirspeedVelocity can understand"
+"Convert a vector into a format that AirspeedVelocity can understand"
 vector_to_trial(v) = ChairmarksForAirspeedVelocity.BenchmarkTools.Trial(ChairmarksForAirspeedVelocity.BenchmarkTools.Parameters(seconds=0,samples=length(v),evals=1,overhead=0,gctrial=false,gcsample=false),1e9v,zeros(length(v)),0,0)
 constant(n) = ChairmarksForAirspeedVelocity.Runnable(Returns(vector_to_trial([n, n])))
 
