@@ -30,6 +30,12 @@ maintain the total weight
 
 =#
 
+"""
+    Weights <: AbstractVector{Float64}
+
+An abstract vector capable of storing normal, non-negative floating point numbers on which
+`rand` samples an index according to values rather than sampling a value uniformly.
+"""
 abstract type Weights <: AbstractVector{Float64} end
 struct FixedSizeWeights <: Weights
     m::Memory{UInt64}
