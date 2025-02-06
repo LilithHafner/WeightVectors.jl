@@ -1,6 +1,14 @@
 using Base.JuliaSyntax
 
-function code_size(file)
+add(a, b) = (lines=a.lines+b.lines, bytes=a.bytes+b.bytes, syntax_nodes=a.syntax_nodes+b.syntax_nodes)
+function code_size(file_or_dir)
+    if isdir(file_or_dir)
+        reduce(add, code_size.(readdir(file_or_dir, join=true)))
+    elseif isfile(file_or_dir)
+        code_size_file(file_or_dir)
+    end
+end
+function code_size_file(file)
     text = String(read(file))
     tokens = tokenize(text)
 

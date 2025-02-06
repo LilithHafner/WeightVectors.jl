@@ -120,7 +120,7 @@ end
 SUITE["pathological 4"] = @benchmarkable pathological4_setup pathological4_update
 
 include("code_size.jl")
-_code_size = code_size(pathof(DynamicDiscreteSamplers))
+_code_size = code_size(dirname(pathof(DynamicDiscreteSamplers)))
 
 SUITE["code size in lines"] = constant(3600_code_size.lines)
 SUITE["code size in bytes"] = constant(3600_code_size.bytes)
