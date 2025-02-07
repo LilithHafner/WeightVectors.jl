@@ -489,16 +489,16 @@ function _set_to_zero!(m::Memory, i::Int)
     pos == 0 && return # if the entry is already zero, return
     # set the entry to zero (no need to zero the exponent)
     # m[j] = 0 is moved to after we adjust the edit_map entry for the shifted element, in case there is no shifted element
-    exponent = m[j+1]
+    exponent = m[j+1] >> 52
 
     # update group total weight and total weight
-    shifted_significand_sum_index = get_shifted_significand_sum_index(exponent >> 52)
+    shifted_significand_sum_index = get_shifted_significand_sum_index(exponent)
     shifted_significand_sum = get_UInt128(m, shifted_significand_sum_index)
     shifted_significand = m[pos]
     shifted_significand_sum -= shifted_significand
     set_UInt128!(m, shifted_significand_sum, shifted_significand_sum_index)
 
-    weight_index = 5 + 0x7fe - exponent >> 52
+    weight_index = 5 + 0x7fe - exponent
     old_weight = m[weight_index]
     m4 = m[4]
     m4 -= old_weight
@@ -518,7 +518,7 @@ function _set_to_zero!(m::Memory, i::Int)
             end
         end
     else # We did not zero out a group
-        shift = signed(exponent >> 52 + m[3])
+        shift = signed(exponent + m[3])
         new_weight = UInt64(shifted_significand_sum<<shift) + 1# TODO for perf: change to % UInt64
         m[weight_index] = new_weight
         m4 += new_weight
@@ -577,7 +577,7 @@ function _set_to_zero!(m::Memory, i::Int)
 
     # When zeroing out a group, mark the group as empty so that compaction will update the group metadata and then skip over it.
     if shifted_significand_sum == 0
-        m[group_pos+1] = exponent>>52 | 0x8000000000000000
+        m[group_pos+1] = exponent | 0x8000000000000000
     end
 
     # shrink the group
