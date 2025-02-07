@@ -61,13 +61,12 @@ exponent::UInt64
     `reinterpret(UInt64, weight) & Base.exponent_mask(Float64)`.
 level
     All the weights in a Weights object that have the same exponent.
-ss::UInt64 aka shifted significand
-    The significand of a weight, shifted to the left 11 bits
-    i.e. `(reinterpret(UInt64, weight) & Base.significand_mask(Float64)) << 11`.
+significand::UInt64
+    The significand of a weight is `(reinterpret(UInt64, weight) & Base.significand_mask(Float64)) << 11`.
     Ranges from 0x0000000000000000 for 1.0 to 0x7ffffffffffff800 for 1.9999...
-sss::UInt128 aka shifted significand sum
-    The sum of the shifted significands of a the weights in a given level, with their
-    implicit leading 1s added i.e. `sum(widen(0x8000000000000000 + ss) for ss in level)`.
+significand_sum::UInt128
+    The sum of the significands of a the weights in a given level, with their
+    implicit leading 1s added i.e. `sum(widen(0x8000000000000000 + significand) for significand in level)`.
     Is 0 for empty levels and otherwise ranges from widen(0x8000000000000000) to
     widen(0xfffffffffffff800) * length(weights).
 
@@ -78,10 +77,10 @@ sss::UInt128 aka shifted significand sum
 # <memory_length::Int>
 # 1                      length::Int
 # 2                      max_level::Int # absolute pointer to the first element of level weights that is nonzero
-# 3                      shift::Int level weights are equal to shifted_significand_sums<<(exponent+shift), plus one if shifted_significand_sum is not zero
+# 3                      shift::Int level weights are equal to significand_sums<<(exponent+shift), plus one if significand_sum is not zero
 # 4                      sum(level weights)::UInt64
 # 5..2050                level weights::[UInt64 2046] # earlier is higher. first is exponent 0x7fe, last is exponent 0x001. Subnormal are not supported.
-# 2051..6142             shifted_significand_sums::[UInt128 2046] # sum of significands shifted by 11 bits to the left with their leading 1s appended (the maximum significand contributes 0xfffffffffffff800)
+# 2051..6142             significand_sums::[UInt128 2046] # sum of significands with their leading 1s appended (the maximum significand contributes 0xfffffffffffff800)
 # 6143..10234            level location info::[NamedTuple{pos::Int, length::Int} 2046] indexes into sub_weights, pos is absolute into m.
 
 # gc info:
@@ -91,22 +90,22 @@ sss::UInt128 aka shifted significand sum
 
 # 10492..10491+2len      edit_map (maps index to current location in sub_weights)::[pos::Int, exponent::UInt64] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. TODO for perf: exponent could be UInt11, lots of wasted bits)
 
-# 10492+2allocated_len..10491+2allocated_len+6len sub_weights (woven with targets)::[[shifted_significand::UInt64, target::Int}]]. allocated_len == length_from_memory(length(m))
+# 10492+2allocated_len..10491+2allocated_len+6len sub_weights (woven with targets)::[[significand::UInt64, target::Int}]]. allocated_len == length_from_memory(length(m))
 
-# shifted significands are stored in sub_weights with their implicit leading 1 adding and shifted left 11 bits
+# significands are stored in sub_weights with their implicit leading 1 added
 #     element_from_sub_weights = 0x8000000000000000 | (reinterpret(UInt64, weight::Float64) << 11)
 # And sampled with
 #     rand(UInt64) < element_from_sub_weights
 # this means that for the lowest normal significand (52 zeros with an implicit leading one),
-# achieved by 2.0, 4.0, etc the shifted significand stored in sub_weights is 0x8000000000000000
+# achieved by 2.0, 4.0, etc the significand stored in sub_weights is 0x8000000000000000
 # and there are 2^63 pips less than that value (1/2 probability). For the
-# highest normal significand (52 ones with an implicit leading 1) the shifted significand
+# highest normal significand (52 ones with an implicit leading 1) the significand
 # stored in sub_weights is 0xfffffffffffff800 and there are 2^64-2^11 pips less than
 # that value for a probability of (2^64-2^11) / 2^64 == (2^53-1) / 2^53 == prevfloat(2.0)/2.0
 @assert 0xfffffffffffff800//big(2)^64 == (UInt64(2)^53-1)//UInt64(2)^53 == big(prevfloat(2.0))/big(2.0)
 @assert 0x8000000000000000 | (reinterpret(UInt64, 1.0::Float64) << 11) === 0x8000000000000000
 @assert 0x8000000000000000 | (reinterpret(UInt64, prevfloat(1.0)::Float64) << 11) === 0xfffffffffffff800
-# shifted significand sums are literal sums of the element_from_sub_weights's (though stored
+# significand sums are literal sums of the element_from_sub_weights's (though stored
 # as UInt128s because any two element_from_sub_weights's will overflow when added).
 
 # target can also store metadata useful for compaction.
@@ -222,35 +221,35 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     exponent = uv >> 52
     m[j+1] = exponent
     # update group total weight and total weight
-    shifted_significand_sum_index = get_shifted_significand_sum_index(exponent)
-    shifted_significand_sum = get_UInt128(m, shifted_significand_sum_index)
-    shifted_significand = 0x8000000000000000 | uv << 11
-    shifted_significand_sum += shifted_significand
-    set_UInt128!(m, shifted_significand_sum, shifted_significand_sum_index)
+    significand_sum_index = get_significand_sum_index(exponent)
+    significand_sum = get_UInt128(m, significand_sum_index)
+    significand = 0x8000000000000000 | uv << 11
+    significand_sum += significand
+    set_UInt128!(m, significand_sum, significand_sum_index)
     weight_index = 5 + 0x7fe - exponent
     if m[4] == 0 # if we were empty, set global shift (m[3]) so that m[4] will become ~2^40.
         m[3] = -24 - exponent
 
         shift = -24
-        weight = UInt64(shifted_significand_sum<<shift) + 1 # TODO for perf: change to % UInt64
+        weight = UInt64(significand_sum<<shift) + 1 # TODO for perf: change to % UInt64
 
         @assert Base.top_set_bit(weight) == 40 # TODO for perf: delete
         m[weight_index] = weight
         m[4] = weight
     else
         shift = signed(exponent + m[3])
-        if Base.top_set_bit(shifted_significand_sum)+shift > 64
+        if Base.top_set_bit(significand_sum)+shift > 64
             # if this would overflow, drop shift so that it renormalizes down to 48.
             # this drops shift at least ~16 and makes the sum of weights at least ~2^48. # TODO: add an assert
-            # Base.top_set_bit(shifted_significand_sum)+shift == 48
-            # Base.top_set_bit(shifted_significand_sum)+signed(exponent + m[3]) == 48
-            # Base.top_set_bit(shifted_significand_sum)+signed(exponent) + signed(m[3]) == 48
-            # signed(m[3]) == 48 - Base.top_set_bit(shifted_significand_sum) - signed(exponent)
-            m3 = 48 - Base.top_set_bit(shifted_significand_sum) - exponent
+            # Base.top_set_bit(significand_sum)+shift == 48
+            # Base.top_set_bit(significand_sum)+signed(exponent + m[3]) == 48
+            # Base.top_set_bit(significand_sum)+signed(exponent) + signed(m[3]) == 48
+            # signed(m[3]) == 48 - Base.top_set_bit(significand_sum) - signed(exponent)
+            m3 = 48 - Base.top_set_bit(significand_sum) - exponent
             set_global_shift_decrease!(m, m3) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
             shift = signed(exponent + m3)
         end
-        weight = UInt64(shifted_significand_sum<<shift) + 1 # TODO for perf: change to % UInt64
+        weight = UInt64(significand_sum<<shift) + 1 # TODO for perf: change to % UInt64
 
         weight_index = 5 + 0x7fe - exponent
         old_weight = m[weight_index]
@@ -264,9 +263,9 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             set_global_shift_decrease!(m, m3, m4) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
             if weight_index < m[2] # if the new weight was not adjusted by set_global_shift_decrease!, then adjust it manually
                 shift = signed(2051-weight_index+m3)
-                new_weight = (shifted_significand_sum<<shift) % UInt64 + 1
+                new_weight = (significand_sum<<shift) % UInt64 + 1
 
-                @assert shifted_significand_sum != 0
+                @assert significand_sum != 0
                 @assert m[weight_index] == weight
 
                 m[weight_index] = new_weight
@@ -279,7 +278,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     m[2] = min(m[2], weight_index) # Set after insertion because update_weights! may need to update the global shift, in which case knowing the old m[2] will help it skip checking empty levels
 
     # lookup the group by exponent and bump length
-    group_length_index = shifted_significand_sum_index + 2*2046 + 1
+    group_length_index = significand_sum_index + 2*2046 + 1
     group_pos = m[group_length_index-1]
     group_length = m[group_length_index]+1
     m[group_length_index] = group_length # setting this before compaction means that compaction will ensure there is enough space for this expanded group, but will also copy one index (16 bytes) of junk which could access past the end of m. The junk isn't an issue once coppied because we immediately overwrite it. The former (copying past the end of m) only happens if the group to be expanded is already kissing the end. In this case, it will end up at the end after compaction and be easily expanded afterwords. Consequently, we treat that case specially and bump group length and manually expand after compaction
@@ -368,7 +367,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
 
     # insert the element into the group
     group_lastpos = (group_pos-2)+2group_length
-    m[group_lastpos] = shifted_significand
+    m[group_lastpos] = significand
     m[group_lastpos+1] = i
 
     # log the insertion location in the edit map
@@ -379,7 +378,7 @@ end
 
 merge_uint64(x::UInt64, y::UInt64) = UInt128(x) | (UInt128(y) << 64)
 split_uint128(x::UInt128) = (x % UInt64, (x >>> 64) % UInt64)
-get_shifted_significand_sum_index(exponent::UInt64) = 5 + 3*2046 - 2exponent
+get_significand_sum_index(exponent::UInt64) = 5 + 3*2046 - 2exponent
 get_UInt128(m::Memory, i::Integer) = get_UInt128(m, _convert(Int, i))
 get_UInt128(m::Memory, i::Int) = merge_uint64(m[i], m[i+1])
 set_UInt128!(m::Memory, v::UInt128, i::Integer) = m[i:i+1] .= split_uint128(v)
@@ -468,10 +467,10 @@ end
 function recompute_weights!(m, m3, m4, range)
     for i in range
         j = 2i+2041
-        shifted_significand_sum = get_UInt128(m, j)
-        shifted_significand_sum == 0 && continue # in this case, the weight was and still is zero
+        significand_sum = get_UInt128(m, j)
+        significand_sum == 0 && continue # in this case, the weight was and still is zero
         shift = signed(2051-i+m3)
-        weight = (shifted_significand_sum<<shift) % UInt64 + 1
+        weight = (significand_sum<<shift) % UInt64 + 1
 
         old_weight = m[i]
         m[i] = weight
@@ -492,17 +491,17 @@ function _set_to_zero!(m::Memory, i::Int)
     exponent = m[j+1]
 
     # update group total weight and total weight
-    shifted_significand_sum_index = get_shifted_significand_sum_index(exponent)
-    shifted_significand_sum = get_UInt128(m, shifted_significand_sum_index)
-    shifted_significand = m[pos]
-    shifted_significand_sum -= shifted_significand
-    set_UInt128!(m, shifted_significand_sum, shifted_significand_sum_index)
+    significand_sum_index = get_significand_sum_index(exponent)
+    significand_sum = get_UInt128(m, significand_sum_index)
+    significand = m[pos]
+    significand_sum -= significand
+    set_UInt128!(m, significand_sum, significand_sum_index)
 
     weight_index = 5 + 0x7fe - exponent
     old_weight = m[weight_index]
     m4 = m[4]
     m4 -= old_weight
-    if shifted_significand_sum == 0 # We zeroed out a group
+    if significand_sum == 0 # We zeroed out a group
         m[weight_index] = 0
         if m4 == 0 # There are no groups left
             m[2] = 2051
@@ -519,7 +518,7 @@ function _set_to_zero!(m::Memory, i::Int)
         end
     else # We did not zero out a group
         shift = signed(exponent + m[3])
-        new_weight = UInt64(shifted_significand_sum<<shift) + 1# TODO for perf: change to % UInt64
+        new_weight = UInt64(significand_sum<<shift) + 1# TODO for perf: change to % UInt64
         m[weight_index] = new_weight
         m4 += new_weight
     end
@@ -529,7 +528,7 @@ function _set_to_zero!(m::Memory, i::Int)
         # Increase the shift to a reasonable level.
         # All nonzero true weights correspond to nonzero weights so 0 < m4 is a sufficient check to determine if we have fully emptied out the weights or not
 
-        # TODO for perf: we can almost get away with loading only the most significant word of shifted_significand_sums. Here, we use the most significant 65 bits.
+        # TODO for perf: we can almost get away with loading only the most significant word of significand_sums. Here, we use the most significant 65 bits.
         j2 = 2m[2]+2041
         x = get_UInt128(m, j2)
         # TODO refactor indexing for simplicity
@@ -561,7 +560,7 @@ function _set_to_zero!(m::Memory, i::Int)
     end
 
     # lookup the group by exponent
-    group_length_index = shifted_significand_sum_index + 2*2046 + 1
+    group_length_index = significand_sum_index + 2*2046 + 1
     group_pos = m[group_length_index-1]
     group_length = m[group_length_index]
     group_lastpos = (group_pos-2)+2group_length
@@ -576,7 +575,7 @@ function _set_to_zero!(m::Memory, i::Int)
     m[j] = 0
 
     # When zeroing out a group, mark the group as empty so that compaction will update the group metadata and then skip over it.
-    if shifted_significand_sum == 0
+    if significand_sum == 0
         m[group_pos+1] = exponent | 0x8000000000000000
     end
 
