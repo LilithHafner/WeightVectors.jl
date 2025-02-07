@@ -119,6 +119,31 @@ function pathological4_update(ds)
 end
 SUITE["pathological 4"] = @benchmarkable pathological4_setup pathological4_update
 
+
+function pathological5a_setup()
+    ds = DynamicDiscreteSampler()
+    push!(ds, 1, 2.0^-32)
+    push!(ds, 2, 1.0)
+    ds
+end
+function pathological5a_update(ds)
+    push!(ds, 3, 2.0^18)
+    delete!(ds, 3)
+end
+SUITE["pathological 5a"] = @benchmarkable pathological5a_setup pathological5a_update
+function pathological5b_setup()
+    ds = DynamicDiscreteSampler()
+    for i in 128:-1:1
+        push!(ds, i, 2.0^-i)
+    end
+    ds
+end
+function pathological5b_update(ds)
+    push!(ds, 33, 2.0^30)
+    delete!(ds, 33)
+end
+SUITE["pathological 5b"] = @benchmarkable pathological5b_setup pathological5b_update
+
 include("code_size.jl")
 _code_size = code_size(dirname(pathof(DynamicDiscreteSamplers)))
 
