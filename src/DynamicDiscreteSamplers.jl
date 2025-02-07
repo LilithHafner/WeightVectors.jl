@@ -62,11 +62,11 @@ exponent::UInt64
 level
     All the weights in a Weights object that have the same exponent.
 significand::UInt64
-    The significand of a weight is `(reinterpret(UInt64, weight) & Base.significand_mask(Float64)) << 11`.
-    Ranges from 0x0000000000000000 for 1.0 to 0x7ffffffffffff800 for 1.9999...
+    The significand of a weight is `reinterpret(UInt64, weight) << 11 | 0x8000000000000000`.
+    Ranges from 0x8000000000000000 for 1.0 to 0xfffffffffffff800 for 1.9999...
+    The ratio of two weights with the same exponent is the ratio of their significands.
 significand_sum::UInt128
-    The sum of the significands of a the weights in a given level, with their
-    implicit leading 1s added i.e. `sum(widen(0x8000000000000000 + significand) for significand in level)`.
+    The sum of the significands of the weights in a given level.
     Is 0 for empty levels and otherwise ranges from widen(0x8000000000000000) to
     widen(0xfffffffffffff800) * length(weights).
 weight
@@ -87,7 +87,7 @@ weight
 # 3                      shift::Int level weights are equal to significand_sums<<(exponent+shift), plus one if significand_sum is not zero
 # 4                      sum(level weights)::UInt64
 # 5..2050                level weights::[UInt64 2046] # earlier is higher. first is exponent 0x7fe, last is exponent 0x001. Subnormal are not supported.
-# 2051..6142             significand_sums::[UInt128 2046] # sum of significands with their leading 1s appended (the maximum significand contributes 0xfffffffffffff800)
+# 2051..6142             significand_sums::[UInt128 2046] # sum of significands (the maximum significand contributes 0xfffffffffffff800)
 # 6143..10234            level location info::[NamedTuple{pos::Int, length::Int} 2046] indexes into sub_weights, pos is absolute into m.
 
 # gc info:
