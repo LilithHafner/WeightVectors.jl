@@ -56,7 +56,7 @@ end
 # <memory_length::Int>
 # 1                      length::Int
 # 2                      max_level::Int # absolute pointer to the first element of level weights that is nonzero
-# 3                      shift::Int level weights are equal to shifted_significand_sums<<(exponent_bits+shift) rounded up
+# 3                      shift::Int level weights are equal to shifted_significand_sums<<(exponent_bits+shift), plus one if shifted_significand_sum is not zero
 # 4                      sum(level weights)::UInt64
 # 5..2050                level weights::[UInt64 2046] # earlier is higher. first is exponent bits 0x7fe, last is exponent bits 0x001. Subnormal are not supported.
 # 2051..6142             shifted_significand_sums::[UInt128 2046] # sum of significands shifted by 11 bits to the left with their leading 1s appended (the maximum significand contributes 0xfffffffffffff800)
@@ -98,9 +98,6 @@ end
 # Trivial extensions:
 # push!, delete!
 
-# TODO for performance and simplicity, change weights to rounded down instead of rounded up
-# then, leverage the fact that plain bit shifting rounds down by default.
-
 Base.rand(rng::AbstractRNG, w::Weights) = _rand(rng, w.m)
 Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
@@ -121,13 +118,15 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
     end
 
     # Low-probability rejection to improve accuracy from very close to perfect
-    if x == mi # mi is the weight rounded up. If they are equal than we should refine further and possibly reject. This branch is very uncommon and still O(1); constant factors don't matter here.
+    if x == mi # mi is the weight rounded down plus 1. If they are equal than we should refine further and possibly reject. This branch is very uncommon and still O(1); constant factors don't matter here.
+        # shift::Int = exponent_bits+m[3]
         # significand_sum::UInt128 = ...
-        # weight::UInt64 = mi = ceil(significand_sum<<*(exponent_bits+shift))...
-        # rejection_p = ceil(significand_sum<<*(exponent_bits+shift)) - true(ceil(significand_sum<<*(exponent_bits+shift)))
-        # rejection_p = 1-rem(significand_sum<<*(exponent_bits+shift))
-        # acceptance_p = rem(significand_sum<<*(exponent_bits+shift))
-        # acceptance_p = significand_sum<<*(exponent_bits+shift) & ...00000.111111...
+        # weight::UInt64 = significand_sum<<shift+1
+        # true_weight::ExactReal = exact(significand_sum)<<shift
+        # true_weight::ExactReal = significand_sum<<shift + exact(significand_sum)<<shift & ...0000.1111...
+        # rejection_p = weight-true_weight = (significand_sum<<shift+1) - (significand_sum<<shift + exact(significand_sum)<<shift & ...0000.1111...)
+        # rejection_p = 1 - exact(significand_sum)<<shift & ...0000.1111...
+        # acceptance_p = exact(significand_sum)<<shift & ...0000.1111...  (for example, if significand_sum<<shift is exact, then acceptance_p will be zero)
         j = 2i+2041
         exponent_bits = 0x7fe+5-i
         shift = signed(exponent_bits + m[3])
@@ -213,7 +212,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         shift = -24
         weight = UInt64(shifted_significand_sum<<shift) # TODO for perf: change to % UInt64
         # round up
-        weight += (trailing_zeros(shifted_significand_sum)+shift < 0)
+        weight += 1
 
         @assert Base.top_set_bit(weight) == 40 # TODO for perf: delete
         m[weight_index] = weight
@@ -234,7 +233,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         end
         weight = UInt64(shifted_significand_sum<<shift) # TODO for perf: change to % UInt64
         # round up
-        weight += (trailing_zeros(shifted_significand_sum)+shift < 0) & (shifted_significand_sum != 0) # TODO for perf: ensure this final clause is const-prop eliminated when it can be (i.e. any time other than setting a weight to zero)
+        weight += (shifted_significand_sum != 0) # TODO for perf: make this constant if possible
 
         weight_index = 5 + 0x7fe - exponent >> 52
         old_weight = m[weight_index]
@@ -250,7 +249,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
                 shift = signed(2051-weight_index+m3)
                 new_weight = (shifted_significand_sum<<shift) % UInt64
                 # round up
-                new_weight += trailing_zeros(shifted_significand_sum)+shift < 0
+                new_weight += 1
 
                 @assert shifted_significand_sum != 0
                 @assert m[weight_index] == weight
@@ -429,7 +428,7 @@ function set_global_shift_increase!(m::Memory, m3::UInt64, m4, j0) # Increase sh
         shift = signed(2051-i+m3)
         weight = (shifted_significand_sum<<shift) % UInt64
         # round up
-        weight += (trailing_zeros(shifted_significand_sum)+shift < 0)
+        weight += 1
 
         old_weight = m[i]
         m[i] = weight
@@ -462,7 +461,7 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
         shift = signed(2051-i+m3)
         weight = (shifted_significand_sum<<shift) % UInt64
         # round up
-        weight += (trailing_zeros(shifted_significand_sum)+shift < 0) & (shifted_significand_sum != 0) # TODO for perf: ensure this final clause is const-prop eliminated when it can be (i.e. any time other than setting a weight to zero)
+        weight += (shifted_significand_sum != 0) # TODO for perf: make this constant if possible
 
         old_weight = m[i]
         m[i] = weight
@@ -519,7 +518,7 @@ function _set_to_zero!(m::Memory, i::Int)
         shift = signed(exponent >> 52 + m[3])
         new_weight = UInt64(shifted_significand_sum<<shift) # TODO for perf: change to % UInt64
         # round up
-        new_weight += trailing_zeros(shifted_significand_sum)+shift < 0
+        new_weight += 1
         m[weight_index] = new_weight
         m4 += new_weight
     end
