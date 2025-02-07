@@ -217,10 +217,9 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         m[4] = weight
     else
         shift = signed(exponent >> 52 + m[3])
-        if shifted_significand_sum != 0 && Base.top_set_bit(shifted_significand_sum)+shift > 64
+        if Base.top_set_bit(shifted_significand_sum)+shift > 64
             # if this would overflow, drop shift so that it renormalizes down to 48.
-            # this drops shift at least ~16 and makes the sum of weights at least ~2^48.
-            # TODO for perf, don't check this on re-compute
+            # this drops shift at least ~16 and makes the sum of weights at least ~2^48. # TODO: add an assert
             # Base.top_set_bit(shifted_significand_sum)+shift == 48
             # Base.top_set_bit(shifted_significand_sum)+signed(exponent >> 52 + m[3]) == 48
             # Base.top_set_bit(shifted_significand_sum)+signed(exponent >> 52) + signed(m[3]) == 48
@@ -229,9 +228,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             set_global_shift_decrease!(m, m3) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
             shift = signed(exponent >> 52 + m3)
         end
-        weight = UInt64(shifted_significand_sum<<shift) # TODO for perf: change to % UInt64
-        # round up
-        weight += (shifted_significand_sum != 0) # TODO for perf: make this constant if possible
+        weight = UInt64(shifted_significand_sum<<shift) + 1 # TODO for perf: change to % UInt64
 
         weight_index = 5 + 0x7fe - exponent >> 52
         old_weight = m[weight_index]
