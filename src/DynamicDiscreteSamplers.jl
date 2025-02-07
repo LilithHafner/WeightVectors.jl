@@ -60,7 +60,7 @@ end
 # 4                      sum(level weights)::UInt64
 # 5..2050                level weights::[UInt64 2046] # earlier is higher. first is exponent bits 0x7fe, last is exponent bits 0x001. Subnormal are not supported.
 # 2051..6142             shifted_significand_sums::[UInt128 2046] # sum of significands shifted by 11 bits to the left with their leading 1s appended (the maximum significand contributes 0xfffffffffffff800)
-# 6143..10234            level location info::[NamedTuple{posm2::Int, length::Int} 2046] indexes into sub_weights, posm2 is absolute into m.
+# 6143..10234            level location info::[NamedTuple{pos::Int, length::Int} 2046] indexes into sub_weights, pos is absolute into m.
 
 # gc info:
 # 10235                  next_free_space::Int (used to re-allocate) <index 10235>
@@ -145,14 +145,14 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 
     # Lookup level info
     j = 2i + 6133
-    posm2 = m[j]
+    pos = m[j]
     len = m[j+1]
 
     # Sample within level
     while true
         r = rand(rng, UInt64)
         k1 = (r>>leading_zeros(len-1))
-        k2 = k1<<1+posm2+2 # TODO for perf: try %Int here (and everywhere)
+        k2 = k1<<1+pos # TODO for perf: try %Int here (and everywhere)
         # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to 0
         k1 < len && rand(rng, UInt64) < m[k2] && return Int(signed(m[k2+1]))
     end
@@ -220,7 +220,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
 
     # lookup the group by exponent and bump length
     group_length_index = shifted_significand_sum_index + 2*2046 + 1
-    group_posm2 = m[group_length_index-1]
+    group_pos = m[group_length_index-1]
     group_length = m[group_length_index]+1
     m[group_length_index] = group_length # setting this before compaction means that compaction will ensure there is enough space for this expanded group, but will also copy one index (16 bytes) of junk which could access past the end of m. The junk isn't an issue once coppied because we immediately overwrite it. The former (copying past the end of m) only happens if the group to be expanded is already kissing the end. In this case, it will end up at the end after compaction and be easily expanded afterwords. Consequently, we treat that case specially and bump group length and manually expand after compaction
     allocs_index,allocs_subindex = get_alloced_indices(exponent)
@@ -232,14 +232,14 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     if group_length > allocated_size
         next_free_space = m[10235]
         # if at end already, simply extend the allocation # TODO see if removing this optimization is problematic; TODO verify the optimization is triggering
-        if next_free_space == group_posm2+2group_length # note that this is valid even if group_length is 1 (previously zero).
+        if next_free_space == (group_pos-2)+2group_length # note that this is valid even if group_length is 1 (previously zero).
             new_allocation_length = max(2, 2allocated_size)
             new_next_free_space = next_free_space+new_allocation_length
             if new_next_free_space > length(m)+1 # There isn't room; we need to compact
                 m[group_length_index] = group_length-1 # See comment above; we don't want to copy past the end of m
                 firstindex_of_compactee = 2length_from_memory(length(m)) + 10492 # TODO for clarity: move this into compact!
                 next_free_space = compact!(m, Int(firstindex_of_compactee), m, Int(firstindex_of_compactee))
-                group_posm2 = next_free_space-new_allocation_length-2 # The group will move but remian the last group
+                group_pos = next_free_space-new_allocation_length # The group will move but remian the last group
                 new_next_free_space = next_free_space+new_allocation_length
                 @assert new_next_free_space < length(m)+1 # TODO for perf, delete this
                 m[group_length_index] = group_length
@@ -266,7 +266,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
                 new_next_free_space = next_free_space+twice_new_allocated_size
                 @assert new_next_free_space < length(m)+1 # After compaction there should be room TODO for perf, delete this
 
-                group_posm2 = m[group_length_index-1] # The group likely moved during compaction
+                group_pos = m[group_length_index-1] # The group likely moved during compaction
 
                 # Re-lookup allocated chunk because compaction could have changed other
                 # chunk elements. However, the allocated size of this group could not have
@@ -286,10 +286,10 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             m[10235] = new_next_free_space
 
             # Copy the group to new location
-            unsafe_copyto!(m, next_free_space, m, group_posm2+2, 2group_length-2)
+            unsafe_copyto!(m, next_free_space, m, group_pos, 2group_length-2)
 
             # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
-            delta = next_free_space-(group_posm2+2)
+            delta = next_free_space-group_pos
             for k in 1:group_length-1
                 target = m[next_free_space+2k-1]
                 l = 2target + 10490
@@ -300,16 +300,16 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # TODO for perf: delete this and instead have compaction check if the index
             # pointed to by the start of the group points back (in the edit map) to that location
             if allocated_size != 0
-                m[group_posm2 + 3] = unsigned(Int64(-allocated_size))
+                m[group_pos+1] = unsigned(Int64(-allocated_size))
             end
 
             # update group start location
-            group_posm2 = m[group_length_index-1] = next_free_space-2
+            group_pos = m[group_length_index-1] = next_free_space
         end
     end
 
     # insert the element into the group
-    group_lastpos = group_posm2+2group_length
+    group_lastpos = (group_pos-2)+2group_length
     m[group_lastpos] = shifted_significand
     m[group_lastpos+1] = i
 
@@ -564,9 +564,9 @@ function _set_to_zero!(m::Memory, i::Int)
 
     # lookup the group by exponent
     group_length_index = shifted_significand_sum_index + 2*2046 + 1
-    group_posm2 = m[group_length_index-1]
+    group_pos = m[group_length_index-1]
     group_length = m[group_length_index]
-    group_lastpos = group_posm2+2group_length
+    group_lastpos = (group_pos-2)+2group_length
 
     # TODO for perf: see if it's helpful to gate this on pos != group_lastpos
     # shift the last element of the group into the spot occupied by the removed element
@@ -579,7 +579,7 @@ function _set_to_zero!(m::Memory, i::Int)
 
     # When zeroing out a group, mark the group as empty so that compaction will update the group metadata and then skip over it.
     if shifted_significand_sum == 0
-        m[group_posm2+3] = exponent>>52 | 0x8000000000000000
+        m[group_pos+1] = exponent>>52 | 0x8000000000000000
     end
 
     # shrink the group
