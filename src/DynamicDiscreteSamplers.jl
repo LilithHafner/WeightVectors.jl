@@ -275,8 +275,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             new_next_free_space = next_free_space+new_allocation_length
             if new_next_free_space > length(m)+1 # There isn't room; we need to compact
                 m[group_length_index] = group_length-1 # See comment above; we don't want to copy past the end of m
-                firstindex_of_compactee = 2length_from_memory(length(m)) + 10492 # TODO for clarity: move this into compact!
-                next_free_space = compact!(m, Int(firstindex_of_compactee), m, Int(firstindex_of_compactee))
+                next_free_space = compact!(m, m)
                 group_pos = next_free_space-new_allocation_length # The group will move but remian the last group
                 new_next_free_space = next_free_space+new_allocation_length
                 @assert new_next_free_space < length(m)+1 # TODO for perf, delete this
@@ -297,9 +296,8 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             twice_new_allocated_size = max(0x2,allocated_size<<2)
             new_next_free_space = next_free_space+twice_new_allocated_size
             if new_next_free_space > length(m)+1 # out of space; compact. TODO for perf, consider resizing at this time slightly eagerly?
-                firstindex_of_compactee = 2length_from_memory(length(m)) + 10492
                 m[group_length_index] = group_length-1 # incrementing the group length before compaction is spotty because if the group was previously empty then this new group length will be ignored (compact! loops over sub_weights, not levels)
-                next_free_space = compact!(m, Int(firstindex_of_compactee), m, Int(firstindex_of_compactee))
+                next_free_space = compact!(m, m)
                 m[group_length_index] = group_length
                 new_next_free_space = next_free_space+twice_new_allocated_size
                 @assert new_next_free_space < length(m)+1 # After compaction there should be room TODO for perf, delete this
@@ -618,12 +616,14 @@ function _resize!(w::ResizableWeights, len::Integer)
         unsafe_copyto!(m2, 2, m, 2, 2len + 10490)
     end
 
-    compact!(m2, Int(2len + 10492), m, Int(2length_from_memory(length(m)) + 10492))
+    compact!(m2, m)
     w.m = m2
     w
 end
 
-function compact!(dst::Memory{UInt64}, dst_i::Int, src::Memory{UInt64}, src_i::Int)
+function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
+    dst_i = Int(2length_from_memory(length(dst)) + 10492)
+    src_i = Int(2length_from_memory(length(src)) + 10492)
     next_free_space = src[10235]
 
     while src_i < next_free_space
