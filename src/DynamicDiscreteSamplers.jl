@@ -69,6 +69,13 @@ significand_sum::UInt128
     implicit leading 1s added i.e. `sum(widen(0x8000000000000000 + significand) for significand in level)`.
     Is 0 for empty levels and otherwise ranges from widen(0x8000000000000000) to
     widen(0xfffffffffffff800) * length(weights).
+weight
+    Refers to the relative likely hood of an event. Weights are like probabilities except
+    they do not need to sum to one. In this codebase, the term "weight" is used to refer to
+    four things: the weight of an element relative to all the other elements in in a
+    Weights object; the weight of an element relative to the other elements in its level;
+    the weight of a level relative to the other levels as defined by level_weights; and the
+    weight of a level relative to the other levels as defined by significand_sums.
 
 =======  End Legend  ======#
 
