@@ -89,7 +89,7 @@ sss::UInt128 aka shifted significand sum
 # 16 unused bits
 # 10236..10491           level allocated length::[UInt8 2046] (2^(x-1) is implied)
 
-# 10492..10491+2len      edit_map (maps index to current location in sub_weights)::[pos::Int, exponent::Int] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. exponent could be UInt11, lots of wasted bits)
+# 10492..10491+2len      edit_map (maps index to current location in sub_weights)::[pos::Int, exponent::UInt64] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. TODO for perf: exponent could be UInt11, lots of wasted bits)
 
 # 10492+2allocated_len..10491+2allocated_len+6len sub_weights (woven with targets)::[[shifted_significand::UInt64, target::Int}]]. allocated_len == length_from_memory(length(m))
 
@@ -219,17 +219,17 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     j = 2i + 10490
     @assert m[j] == 0
 
-    exponent = uv & Base.exponent_mask(Float64)
-    m[j+1] = exponent
+    exponent = uv >> 52
+    m[j+1] = exponent << 52
     # update group total weight and total weight
-    shifted_significand_sum_index = get_shifted_significand_sum_index(exponent)
+    shifted_significand_sum_index = get_shifted_significand_sum_index(exponent << 52)
     shifted_significand_sum = get_UInt128(m, shifted_significand_sum_index)
     shifted_significand = 0x8000000000000000 | uv << 11
     shifted_significand_sum += shifted_significand
     set_UInt128!(m, shifted_significand_sum, shifted_significand_sum_index)
-    weight_index = 5 + 0x7fe - exponent >> 52
+    weight_index = 5 + 0x7fe - exponent
     if m[4] == 0 # if we were empty, set global shift (m[3]) so that m[4] will become ~2^40.
-        m[3] = -24 - exponent >> 52
+        m[3] = -24 - exponent
 
         shift = -24
         weight = UInt64(shifted_significand_sum<<shift) + 1 # TODO for perf: change to % UInt64
@@ -238,21 +238,21 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         m[weight_index] = weight
         m[4] = weight
     else
-        shift = signed(exponent >> 52 + m[3])
+        shift = signed(exponent + m[3])
         if Base.top_set_bit(shifted_significand_sum)+shift > 64
             # if this would overflow, drop shift so that it renormalizes down to 48.
             # this drops shift at least ~16 and makes the sum of weights at least ~2^48. # TODO: add an assert
             # Base.top_set_bit(shifted_significand_sum)+shift == 48
-            # Base.top_set_bit(shifted_significand_sum)+signed(exponent >> 52 + m[3]) == 48
-            # Base.top_set_bit(shifted_significand_sum)+signed(exponent >> 52) + signed(m[3]) == 48
-            # signed(m[3]) == 48 - Base.top_set_bit(shifted_significand_sum) - signed(exponent >> 52)
-            m3 = 48 - Base.top_set_bit(shifted_significand_sum) - exponent >> 52
+            # Base.top_set_bit(shifted_significand_sum)+signed(exponent + m[3]) == 48
+            # Base.top_set_bit(shifted_significand_sum)+signed(exponent) + signed(m[3]) == 48
+            # signed(m[3]) == 48 - Base.top_set_bit(shifted_significand_sum) - signed(exponent)
+            m3 = 48 - Base.top_set_bit(shifted_significand_sum) - exponent
             set_global_shift_decrease!(m, m3) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
-            shift = signed(exponent >> 52 + m3)
+            shift = signed(exponent + m3)
         end
         weight = UInt64(shifted_significand_sum<<shift) + 1 # TODO for perf: change to % UInt64
 
-        weight_index = 5 + 0x7fe - exponent >> 52
+        weight_index = 5 + 0x7fe - exponent
         old_weight = m[weight_index]
         m[weight_index] = weight
         m4 = m[4]
@@ -283,7 +283,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     group_pos = m[group_length_index-1]
     group_length = m[group_length_index]+1
     m[group_length_index] = group_length # setting this before compaction means that compaction will ensure there is enough space for this expanded group, but will also copy one index (16 bytes) of junk which could access past the end of m. The junk isn't an issue once coppied because we immediately overwrite it. The former (copying past the end of m) only happens if the group to be expanded is already kissing the end. In this case, it will end up at the end after compaction and be easily expanded afterwords. Consequently, we treat that case specially and bump group length and manually expand after compaction
-    allocs_index,allocs_subindex = get_alloced_indices(exponent)
+    allocs_index,allocs_subindex = get_alloced_indices(exponent << 52)
     allocs_chunk = m[allocs_index]
     log2_allocated_size = allocs_chunk >> allocs_subindex % UInt8 - 1
     allocated_size = 1<<log2_allocated_size
