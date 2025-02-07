@@ -413,20 +413,8 @@ function set_global_shift_increase!(m::Memory, m3::UInt64, m4, j0) # Increase sh
     =#
     # So for all i >= 2051+128+signed(m3), this holds. This means i1 = 2051+128+signed(m3)-1.
     i1 = min(2051+128+signed(m3)-1, 2050)
-
-    for i in i0:i1 # TODO using i1-1 here passes tests (and is actually valid, I think. using i1-2 may fail if there are about 2^63 elements in the (i1-1)^th level. It would be possible to scale this range with length (m[1]) in which case testing could be stricter and performance could be (marginally) better, though not in large cases so possibly not worth doing at all)
-        j = 2i+2041
-        shifted_significand_sum = get_UInt128(m, j)
-        shifted_significand_sum == 0 && continue # in this case, the weight was and still is zero
-        shift = signed(2051-i+m3)
-        weight = (shifted_significand_sum<<shift) % UInt64 + 1
-
-        old_weight = m[i]
-        m[i] = weight
-        m4 += weight-old_weight
-    end
-
-    m[4] = m4
+    recompute_range = i0:i1 # TODO using i1-1 here passes tests (and is actually valid, I think. using i1-2 may fail if there are about 2^63 elements in the (i1-1)^th level. It would be possible to scale this range with length (m[1]) in which case testing could be stricter and performance could be (marginally) better, though not in large cases so possibly not worth doing at all)
+    m[4] = recompute_weights!(m, m3, m4, recompute_range)
 end
 
 function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease shift, on insertion of elements
@@ -446,7 +434,19 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
     @assert length(recompute_range) <= 128 # TODO for perf: why is this not 64?
     @assert length(flatten_range) <= 128 # TODO for perf: why is this not 64?
 
-    for i in recompute_range
+    m4 = recompute_weights!(m, m3, m4, recompute_range)
+    for i in flatten_range # set nonzeros to 1
+        old_weight = m[i]
+        weight = old_weight != 0
+        m[i] = weight
+        m4 += weight-old_weight
+    end
+
+    m[4] = m4
+end
+
+function recompute_weights!(m, m3, m4, range)
+    for i in range
         j = 2i+2041
         shifted_significand_sum = get_UInt128(m, j)
         shifted_significand_sum == 0 && continue # in this case, the weight was and still is zero
@@ -457,14 +457,7 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
         m[i] = weight
         m4 += weight-old_weight
     end
-    for i in flatten_range # set nonzeros to 1
-        old_weight = m[i]
-        weight = old_weight != 0
-        m[i] = weight
-        m4 += weight-old_weight
-    end
-
-    m[4] = m4
+    m4
 end
 
 get_alloced_indices(exponent::UInt64) = 10491 - exponent >> 55, exponent >> 49 & 0x38
