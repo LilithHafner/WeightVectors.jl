@@ -186,7 +186,7 @@ function _getindex(m::Memory{UInt64}, i::Int)
     pos == 0 && return 0.0
     exponent = m[j+1]
     weight = m[pos]
-    reinterpret(Float64, exponent | (weight - 0x8000000000000000) >> 11)
+    reinterpret(Float64, (exponent<<52) | (weight - 0x8000000000000000) >> 11)
 end
 
 function _setindex!(m::Memory, v::Float64, i::Int)
@@ -220,7 +220,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     @assert m[j] == 0
 
     exponent = uv >> 52
-    m[j+1] = exponent << 52
+    m[j+1] = exponent
     # update group total weight and total weight
     shifted_significand_sum_index = get_shifted_significand_sum_index(exponent)
     shifted_significand_sum = get_UInt128(m, shifted_significand_sum_index)
@@ -489,7 +489,7 @@ function _set_to_zero!(m::Memory, i::Int)
     pos == 0 && return # if the entry is already zero, return
     # set the entry to zero (no need to zero the exponent)
     # m[j] = 0 is moved to after we adjust the edit_map entry for the shifted element, in case there is no shifted element
-    exponent = m[j+1] >> 52
+    exponent = m[j+1]
 
     # update group total weight and total weight
     shifted_significand_sum_index = get_shifted_significand_sum_index(exponent)
@@ -677,7 +677,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         # Lookup the group in the group location table to find its length (performance optimization for copying, necessary to decide new allocated size and update pos)
         # exponent of 0x00000000000007fe is index 6+3*2046
         # exponent of 0x0000000000000001 is index 4+5*2046
-        group_length_index = 6 + 5*2046 - exponent >> 51
+        group_length_index = 6 + 5*2046 - 2exponent
         group_length = src[group_length_index]
 
         # Update group pos in level_location_info
@@ -690,7 +690,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         # exponent of 0x0000000000000003 is index 5+5*2046+512, 3
         # exponent of 0x0000000000000002 is index 5+5*2046+512, 2
         # exponent of 0x0000000000000001 is index 5+5*2046+512, 1
-        allocs_index,allocs_subindex = get_alloced_indices(exponent >> 52)
+        allocs_index,allocs_subindex = get_alloced_indices(exponent)
         allocs_chunk = dst[allocs_index]
         log2_allocated_size = allocs_chunk >> allocs_subindex % UInt8 - 1
         log2_new_allocated_size = group_length == 0 ? 0 : Base.top_set_bit(group_length-1)
