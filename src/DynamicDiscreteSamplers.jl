@@ -655,8 +655,8 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         while target < 0
             if unsigned(target) < 0xc000000000000000 # empty non-abandoned group; let's clean it up
                 @assert 0x8000000000000001 <= unsigned(target) <= 0x80000000000007fe
-                exponent = unsigned(target) << 52 # TODO for clarity: dry this
-                allocs_index,allocs_subindex = get_alloced_indices(exponent >> 52)
+                exponent = unsigned(target) - 0x8000000000000000 # TODO for clarity: dry this
+                allocs_index,allocs_subindex = get_alloced_indices(exponent)
                 allocs_chunk = dst[allocs_index] # TODO for perf: consider not copying metadata on out of place compaction (and consider the impact here)
                 log2_allocated_size_p1 = allocs_chunk >> allocs_subindex % UInt8
                 allocated_size = 1<<(log2_allocated_size_p1-1)
