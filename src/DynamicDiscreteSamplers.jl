@@ -20,7 +20,7 @@ levels are powers of two. Each level has a true weight which is the sum of the (
 the elements in that level and is represented as a UInt128 which is the sum of the significands of that level (exponent stored implicitly).
 Each level also has a an approximate weight which is represented as a UInt64 with an implicit "<< level0" where
 level0 is a constant maintained by the sampler so that the sum of the approximate weights is less
-than 2^64 and greator than 2^32. The sum of the approximate weights and index of the highest level
+than 2^64 and greater than 2^32. The sum of the approximate weights and index of the highest level
 are also maintained.
 
 To select a level, pick a random number in Base.OneTo(sum of approximate weights) and find that
@@ -56,7 +56,7 @@ end
 # <memory_length::Int>
 # 1                      length::Int
 # 2                      max_level::Int # absolute pointer to the first element of level weights that is nonzero
-# 3                      shift::Int level weights are euqal to shifted_significand_sums<<(exponent_bits+shift) rounded up
+# 3                      shift::Int level weights are equal to shifted_significand_sums<<(exponent_bits+shift) rounded up
 # 4                      sum(level weights)::UInt64
 # 5..2050                level weights::[UInt64 2046] # earlier is higher. first is exponent bits 0x7fe, last is exponent bits 0x001. Subnormal are not supported.
 # 2051..6142             shifted_significand_sums::[UInt128 2046] # sum of significands shifted by 11 bits to the left with their leading 1s appended (the maximum significand contributes 0xfffffffffffff800)
@@ -99,7 +99,7 @@ end
 # push!, delete!
 
 # TODO for performance and simplicity, change weights to rounded down instead of rounded up
-# then, leverage the fact that plain bitshifting rounds down by default.
+# then, leverage the fact that plain bit shifting rounds down by default.
 
 Base.rand(rng::AbstractRNG, w::Weights) = _rand(rng, w.m)
 Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
@@ -121,7 +121,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
     end
 
     # Low-probability rejection to improve accuracy from very close to perfect
-    if x == mi # mi is the weight rounded up. If they are equal than we should refine futher and possibly reject. This branch is very uncommon and still O(1); constant factors don't matter here.
+    if x == mi # mi is the weight rounded up. If they are equal than we should refine further and possibly reject. This branch is very uncommon and still O(1); constant factors don't matter here.
         # significand_sum::UInt128 = ...
         # weight::UInt64 = mi = ceil(significand_sum<<*(exponent_bits+shift))...
         # rejection_p = ceil(significand_sum<<*(exponent_bits+shift)) - true(ceil(significand_sum<<*(exponent_bits+shift)))
@@ -188,7 +188,7 @@ function _setindex!(m::Memory, v::Float64, i::Int)
 end
 
 function _set_nonzero!(m, v, i)
-    # TODO for performance: join these two opperations
+    # TODO for performance: join these two operations
     _set_to_zero!(m, i)
     _set_from_zero!(m, v, i)
 end
@@ -229,7 +229,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # Base.top_set_bit(shifted_significand_sum)+signed(exponent >> 52) + signed(m[3]) == 48
             # signed(m[3]) == 48 - Base.top_set_bit(shifted_significand_sum) - signed(exponent >> 52)
             m3 = 48 - Base.top_set_bit(shifted_significand_sum) - exponent >> 52
-            set_global_shift_decrease!(m, m3) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+            set_global_shift_decrease!(m, m3) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
             shift = signed(exponent >> 52 + m3)
         end
         weight = UInt64(shifted_significand_sum<<shift) # TODO for perf: change to % UInt64
@@ -245,7 +245,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         if o
             # If weights overflow (>2^64) then shift down by 16 bits
             m3 = m[3]-0x10
-            set_global_shift_decrease!(m, m3, m4) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+            set_global_shift_decrease!(m, m3, m4) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
             if weight_index < m[2] # if the new weight was not adjusted by set_global_shift_decrease!, then adjust it manually
                 shift = signed(2051-weight_index+m3)
                 new_weight = (shifted_significand_sum<<shift) % UInt64
@@ -507,7 +507,7 @@ function _set_to_zero!(m::Memory, i::Int)
         else
             m2 = Int(m[2])
             if weight_index == m2 # We zeroed out the first group
-                m[10235] != 0 && firstindex(m) <= m2 < 10235 && m2 isa Int || error() # This makes the following @inbounds safe. If the comiler can follow my reasoning, then the error checking can also improive effect analysis and therefore performance.
+                m[10235] != 0 && firstindex(m) <= m2 < 10235 && m2 isa Int || error() # This makes the following @inbounds safe. If the compiler can follow my reasoning, then the error checking can also improve effect analysis and therefore performance.
                 while true # Update m[2]
                     m2 += 1
                     @inbounds m[m2] != 0 && break # TODO, see if the compiler can infer noub
@@ -539,11 +539,11 @@ function _set_to_zero!(m::Memory, i::Int)
             x2 += _convert(UInt, get_UInt128(m, j2+2i) >> (63+i))
         end
 
-        # x2 is computed by rounding down at a certian level and then summing
+        # x2 is computed by rounding down at a certain level and then summing
         # m[4] will be computed by rounding up at a more precise level and then summing
         # x2 could be 1, composed of 1.9 + .9 + .9 + ... for up to about log2(length) levels
         # meaning m[4] could be up to 1+log2(length) times greater than predicted according to x2
-        # if length is 2^64 than this could push m[4]'s top set bbit up to 8 bits higher.
+        # if length is 2^64 than this could push m[4]'s top set bit up to 8 bits higher.
 
         # If, on the other hand, x2 was computed with significantly higher precision, then
         # it could overflow if there were 2^64 elements in a weight. TODO: We could probably
@@ -553,7 +553,7 @@ function _set_to_zero!(m::Memory, i::Int)
         m3 = -17 - Base.top_set_bit(x2) - (6143-j2)>>1
         # TODO test that this actually achieves the desired shift and results in a new sum of about 2^48
 
-        set_global_shift_increase!(m, m3, m4, j2) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+        set_global_shift_increase!(m, m3, m4, j2) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
 
         @assert 46 <= Base.top_set_bit(m[4]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8 # TODO for perf: delete
     else
@@ -623,7 +623,7 @@ end
 """
 Reallocate w with the size len, compacting w into that new memory.
 Any elements if w past len must be set to zero already (that's a general invariant for
-Weigths, though, not just this function).
+Weights, though, not just this function).
 """
 function _resize!(w::ResizableWeights, len::Integer)
     m = w.m
@@ -672,7 +672,7 @@ function compact!(dst::Memory{UInt64}, dst_i::Int, src::Memory{UInt64}, src_i::I
         j = 2target + 10490
         exponent = src[j+1]
 
-        # Lookup the group in the group location table to find its length (performance optimization for copying, necesary to decide new allocated size and update pos)
+        # Lookup the group in the group location table to find its length (performance optimization for copying, necessary to decide new allocated size and update pos)
         # exponent of 0x7fe0000000000000 is index 6+3*2046
         # exponent of 0x0010000000000000 is index 4+5*2046
         group_length_index = 6 + 5*2046 - exponent >> 51
