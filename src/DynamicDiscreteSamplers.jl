@@ -449,10 +449,9 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
     for i in recompute_range
         j = 2i+2041
         shifted_significand_sum = get_UInt128(m, j)
+        shifted_significand_sum == 0 && continue # in this case, the weight was and still is zero
         shift = signed(2051-i+m3)
-        weight = (shifted_significand_sum<<shift) % UInt64
-        # round up
-        weight += (shifted_significand_sum != 0) # TODO for perf: make this constant if possible
+        weight = (shifted_significand_sum<<shift) % UInt64 + 1
 
         old_weight = m[i]
         m[i] = weight
