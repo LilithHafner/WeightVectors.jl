@@ -55,10 +55,12 @@ end
 
 v::Float64 aka weight
     An entry in a Weights object set with `w[i] = v`, retrieved with `v = w[i]`.
-exponent_bits::UInt64
-    ...
+exponent::UInt64
+    The exponent of a weight is `reinterpret(UInt64, weight) >> 52`.
+    Note that this is _not_ the same as `Base.exponent(weight)` nor
+    `reinterpret(UInt64, weight) & Base.exponent_mask(Float64)`.
 level
-    All the weights in a Weights object that have the same exponent bits.
+    All the weights in a Weights object that have the same exponent.
 ss::UInt64 aka shifted significand
     The significand of a weight, shifted to the left 11 bits
     i.e. `(reinterpret(UInt64, weight) & Base.significand_mask(Float64)) << 11`.
@@ -76,9 +78,9 @@ sss::UInt128 aka shifted significand sum
 # <memory_length::Int>
 # 1                      length::Int
 # 2                      max_level::Int # absolute pointer to the first element of level weights that is nonzero
-# 3                      shift::Int level weights are equal to shifted_significand_sums<<(exponent_bits+shift), plus one if shifted_significand_sum is not zero
+# 3                      shift::Int level weights are equal to shifted_significand_sums<<(exponent+shift), plus one if shifted_significand_sum is not zero
 # 4                      sum(level weights)::UInt64
-# 5..2050                level weights::[UInt64 2046] # earlier is higher. first is exponent bits 0x7fe, last is exponent bits 0x001. Subnormal are not supported.
+# 5..2050                level weights::[UInt64 2046] # earlier is higher. first is exponent 0x7fe, last is exponent 0x001. Subnormal are not supported.
 # 2051..6142             shifted_significand_sums::[UInt128 2046] # sum of significands shifted by 11 bits to the left with their leading 1s appended (the maximum significand contributes 0xfffffffffffff800)
 # 6143..10234            level location info::[NamedTuple{pos::Int, length::Int} 2046] indexes into sub_weights, pos is absolute into m.
 
@@ -109,7 +111,7 @@ sss::UInt128 aka shifted significand sum
 
 # target can also store metadata useful for compaction.
 # the range 0x0000000000000001 to 0x7fffffffffffffff (1:typemax(Int)) represents literal targets
-# the range 0x8000000000000001 to 0x80000000000007fe indicates that this is an empty but non-abandoned group with exponent bits target-0x8000000000000000
+# the range 0x8000000000000001 to 0x80000000000007fe indicates that this is an empty but non-abandoned group with exponent target-0x8000000000000000
 # the range 0xc000000000000000 to 0xffffffffffffffff indicates that the group is abandoned and has length -target.
 
 ## Initial API:
@@ -139,7 +141,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 
     # Low-probability rejection to improve accuracy from very close to perfect
     if x == mi # mi is the weight rounded down plus 1. If they are equal than we should refine further and possibly reject. This branch is very uncommon and still O(1); constant factors don't matter here.
-        # shift::Int = exponent_bits+m[3]
+        # shift::Int = exponent+m[3]
         # significand_sum::UInt128 = ...
         # weight::UInt64 = significand_sum<<shift+1
         # true_weight::ExactReal = exact(significand_sum)<<shift
@@ -148,8 +150,8 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
         # rejection_p = 1 - exact(significand_sum)<<shift & ...0000.1111...
         # acceptance_p = exact(significand_sum)<<shift & ...0000.1111...  (for example, if significand_sum<<shift is exact, then acceptance_p will be zero)
         j = 2i+2041
-        exponent_bits = 0x7fe+5-i
-        shift = signed(exponent_bits + m[3])
+        exponent = 0x7fe+5-i
+        shift = signed(exponent + m[3])
         significand_sum = merge_uint64(m[j], m[j+1])
         while true
             x = rand(rng, UInt64)
