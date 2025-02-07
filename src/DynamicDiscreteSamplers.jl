@@ -51,6 +51,26 @@ mutable struct ResizableWeights <: Weights
     ResizableWeights(w::FixedSizeWeights) = new(w.m)
 end
 
+#=====  Begin Legend  ======
+
+v::Float64 aka weight
+    An entry in a Weights object set with `w[i] = v`, retrieved with `v = w[i]`.
+exponent_bits::UInt64
+    ...
+level
+    All the weights in a Weights object that have the same exponent bits.
+ss::UInt64 aka shifted significand
+    The significand of a weight, shifted to the left 11 bits
+    i.e. `(reinterpret(UInt64, weight) & Base.significand_mask(Float64)) << 11`.
+    Ranges from 0x0000000000000000 for 1.0 to 0x7ffffffffffff800 for 1.9999...
+sss::UInt128 aka shifted significand sum
+    The sum of the shifted significands of a the weights in a given level, with their
+    implicit leading 1s added i.e. `sum(widen(0x8000000000000000 + ss) for ss in level)`.
+    Is 0 for empty levels and otherwise ranges from widen(0x8000000000000000) to
+    widen(0xfffffffffffff800) * length(weights).
+
+=======  End Legend  ======#
+
 ## Standard memory layout: (TODO: add alternative layout for small cases)
 
 # <memory_length::Int>
