@@ -210,9 +210,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         m[3] = -24 - exponent >> 52
 
         shift = -24
-        weight = UInt64(shifted_significand_sum<<shift) # TODO for perf: change to % UInt64
-        # round up
-        weight += 1
+        weight = UInt64(shifted_significand_sum<<shift) + 1 # TODO for perf: change to % UInt64
 
         @assert Base.top_set_bit(weight) == 40 # TODO for perf: delete
         m[weight_index] = weight
@@ -247,9 +245,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             set_global_shift_decrease!(m, m3, m4) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
             if weight_index < m[2] # if the new weight was not adjusted by set_global_shift_decrease!, then adjust it manually
                 shift = signed(2051-weight_index+m3)
-                new_weight = (shifted_significand_sum<<shift) % UInt64
-                # round up
-                new_weight += 1
+                new_weight = (shifted_significand_sum<<shift) % UInt64 + 1
 
                 @assert shifted_significand_sum != 0
                 @assert m[weight_index] == weight
@@ -426,9 +422,7 @@ function set_global_shift_increase!(m::Memory, m3::UInt64, m4, j0) # Increase sh
         shifted_significand_sum = get_UInt128(m, j)
         shifted_significand_sum == 0 && continue # in this case, the weight was and still is zero
         shift = signed(2051-i+m3)
-        weight = (shifted_significand_sum<<shift) % UInt64
-        # round up
-        weight += 1
+        weight = (shifted_significand_sum<<shift) % UInt64 + 1
 
         old_weight = m[i]
         m[i] = weight
@@ -516,9 +510,7 @@ function _set_to_zero!(m::Memory, i::Int)
         end
     else # We did not zero out a group
         shift = signed(exponent >> 52 + m[3])
-        new_weight = UInt64(shifted_significand_sum<<shift) # TODO for perf: change to % UInt64
-        # round up
-        new_weight += 1
+        new_weight = UInt64(shifted_significand_sum<<shift) + 1# TODO for perf: change to % UInt64
         m[weight_index] = new_weight
         m4 += new_weight
     end
