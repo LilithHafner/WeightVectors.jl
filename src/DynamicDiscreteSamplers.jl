@@ -9,27 +9,6 @@ isdefined(@__MODULE__, :Memory) || const Memory = Vector # Compat for Julia < 1.
 const DEBUG = Base.JLOptions().check_bounds == 1
 _convert(T, x) = DEBUG ? T(x) : x%T
 
-# Take Two!
-# - Exact
-# - O(1) in theory
-# - Fast in practice
-
-#=
-
-levels are powers of two. Each level has a true weight which is the sum of the (Float64) weights of
-the elements in that level and is represented as a UInt128 which is the sum of the significands of that level (exponent stored implicitly).
-Each level also has a an approximate weight which is represented as a UInt64 with an implicit "<< level0" where
-level0 is a constant maintained by the sampler so that the sum of the approximate weights is less
-than 2^64 and greater than 2^32. The sum of the approximate weights and index of the highest level
-are also maintained.
-
-To select a level, pick a random number in Base.OneTo(sum of approximate weights) and find that
-level with linear search
-
-maintain the total weight
-
-=#
-
 """
     Weights <: AbstractVector{Float64}
 
@@ -51,7 +30,29 @@ mutable struct ResizableWeights <: Weights
     ResizableWeights(w::FixedSizeWeights) = new(w.m)
 end
 
-#=====  Begin Legend  ======
+#=====  Begin Overview  ======
+
+# Objective
+
+This package provides a discrete random sampler with the following key properties
+ - Exact: sampling probability exactly matches provided weights
+ - O(1) worst case expected runtime for sampling
+        (though termination only guaranteed probabilistically)
+ - O(1) worst case amortized update time to change the weight of any element
+        (an individual update may take up to O(n))
+ - O(n) space complexity
+ - O(n) construction time
+ - Fast constant factor in practice. Typical usage has a constant factor of tens of clock
+        cycles and pathological usage has a constant factor of thousands of clock cycles.
+
+
+# Brief implementation overview
+
+Weights are are divided into levels according to their exponents. To sample, first sample a
+level and then sample an element within that level.
+
+
+# Definition of terms
 
 v::Float64 aka weight
     An entry in a Weights object set with `w[i] = v`, retrieved with `v = w[i]`.
@@ -77,9 +78,40 @@ weight
     the weight of a level relative to the other levels as defined by level_weights; and the
     weight of a level relative to the other levels as defined by significand_sums.
 
-=======  End Legend  ======#
 
-## Standard memory layout: (TODO: add alternative layout for small cases)
+# Implementation and data structure overview
+
+Weights are normal, non-negative Float64s. They are divided into levels according to their
+exponents. Each level has a weight which is the exact sum of the weights in that level. We
+can't represent this sum exactly as a Float64 so we represent it as significand_sum::UInt128
+which is the sum of the significands of the weights in that level. To get the level's weight,
+compute big(significand_sum)<<exponent.
+
+## Sampling
+Sampling with BigInt weights is not efficient so each level also has an approximate weight
+which is a UInt64. These approximate weights are computed as exact_weight<<global_shift+1 if
+exact_weight is nonzero, and 0 otherwise. global_shift is a constant maintained by the
+sampler so that the sum of the approximate weights is less than 2^64 and greater than 2^32.
+
+To sample a level, we pick a random UInt64 between 1 and the sum of the approximate weights.
+Then use linear search to find the level that corresponds to (with the highest weight levels
+at the start of that search). This picks a level with probability according to approximate
+weights which is not quite accurate. We correct for this by adding a small probability
+rejection. If the linear search lands on the edge of a level (which can happen at most
+2046/2^32 of the time), we consider rejecting. That process need not be fast but is O(1) and
+utilizes significand_sum directly.
+
+Sampling an element within a level is straightforward rejection sampling which is O(1)
+because all rejection probabilities are less than or equal to 1/2.
+
+## Stored values and invariants
+...
+
+## Updates
+...
+
+
+# Memory layout (TODO: add alternative layout for small cases) =#
 
 # <memory_length::Int>
 # 1                      length::Int
