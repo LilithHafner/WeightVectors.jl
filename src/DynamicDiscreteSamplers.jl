@@ -148,6 +148,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
         # rejection_p = weight-true_weight = (significand_sum<<shift+1) - (significand_sum<<shift + exact(significand_sum)<<shift & ...0000.1111...)
         # rejection_p = 1 - exact(significand_sum)<<shift & ...0000.1111...
         # acceptance_p = exact(significand_sum)<<shift & ...0000.1111...  (for example, if significand_sum<<shift is exact, then acceptance_p will be zero)
+        # TODO for confidence: add a test that fails if this were to mix up floor+1 and ceil.
         j = 2i+2041
         exponent = 0x7fe+5-i
         shift = signed(exponent + m[3])
