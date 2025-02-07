@@ -209,7 +209,24 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     weight_index = 5 + 0x7fe - exponent >> 52
     if m[4] == 0 # if we were empty, set global shift (m[3]) so that m[4] will become ~2^40.
         m[3] = -24 - exponent >> 52
-        weight = compute_weight(m, exponent, shifted_significand_sum) # TODO for perf: inline
+
+        shift = signed(exponent >> 52 + m[3])
+        if shifted_significand_sum != 0 && Base.top_set_bit(shifted_significand_sum)+shift > 64
+            # if this would overflow, drop shift so that it renormalizes down to 48.
+            # this drops shift at least ~16 and makes the sum of weights at least ~2^48.
+            # TODO for perf, don't check this on re-compute
+            # Base.top_set_bit(shifted_significand_sum)+shift == 48
+            # Base.top_set_bit(shifted_significand_sum)+signed(exponent >> 52 + m[3]) == 48
+            # Base.top_set_bit(shifted_significand_sum)+signed(exponent >> 52) + signed(m[3]) == 48
+            # signed(m[3]) == 48 - Base.top_set_bit(shifted_significand_sum) - signed(exponent >> 52)
+            m3 = 48 - Base.top_set_bit(shifted_significand_sum) - exponent >> 52
+            set_global_shift_decrease!(m, m3) # TODO for perf: special case all callsites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+            shift = signed(exponent >> 52 + m3)
+        end
+        weight = UInt64(shifted_significand_sum<<shift) # TODO for perf: change to % UInt64
+        # round up
+        weight += (trailing_zeros(shifted_significand_sum)+shift < 0) & (shifted_significand_sum != 0) # TODO for perf: ensure this final clause is const-prop eliminated when it can be (i.e. any time other than setting a weight to zero)
+
         @assert Base.top_set_bit(weight) == 40 # TODO for perf: delete
         m[weight_index] = weight
         m[4] = weight
@@ -325,7 +342,7 @@ get_shifted_significand_sum_index(exponent::UInt64) = 5 + 3*2046 - exponent >> 5
 get_UInt128(m::Memory, i::Integer) = get_UInt128(m, _convert(Int, i))
 get_UInt128(m::Memory, i::Int) = merge_uint64(m[i], m[i+1])
 set_UInt128!(m::Memory, v::UInt128, i::Integer) = m[i:i+1] .= split_uint128(v)
-"computes shifted_significand_sum<<(exponent_bits+shift) rounded up"
+"computes shifted_significand_sum<<(exponent_bits+shift) rounded up. Does not check for overflow."
 function compute_weight(m::Memory, exponent::UInt64, shifted_significand_sum::UInt128)
     shift = signed(exponent >> 52 + m[3])
     if shifted_significand_sum != 0 && Base.top_set_bit(shifted_significand_sum)+shift > 64
