@@ -222,7 +222,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     exponent = uv >> 52
     m[j+1] = exponent << 52
     # update group total weight and total weight
-    shifted_significand_sum_index = get_shifted_significand_sum_index(exponent << 52)
+    shifted_significand_sum_index = get_shifted_significand_sum_index(exponent)
     shifted_significand_sum = get_UInt128(m, shifted_significand_sum_index)
     shifted_significand = 0x8000000000000000 | uv << 11
     shifted_significand_sum += shifted_significand
@@ -283,7 +283,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     group_pos = m[group_length_index-1]
     group_length = m[group_length_index]+1
     m[group_length_index] = group_length # setting this before compaction means that compaction will ensure there is enough space for this expanded group, but will also copy one index (16 bytes) of junk which could access past the end of m. The junk isn't an issue once coppied because we immediately overwrite it. The former (copying past the end of m) only happens if the group to be expanded is already kissing the end. In this case, it will end up at the end after compaction and be easily expanded afterwords. Consequently, we treat that case specially and bump group length and manually expand after compaction
-    allocs_index,allocs_subindex = get_alloced_indices(exponent << 52)
+    allocs_index,allocs_subindex = get_alloced_indices(exponent)
     allocs_chunk = m[allocs_index]
     log2_allocated_size = allocs_chunk >> allocs_subindex % UInt8 - 1
     allocated_size = 1<<log2_allocated_size
@@ -379,7 +379,7 @@ end
 
 merge_uint64(x::UInt64, y::UInt64) = UInt128(x) | (UInt128(y) << 64)
 split_uint128(x::UInt128) = (x % UInt64, (x >>> 64) % UInt64)
-get_shifted_significand_sum_index(exponent::UInt64) = 5 + 3*2046 - exponent >> 51
+get_shifted_significand_sum_index(exponent::UInt64) = 5 + 3*2046 - 2exponent
 get_UInt128(m::Memory, i::Integer) = get_UInt128(m, _convert(Int, i))
 get_UInt128(m::Memory, i::Int) = merge_uint64(m[i], m[i+1])
 set_UInt128!(m::Memory, v::UInt128, i::Integer) = m[i:i+1] .= split_uint128(v)
@@ -480,7 +480,7 @@ function recompute_weights!(m, m3, m4, range)
     m4
 end
 
-get_alloced_indices(exponent::UInt64) = 10491 - exponent >> 55, exponent >> 49 & 0x38
+get_alloced_indices(exponent::UInt64) = 10491 - exponent >> 3, exponent << 3 & 0x38
 
 function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
@@ -492,7 +492,7 @@ function _set_to_zero!(m::Memory, i::Int)
     exponent = m[j+1]
 
     # update group total weight and total weight
-    shifted_significand_sum_index = get_shifted_significand_sum_index(exponent)
+    shifted_significand_sum_index = get_shifted_significand_sum_index(exponent >> 52)
     shifted_significand_sum = get_UInt128(m, shifted_significand_sum_index)
     shifted_significand = m[pos]
     shifted_significand_sum -= shifted_significand
@@ -656,7 +656,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
             if unsigned(target) < 0xc000000000000000 # empty non-abandoned group; let's clean it up
                 @assert 0x8000000000000001 <= unsigned(target) <= 0x80000000000007fe
                 exponent = unsigned(target) << 52 # TODO for clarity: dry this
-                allocs_index,allocs_subindex = get_alloced_indices(exponent)
+                allocs_index,allocs_subindex = get_alloced_indices(exponent >> 52)
                 allocs_chunk = dst[allocs_index] # TODO for perf: consider not copying metadata on out of place compaction (and consider the impact here)
                 log2_allocated_size_p1 = allocs_chunk >> allocs_subindex % UInt8
                 allocated_size = 1<<(log2_allocated_size_p1-1)
@@ -675,8 +675,8 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         exponent = src[j+1]
 
         # Lookup the group in the group location table to find its length (performance optimization for copying, necessary to decide new allocated size and update pos)
-        # exponent of 0x7fe0000000000000 is index 6+3*2046
-        # exponent of 0x0010000000000000 is index 4+5*2046
+        # exponent of 0x00000000000007fe is index 6+3*2046
+        # exponent of 0x0000000000000001 is index 4+5*2046
         group_length_index = 6 + 5*2046 - exponent >> 51
         group_length = src[group_length_index]
 
@@ -684,15 +684,13 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         dst[group_length_index-1] += unsigned(Int64(dst_i-src_i))
 
         # Lookup the allocated size (an alternative to scanning for the next nonzero, needed because we are setting allocated size)
-        # exponent of 0x7fe0000000000000 is index 6+5*2046, 2
-        # exponent of 0x7fd0000000000000 is index 6+5*2046, 1
-        # exponent of 0x0040000000000000 is index 5+5*2046+512, 0
-        # exponent of 0x0030000000000000 is index 5+5*2046+512, 3
-        # exponent of 0x0020000000000000 is index 5+5*2046+512, 2
-        # exponent of 0x0010000000000000 is index 5+5*2046+512, 1
-        # allocs_index = 5+5*2046+512 - (exponent >> 54), (exponent >> 52) & 0x3
-        # allocated_size = 2 << ((src[allocs_index[1]] >> (8allocs_index[1])) % UInt8)
-        allocs_index,allocs_subindex = get_alloced_indices(exponent)
+        # exponent of 0x00000000000007fe is index 6+5*2046, 2
+        # exponent of 0x00000000000007fd is index 6+5*2046, 1
+        # exponent of 0x0000000000000004 is index 5+5*2046+512, 0
+        # exponent of 0x0000000000000003 is index 5+5*2046+512, 3
+        # exponent of 0x0000000000000002 is index 5+5*2046+512, 2
+        # exponent of 0x0000000000000001 is index 5+5*2046+512, 1
+        allocs_index,allocs_subindex = get_alloced_indices(exponent >> 52)
         allocs_chunk = dst[allocs_index]
         log2_allocated_size = allocs_chunk >> allocs_subindex % UInt8 - 1
         log2_new_allocated_size = group_length == 0 ? 0 : Base.top_set_bit(group_length-1)
