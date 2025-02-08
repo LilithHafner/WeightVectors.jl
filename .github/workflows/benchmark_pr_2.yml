@@ -74,7 +74,7 @@ jobs:
 
             - name: Join Tables
               run: |
-                echo ${{ steps.fcbenchmark.outputs.comment-body }} >> old_body.md
+                echo "${{ steps.fcbenchmark.outputs.comment-body }}" >> old_body.md
                 julia join_table.jl body.md old_body.md merged_body.md
 
             - name: Comment on PR
