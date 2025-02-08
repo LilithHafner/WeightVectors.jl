@@ -478,7 +478,8 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
 end
 
 function recompute_weights!(m, m3, m4, range)
-    for i in range
+    checkbounds(m, range)
+    @inbounds for i in range
         j = 2i+2041
         significand_sum = get_UInt128(m, j)
         significand_sum == 0 && continue # in this case, the weight was and still is zero
