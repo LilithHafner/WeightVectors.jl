@@ -466,7 +466,8 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
     @assert length(flatten_range) <= 128
 
     m4 = recompute_weights!(m, m3, m4, recompute_range)
-    for i in flatten_range # set nonzeros to 1
+    checkbounds(m, flatten_range)
+    @inbounds for i in flatten_range # set nonzeros to 1
         old_weight = m[i]
         weight = old_weight != 0
         m[i] = weight
@@ -477,7 +478,8 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
 end
 
 function recompute_weights!(m, m3, m4, range)
-    for i in range
+    checkbounds(m, range)
+    @inbounds for i in range
         j = 2i+2041
         significand_sum = get_UInt128(m, j)
         significand_sum == 0 && continue # in this case, the weight was and still is zero
@@ -715,7 +717,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
         delta = unsigned(Int64(dst_i-src_i))
         dst[j] += delta
-        for k in 1:signed(group_length)-1
+        for k in 1:signed(group_length)-1 # TODO: add a benchmark that stresses compaction and try hoisting this bounds checking
             target = src[src_i+2k+1]
             j = 2target + 10490
             dst[j] += delta
