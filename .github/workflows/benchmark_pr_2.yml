@@ -62,7 +62,7 @@ jobs:
                 echo 'Go to "Actions"->"Benchmark a pull request"->[the most recent run]->"Artifacts" (at the bottom).' >> body.md
 
             - name: wait
-              run: sleep 30
+              run: sleep 45
 
             - name: Find Comment
               uses: peter-evans/find-comment@v3
