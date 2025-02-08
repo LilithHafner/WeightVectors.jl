@@ -383,7 +383,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             m[10235] = new_next_free_space
 
             # Copy the group to new location
-            (v"1.11" <= VERSION || 2group_length-1 != 0) && unsafe_copyto!(m, next_free_space, m, group_pos, 2group_length-2) # TODO for clarity and maybe perf: remove this version check
+            (v"1.11" <= VERSION || 2group_length-2 != 0) && unsafe_copyto!(m, next_free_space, m, group_pos, 2group_length-2) # TODO for clarity and maybe perf: remove this version check
 
             # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
             delta = next_free_space-group_pos
