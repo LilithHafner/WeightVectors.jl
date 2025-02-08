@@ -466,7 +466,8 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
     @assert length(flatten_range) <= 128
 
     m4 = recompute_weights!(m, m3, m4, recompute_range)
-    for i in flatten_range # set nonzeros to 1
+    checkbounds(m, flatten_range)
+    @inbounds for i in flatten_range # set nonzeros to 1
         old_weight = m[i]
         weight = old_weight != 0
         m[i] = weight
