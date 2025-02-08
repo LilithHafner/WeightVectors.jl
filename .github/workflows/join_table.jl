@@ -2,6 +2,7 @@ new = replace(String(read(Sys.ARGS[1])), ".../"=>" / ", "..."=>"")
 old = replace(String(read(Sys.ARGS[2])), ".../"=>" / ", "..."=>"")
 
 function combine((n,o))
+    @show n o
     if count(==('|'), n) <= 3
         @assert n == o
         return n
