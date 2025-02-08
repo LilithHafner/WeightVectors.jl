@@ -1,4 +1,4 @@
-name: Benchmark a pull request
+name: Benchmark a pull request (3)
 # Keep this in sync with benchmark_push.yml
 
 on:
