@@ -30,7 +30,7 @@ mutable struct ResizableWeights <: Weights
     ResizableWeights(w::FixedSizeWeights) = new(w.m)
 end
 
-#=====  Begin Overview  ======
+#===== Overview  ======
 
 # Objective
 
