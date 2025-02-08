@@ -105,10 +105,10 @@ Sampling an element within a level is straightforward rejection sampling which i
 because all rejection probabilities are less than or equal to 1/2.
 
 ## Stored values and invariants
-...
+TODO
 
 ## Updates
-...
+TODO
 
 
 # Memory layout (TODO: add alternative layout for small cases) =#
