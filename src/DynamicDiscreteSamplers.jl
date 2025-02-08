@@ -461,8 +461,9 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
     i1_old = 2172+signed(m3_old) # anything after this is already weight 1 or 0
     recompute_range = m2:min(i1, 2050)
     flatten_range = max(m2, i1+1):min(i1_old, 2050)
-    @assert length(recompute_range) <= 128 # TODO for perf: why is this not 64?
-    @assert length(flatten_range) <= 128 # TODO for perf: why is this not 64?
+    # From the level where one element contributes 2^64 to the level where one element contributes 1 is 64, and from there to the level where 2^64 elements contributes 1 is another 2^64.
+    @assert length(recompute_range) <= 128
+    @assert length(flatten_range) <= 128
 
     m4 = recompute_weights!(m, m3, m4, recompute_range)
     for i in flatten_range # set nonzeros to 1
