@@ -429,7 +429,7 @@ function set_global_shift_increase!(m::Memory, m3::UInt64, m4, j0) # Increase sh
     # Story:
     # In the likely case that the weight decrease resulted in a level's weight hitting zero
     # that level's weight is already updated and m[4] adjusted accordingly TODO for perf don't adjust, pass the values around instead
-    # In any event, m4 is accurate for current weights and all weights and sss's above (before) i0 are zero so we don't need to touch them
+    # In any event, m4 is accurate for current weights and all weights and significand_sums's above (before) i0 are zero so we don't need to touch them
     # Between i0 and i1, weights that were previously 1 may need to be increased. Below (past, after) i1, all weights will round up to 1 or 0 so we don't need to touch them
     i0 = (j0 - 2041) >> 1
 
