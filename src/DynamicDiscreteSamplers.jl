@@ -605,7 +605,7 @@ ResizableWeights(len::Integer) = ResizableWeights(FixedSizeWeights(len))
 SemiResizableWeights(len::Integer) = SemiResizableWeights(FixedSizeWeights(len))
 function FixedSizeWeights(len::Integer)
     m = Memory{UInt64}(undef, allocated_memory(len))
-    m .= 0 # TODO for perf: delete this. It's here so that a sparse rendering for debugging is easier TODO for tests: set this to 0xdeadbeefdeadbeed
+    # m .= 0 # This is here so that a sparse rendering for debugging is easier TODO for tests: set this to 0xdeadbeefdeadbeed
     m[4:10491+2len] .= 0 # metadata and edit map need to be zeroed but the bulk does not
     m[1] = len
     m[2] = 2051
@@ -643,7 +643,7 @@ function _resize!(w::ResizableWeights, len::Integer)
     m = w.m
     old_len = m[1]
     m2 = Memory{UInt64}(undef, allocated_memory(len))
-    m2 .= 0 # For debugging; TODO: delete, TODO: set to 0xdeadbeefdeadbeef to test
+    # m2 .= 0 # For debugging; TODO: set to 0xdeadbeefdeadbeef to test
     m2[1] = len
     if len > old_len # grow
         unsafe_copyto!(m2, 2, m, 2, 2old_len + 10490)
