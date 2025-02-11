@@ -422,10 +422,9 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     nothing
 end
 
-merge_uint64(x::UInt64, y::UInt64) = UInt128(x) | (UInt128(y) << 64)
 split_uint128(x::UInt128) = (x % UInt64, (x >>> 64) % UInt64)
 get_UInt128(m::Memory, i::Integer) = get_UInt128(m, _convert(Int, i))
-get_UInt128(m::Memory, i::Int) = merge_uint64(m[i], m[i+1])
+get_UInt128(m::Memory, i::Int) = UInt128(m[i]) | (UInt128(m[i+1]) << 64)
 
 function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase shift, on deletion of elements
     @assert signed(m[3]) < signed(m3)
