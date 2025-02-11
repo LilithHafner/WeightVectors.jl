@@ -275,7 +275,6 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     weight_index = 5 + 0x7fe - exponent
     significand_sum = update_significand_sum(m, weight_index, significand)
 
-    weight_index = 5 + 0x7fe - exponent
     if m[4] == 0 # if we were empty, set global shift (m[3]) so that m[4] will become ~2^40.
         m[3] = -24 - exponent
 
