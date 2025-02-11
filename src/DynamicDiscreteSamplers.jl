@@ -188,10 +188,9 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
         # rejection_p = 1 - exact(significand_sum)<<shift & ...0000.1111...
         # acceptance_p = exact(significand_sum)<<shift & ...0000.1111...  (for example, if significand_sum<<shift is exact, then acceptance_p will be zero)
         # TODO for confidence: add a test that fails if this were to mix up floor+1 and ceil.
-        j = 2i+2041
         exponent = 0x7fe+5-i
         shift = signed(exponent + m[3])
-        significand_sum = get_UInt128(m, j)
+        significand_sum = get_significand_sum(m, i)
         while true
             x = rand(rng, UInt64)
             # p_stage = significand_sum << shift & ...00000.111111...64...11110000
@@ -253,11 +252,14 @@ function _set_nonzero!(m, v, i)
     _set_from_zero!(m, v, i)
 end
 
-function update_significand_sum(m, exponent, delta)
-    i = 5 + 3*2046 - 2exponent
-    significand_sum = get_UInt128(m, i)
-    significand_sum += delta
-    m[i:i+1] .= split_uint128(significand_sum)
+function get_significand_sum(m, i)
+    i = _convert(Int, 2i+2041)
+    significand_sum = UInt128(m[i]) | (UInt128(m[i+1]) << 64)
+end
+function update_significand_sum(m, i, delta)
+    j = _convert(Int, 2i+2041)
+    significand_sum = get_significand_sum(m, i) + delta
+    m[j:j+1] .= (significand_sum % UInt64, (significand_sum >>> 64) % UInt64)
     significand_sum
 end
 
@@ -270,7 +272,8 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     m[j+1] = exponent
     # update group total weight and total weight
     significand = 0x8000000000000000 | uv << 11
-    significand_sum = update_significand_sum(m, exponent, significand)
+    weight_index = 5 + 0x7fe - exponent
+    significand_sum = update_significand_sum(m, weight_index, significand)
 
     weight_index = 5 + 0x7fe - exponent
     if m[4] == 0 # if we were empty, set global shift (m[3]) so that m[4] will become ~2^40.
@@ -297,7 +300,6 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         end
         weight = UInt64(significand_sum<<shift) + 1 # TODO for perf: change to % UInt64
 
-        weight_index = 5 + 0x7fe - exponent
         old_weight = m[weight_index]
         m[weight_index] = weight
         m4 = m[4]
@@ -422,10 +424,6 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     nothing
 end
 
-split_uint128(x::UInt128) = (x % UInt64, (x >>> 64) % UInt64)
-get_UInt128(m::Memory, i::Integer) = get_UInt128(m, _convert(Int, i))
-get_UInt128(m::Memory, i::Int) = UInt128(m[i]) | (UInt128(m[i+1]) << 64)
-
 function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase shift, on deletion of elements
     @assert signed(m[3]) < signed(m3)
     m[3] = m3
@@ -483,8 +481,7 @@ end
 function recompute_weights!(m, m3, m4, range)
     checkbounds(m, range)
     @inbounds for i in range
-        j = 2i+2041
-        significand_sum = get_UInt128(m, j)
+        significand_sum = get_significand_sum(m, i)
         significand_sum == 0 && continue # in this case, the weight was and still is zero
         shift = signed(2051-i+m3)
         weight = (significand_sum<<shift) % UInt64 + 1
@@ -509,9 +506,8 @@ function _set_to_zero!(m::Memory, i::Int)
 
     # update group total weight and total weight
     significand = m[pos]
-    significand_sum = update_significand_sum(m, exponent, -UInt128(significand))
-
     weight_index = 5 + 0x7fe - exponent
+    significand_sum = update_significand_sum(m, weight_index, -UInt128(significand))
     old_weight = m[weight_index]
     m4 = m[4]
     m4 -= old_weight
@@ -544,13 +540,12 @@ function _set_to_zero!(m::Memory, i::Int)
 
         # TODO for perf: we can almost get away with loading only the most significant word of significand_sums. Here, we use the most significant 65 bits.
         m2 = m[2]
-        j2 = 2m2+2041
-        x = get_UInt128(m, j2)
+        x = get_significand_sum(m, m2)
         # TODO refactor indexing for simplicity
         x2 = UInt64(x>>63) #TODO for perf %UInt64
         @assert x2 != 0
         for i in 1:Sys.WORD_SIZE # TODO for perf, we can get away with shaving 1 to 10 off of this loop.
-            x2 += _convert(UInt, get_UInt128(m, j2+2i) >> (63+i))
+            x2 += _convert(UInt, get_significand_sum(m, m2+i) >> (63+i))
         end
 
         # x2 is computed by rounding down at a certain level and then summing
@@ -564,7 +559,7 @@ function _set_to_zero!(m::Memory, i::Int)
         # squeeze a few more bits out of this, but targeting 46 with a window of 46 to 52 is
         # plenty good enough.
 
-        m3 = -17 - Base.top_set_bit(x2) - (6143-j2)>>1
+        m3 = -17 - Base.top_set_bit(x2) - 2051 + m2
         # TODO test that this actually achieves the desired shift and results in a new sum of about 2^48
 
         set_global_shift_increase!(m, m2, m3, m4) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
