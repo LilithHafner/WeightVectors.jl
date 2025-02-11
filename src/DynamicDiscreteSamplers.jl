@@ -251,11 +251,11 @@ function _set_nonzero!(m, v, i)
     _set_from_zero!(m, v, i)
 end
 
-@inline function get_significand_sum(m, i)
+function get_significand_sum(m, i)
     i = _convert(Int, 2i+2041)
     significand_sum = UInt128(m[i]) | (UInt128(m[i+1]) << 64)
 end
-@inline function update_significand_sum(m, i, delta)
+function update_significand_sum(m, i, delta)
     j = _convert(Int, 2i+2041)
     significand_sum = get_significand_sum(m, i) + delta
     m[j:j+1] .= (significand_sum % UInt64, (significand_sum >>> 64) % UInt64)
