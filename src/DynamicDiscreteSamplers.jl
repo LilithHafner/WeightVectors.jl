@@ -273,7 +273,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         shift = -24
         weight = UInt64(significand_sum<<shift) + 1 # TODO for perf: change to % UInt64
 
-        @assert Base.top_set_bit(weight) == 40 # TODO for perf: delete
+        @assert Base.top_set_bit(weight-1) == 40 # TODO for perf: delete
         m[weight_index] = weight
         m[4] = weight
     else
