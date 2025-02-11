@@ -253,6 +253,14 @@ function _set_nonzero!(m, v, i)
     _set_from_zero!(m, v, i)
 end
 
+function update_significand_sum(m, exponent, delta)
+    i = 5 + 3*2046 - 2exponent
+    significand_sum = get_UInt128(m, i)
+    significand_sum += delta
+    m[i:i+1] .= split_uint128(significand_sum)
+    significand_sum
+end
+
 function _set_from_zero!(m::Memory, v::Float64, i::Int)
     uv = reinterpret(UInt64, v)
     j = 2i + 10490
@@ -261,11 +269,9 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     exponent = uv >> 52
     m[j+1] = exponent
     # update group total weight and total weight
-    significand_sum_index = get_significand_sum_index(exponent)
-    significand_sum = get_UInt128(m, significand_sum_index)
     significand = 0x8000000000000000 | uv << 11
-    significand_sum += significand
-    set_UInt128!(m, significand_sum, significand_sum_index)
+    significand_sum = update_significand_sum(m, exponent, significand)
+
     weight_index = 5 + 0x7fe - exponent
     if m[4] == 0 # if we were empty, set global shift (m[3]) so that m[4] will become ~2^40.
         m[3] = -24 - exponent
@@ -318,7 +324,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     m[2] = min(m[2], weight_index) # Set after insertion because update_weights! may need to update the global shift, in which case knowing the old m[2] will help it skip checking empty levels
 
     # lookup the group by exponent and bump length
-    group_length_index = significand_sum_index + 2*2046 + 1
+    group_length_index = 6 + 5*2046 - 2exponent
     group_pos = m[group_length_index-1]
     group_length = m[group_length_index]+1
     m[group_length_index] = group_length # setting this before compaction means that compaction will ensure there is enough space for this expanded group, but will also copy one index (16 bytes) of junk which could access past the end of m. The junk isn't an issue once coppied because we immediately overwrite it. The former (copying past the end of m) only happens if the group to be expanded is already kissing the end. In this case, it will end up at the end after compaction and be easily expanded afterwords. Consequently, we treat that case specially and bump group length and manually expand after compaction
@@ -418,10 +424,8 @@ end
 
 merge_uint64(x::UInt64, y::UInt64) = UInt128(x) | (UInt128(y) << 64)
 split_uint128(x::UInt128) = (x % UInt64, (x >>> 64) % UInt64)
-get_significand_sum_index(exponent::UInt64) = 5 + 3*2046 - 2exponent
 get_UInt128(m::Memory, i::Integer) = get_UInt128(m, _convert(Int, i))
 get_UInt128(m::Memory, i::Int) = merge_uint64(m[i], m[i+1])
-set_UInt128!(m::Memory, v::UInt128, i::Integer) = m[i:i+1] .= split_uint128(v)
 
 function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase shift, on deletion of elements
     @assert signed(m[3]) < signed(m3)
@@ -505,11 +509,8 @@ function _set_to_zero!(m::Memory, i::Int)
     exponent = m[j+1]
 
     # update group total weight and total weight
-    significand_sum_index = get_significand_sum_index(exponent)
-    significand_sum = get_UInt128(m, significand_sum_index)
     significand = m[pos]
-    significand_sum -= significand
-    set_UInt128!(m, significand_sum, significand_sum_index)
+    significand_sum = update_significand_sum(m, exponent, -UInt128(significand))
 
     weight_index = 5 + 0x7fe - exponent
     old_weight = m[weight_index]
@@ -575,7 +576,7 @@ function _set_to_zero!(m::Memory, i::Int)
     end
 
     # lookup the group by exponent
-    group_length_index = significand_sum_index + 2*2046 + 1
+    group_length_index = 6 + 5*2046 - 2exponent
     group_pos = m[group_length_index-1]
     group_length = m[group_length_index]
     group_lastpos = (group_pos-2)+2group_length
