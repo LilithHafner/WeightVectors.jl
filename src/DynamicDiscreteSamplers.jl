@@ -191,7 +191,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
         j = 2i+2041
         exponent = 0x7fe+5-i
         shift = signed(exponent + m[3])
-        significand_sum = merge_uint64(m[j], m[j+1])
+        significand_sum = get_UInt128(m, j)
         while true
             x = rand(rng, UInt64)
             # p_stage = significand_sum << shift & ...00000.111111...64...11110000
