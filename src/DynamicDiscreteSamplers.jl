@@ -493,7 +493,7 @@ function recompute_weights!(m, m3, m4, range)
     m4
 end
 
-get_alloced_indices(exponent::UInt64) = 10491 - exponent >> 3, exponent << 3 & 0x38 #TODO reverse for clarity
+get_alloced_indices(exponent::UInt64) = 10236 + exponent >> 3, exponent << 3 & 0x38
 
 function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
