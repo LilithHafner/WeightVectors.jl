@@ -110,7 +110,6 @@ TODO
 ## Updates
 TODO
 
-
 # Memory layout (TODO: add alternative layout for small cases) =#
 
 # <memory_length::Int>
