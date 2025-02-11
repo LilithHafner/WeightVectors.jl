@@ -22,7 +22,13 @@ function combine((n,o))
         return n
     end
 
-    n_cols[end-1] = strip(o_cols[end-1]) * "," * strip(n_cols[end-1])
+    o_data = strip(o_cols[end-1])
+    n_data = strip(n_cols[end-1])
+    n_cols[end-1] = if o_data == n_data * "," * n_data # If all three results are the same, only report one
+        n_data
+    else
+        o_data * "," * n_data
+    end
     join(n_cols, '|')
 end
 
