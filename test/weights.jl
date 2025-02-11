@@ -210,7 +210,7 @@ verify(w.m)
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)
 w[1] = floatmin(Float64)
 w[2] = floatmax(Float64)
-# w[2] = 0 # This previously threw an assertion error due to overflow when estimating sum of level weights
+w[2] = 0 # This previously threw an assertion error due to overflow when estimating sum of level weights
 verify(w.m)
 
 # These tests have never revealed a bug that was not revealed by one of the above tests:
