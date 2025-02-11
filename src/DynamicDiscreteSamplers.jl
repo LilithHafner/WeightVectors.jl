@@ -194,10 +194,10 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
         while true
             x = rand(rng, UInt64)
             # p_stage = significand_sum << shift & ...00000.111111...64...11110000
-            target = significand_sum << (shift + 64) % UInt64
+            shift += 64
+            target = significand_sum << shift % UInt64
             x > target && @goto reject
             x < target && break
-            shift += 64
             shift >= 0 && break
         end
     end
