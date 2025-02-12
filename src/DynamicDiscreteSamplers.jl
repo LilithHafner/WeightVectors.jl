@@ -127,7 +127,7 @@ TODO
 # 16 unused bits
 # 10236..10491           level allocated length::[UInt8 2046] (2^(x-1) is implied)
 
-# 10492..10491+len      edit_map (maps index to current location in sub_weights)::[(pos<<11 + exponent)::UInt64] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. TODO for perf: exponent could be UInt11, lots of wasted bits)
+# 10492..10491+len       edit_map (maps index to current location in sub_weights)::[(pos<<11 + exponent)::UInt64] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs.
 
 # 10492+2allocated_len..10491+2allocated_len+6len sub_weights (woven with targets)::[[significand::UInt64, target::Int}]]. allocated_len == length_from_memory(length(m))
 
@@ -497,9 +497,9 @@ get_alloced_indices(exponent::UInt64) = 10491 - exponent >> 3, exponent << 3 & 0
 function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
     j = i + 10491
-    exponent = m[j] & 2047
     pos = m[j] >> 11
     pos == 0 && return # if the entry is already zero, return
+    exponent = m[j] & 2047
     # set the entry to zero (no need to zero the exponent)
     # m[j] = 0 is moved to after we adjust the edit_map entry for the shifted element, in case there is no shifted element
 
