@@ -127,7 +127,7 @@ TODO
 # 16 unused bits
 # 10236..10491           level allocated length::[UInt8 2046] (2^(x-1) is implied)
 
-# 10492..10491+len      edit_map (maps index to current location in sub_weights)::[pos::Int, exponent::UInt64] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. TODO for perf: exponent could be UInt11, lots of wasted bits)
+# 10492..10491+len      edit_map (maps index to current location in sub_weights)::[(pos + exponent)::UInt64] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. TODO for perf: exponent could be UInt11, lots of wasted bits)
 
 # 10492+2allocated_len..10491+2allocated_len+6len sub_weights (woven with targets)::[[significand::UInt64, target::Int}]]. allocated_len == length_from_memory(length(m))
 
@@ -385,7 +385,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             (v"1.11" <= VERSION || 2group_length-2 != 0) && unsafe_copyto!(m, next_free_space, m, group_pos, 2group_length-2) # TODO for clarity and maybe perf: remove this version check
 
             # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
-            delta = 2048*(next_free_space-group_pos)
+            delta = (next_free_space-group_pos) << 11
             for k in 1:group_length-1
                 target = m[next_free_space+2k-1]
                 l = target + 10491
@@ -410,7 +410,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     m[group_lastpos+1] = i
 
     # log the insertion location in the edit map
-    m[j] = 2048 * group_lastpos + exponent
+    m[j] = group_lastpos << 11 + exponent
 
     nothing
 end
@@ -585,7 +585,7 @@ function _set_to_zero!(m::Memory, i::Int)
     shifted_element = m[pos+1] = m[group_lastpos+1]
 
     # adjust the edit map entry of the shifted element
-    m[shifted_element + 10491] = 2048 * pos + exponent
+    m[shifted_element + 10491] = pos << 11 + exponent
     m[j] %= 2048
 
     # When zeroing out a group, mark the group as empty so that compaction will update the group metadata and then skip over it.
@@ -714,7 +714,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         unsafe_copyto!(dst, dst_i, src, src_i, 2group_length)
 
         # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
-        delta = 2048 * unsigned(Int64(dst_i-src_i))
+        delta = unsigned(Int64(dst_i-src_i)) << 11
         dst[j] += delta
         for k in 1:signed(group_length)-1 # TODO: add a benchmark that stresses compaction and try hoisting this bounds checking
             target = src[src_i+2k+1]
