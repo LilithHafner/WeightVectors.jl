@@ -127,7 +127,7 @@ TODO
 # 16 unused bits
 # 10236..10491           level allocated length::[UInt8 2046] (2^(x-1) is implied)
 
-# 10492..10491+2len      edit_map (maps index to current location in sub_weights)::[pos::Int, exponent::UInt64] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. TODO for perf: exponent could be UInt11, lots of wasted bits)
+# 10492..10491+len      edit_map (maps index to current location in sub_weights)::[pos::Int, exponent::UInt64] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. TODO for perf: exponent could be UInt11, lots of wasted bits)
 
 # 10492+2allocated_len..10491+2allocated_len+6len sub_weights (woven with targets)::[[significand::UInt64, target::Int}]]. allocated_len == length_from_memory(length(m))
 
@@ -411,7 +411,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     m[group_lastpos+1] = i
 
     # log the insertion location in the edit map
-    m[j] = group_lastpos
+    m[j] = group_lastpos + exponent
 
     nothing
 end
@@ -586,7 +586,7 @@ function _set_to_zero!(m::Memory, i::Int)
     shifted_element = m[pos+1] = m[group_lastpos+1]
 
     # adjust the edit map entry of the shifted element
-    m[shifted_element + 10491] = pos
+    m[shifted_element + 10491] = pos + exponent
     m[j] %= 2048
 
     # When zeroing out a group, mark the group as empty so that compaction will update the group metadata and then skip over it.
