@@ -259,7 +259,6 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     @assert m[j] == 0
 
     exponent = uv >> 52
-    m[j] = (m[j] - (m[j] % 2048)) + exponent
     # update group total weight and total weight
     significand_sum_index = get_significand_sum_index(exponent)
     significand_sum = get_UInt128(m, significand_sum_index)
