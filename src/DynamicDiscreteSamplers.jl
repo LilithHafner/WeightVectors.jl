@@ -256,7 +256,7 @@ end
 function _set_from_zero!(m::Memory, v::Float64, i::Int)
     uv = reinterpret(UInt64, v)
     j = i + 10491
-    @assert m[j] - (m[j] & 2047) == 0
+    @assert m[j] == 0
 
     exponent = uv >> 52
     # update group total weight and total weight
@@ -586,7 +586,7 @@ function _set_to_zero!(m::Memory, i::Int)
 
     # adjust the edit map entry of the shifted element
     m[shifted_element + 10491] = pos << 11 + exponent
-    m[j] &= 2047
+    m[j] = 0
 
     # When zeroing out a group, mark the group as empty so that compaction will update the group metadata and then skip over it.
     if significand_sum == 0
