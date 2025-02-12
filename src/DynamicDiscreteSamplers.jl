@@ -221,7 +221,7 @@ end
 function _getindex(m::Memory{UInt64}, i::Int)
     @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeights(m), i))
     j = i + 10491
-    exponent = m[j] % 2048
+    exponent = m[j] & 2047
     pos = (m[j] - exponent) >> 11
     pos == 0 && return 0.0
     weight = m[pos]
@@ -239,7 +239,7 @@ function _setindex!(m::Memory, v::Float64, i::Int)
 
     # Find the entry's pos in the edit map table
     j = i + 10491
-    pos = (m[j] - (m[j] % 2048)) >> 11
+    pos = (m[j] - (m[j] & 2047)) >> 11
     if pos == 0
         _set_from_zero!(m, v, i)
     else
@@ -256,7 +256,7 @@ end
 function _set_from_zero!(m::Memory, v::Float64, i::Int)
     uv = reinterpret(UInt64, v)
     j = i + 10491
-    @assert m[j] - (m[j] % 2048) == 0
+    @assert m[j] - (m[j] & 2047) == 0
 
     exponent = uv >> 52
     # update group total weight and total weight
@@ -497,7 +497,7 @@ get_alloced_indices(exponent::UInt64) = 10491 - exponent >> 3, exponent << 3 & 0
 function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
     j = i + 10491
-    exponent = m[j] % 2048
+    exponent = m[j] & 2047
     pos = (m[j] - exponent) >> 11
     pos == 0 && return # if the entry is already zero, return
     # set the entry to zero (no need to zero the exponent)
@@ -586,7 +586,7 @@ function _set_to_zero!(m::Memory, i::Int)
 
     # adjust the edit map entry of the shifted element
     m[shifted_element + 10491] = pos << 11 + exponent
-    m[j] %= 2048
+    m[j] &= 2047
 
     # When zeroing out a group, mark the group as empty so that compaction will update the group metadata and then skip over it.
     if significand_sum == 0
@@ -685,7 +685,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
 
         # Trace an element of the group back to the edit info table to find the group id
         j = target + 10491
-        exponent = src[j] % 2048
+        exponent = src[j] & 2047
 
         # Lookup the group in the group location table to find its length (performance optimization for copying, necessary to decide new allocated size and update pos)
         # exponent of 0x00000000000007fe is index 6+3*2046
