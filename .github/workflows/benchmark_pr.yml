@@ -76,3 +76,6 @@ jobs:
                 issue-number: ${{ github.event.pull_request.number }}
                 body-path: body.md
                 edit-mode: replace
+
+            - name: Setup tmate session
+              uses: mxschmitt/action-tmate@v3
