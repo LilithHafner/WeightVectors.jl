@@ -542,7 +542,7 @@ function _set_to_zero!(m::Memory, i::Int)
         # TODO refactor indexing for simplicity
         x2 = UInt64(x>>63) #TODO for perf %UInt64
         @assert x2 != 0
-        for i in 1:Sys.WORD_SIZE # TODO for perf, we can get away with shaving 1 to 10 off of this loop.
+        for i in Sys.WORD_SIZE:-1:1 # This loop is backwards so that memory access is forwards. TODO for perf, we can get away with shaving 1 to 10 off of this loop.
             # This can underflow from significand sums into weights, but that underflow is safe because it can only happen if all the latter weights are zero. Be careful about this when re-arranging the memory layout!
             x2 += _convert(UInt, get_significand_sum(m, m2-i) >> (63+i))
         end
