@@ -120,7 +120,7 @@ TODO
 # 5..2050                level weights::[UInt64 2046] # earlier is lower. first is exponent 0x001, last is exponent 0x7fe. Subnormal are not supported (TODO).
 # 2051..6142             significand_sums::[UInt128 2046] # sum of significands (the maximum significand contributes 0xfffffffffffff800)
 # 6143..10234            level location info::[NamedTuple{pos::Int, length::Int} 2046] indexes into sub_weights, pos is absolute into m.
-# 10236..10267           level_weights_nonzero::[Bool 2046] # map of which levels have nonzero weight (used to bump m2 efficiently when a level is zeroed out)
+# 10235..10266           level_weights_nonzero::[Bool 2046] # map of which levels have nonzero weight (used to bump m2 efficiently when a level is zeroed out)
 # 2 unused bits
 
 # gc info:
@@ -323,6 +323,8 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         end
     end
     m[2] = max(m[2], weight_index) # Set after insertion because update_weights! may need to update the global shift, in which case knowing the old m[2] will help it skip checking empty levels
+    level_weights_nonzero_index,level_weights_nonzero_subindex = get_level_weights_nonzero_indices(exponent)
+    m[level_weights_nonzero_index] |= UInt64(1) << level_weights_nonzero_subindex
 
     # lookup the group by exponent and bump length
     group_length_index = 4 + 3*2046 + 2exponent
@@ -494,6 +496,7 @@ function recompute_weights!(m, m3, m4, range)
 end
 
 get_alloced_indices(exponent::UInt64) = 10268 + exponent >> 3, exponent << 3 & 0x38
+get_level_weights_nonzero_indices(exponent::UInt64) = 10235 + exponent >> 6, exponent & 0x3f
 
 function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
@@ -512,6 +515,8 @@ function _set_to_zero!(m::Memory, i::Int)
     m4 = m[4]
     m4 -= old_weight
     if significand_sum == 0 # We zeroed out a group
+        level_weights_nonzero_index,level_weights_nonzero_subindex = get_level_weights_nonzero_indices(exponent)
+        chunk = m[level_weights_nonzero_index] &= ~(UInt64(1) << level_weights_nonzero_subindex)
         m[weight_index] = 0
         if m4 == 0 # There are no groups left
             m[2] = 4
