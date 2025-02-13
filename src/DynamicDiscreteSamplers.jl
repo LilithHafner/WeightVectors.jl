@@ -324,7 +324,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     end
     m[2] = max(m[2], weight_index) # Set after insertion because update_weights! may need to update the global shift, in which case knowing the old m[2] will help it skip checking empty levels
     level_weights_nonzero_index,level_weights_nonzero_subindex = get_level_weights_nonzero_indices(exponent)
-    m[level_weights_nonzero_index] |= UInt64(1) << level_weights_nonzero_subindex
+    m[level_weights_nonzero_index] |= 0x8000000000000000 >> level_weights_nonzero_subindex
 
     # lookup the group by exponent and bump length
     group_length_index = 4 + 3*2046 + 2exponent
@@ -516,18 +516,26 @@ function _set_to_zero!(m::Memory, i::Int)
     m4 -= old_weight
     if significand_sum == 0 # We zeroed out a group
         level_weights_nonzero_index,level_weights_nonzero_subindex = get_level_weights_nonzero_indices(exponent)
-        chunk = m[level_weights_nonzero_index] &= ~(UInt64(1) << level_weights_nonzero_subindex)
+        chunk = m[level_weights_nonzero_index] &= ~(0x8000000000000000 >> level_weights_nonzero_subindex)
         m[weight_index] = 0
         if m4 == 0 # There are no groups left
             m[2] = 4
         else
             m2 = Int(m[2])
             if weight_index == m2 # We zeroed out the first group
+                m2′ = m2
+                while chunk == 0
+                    level_weights_nonzero_index -= 1
+                    m2′ -= 64
+                    chunk = m[level_weights_nonzero_index]
+                end
+                m2′ += (63-trailing_zeros(chunk)) - level_weights_nonzero_subindex
                 m[4] != 0 && 1 < m2 <= lastindex(m) && m2 isa Int || error() # This makes the following @inbounds safe. If the compiler can follow my reasoning, then the error checking can also improve effect analysis and therefore performance.
                 while true # Update m[2]
                     m2 -= 1
                     @inbounds m[m2] != 0 && break # TODO, see if the compiler can infer noub
                 end
+                @assert m2 == m2′
                 m[2] = m2
             end
         end
