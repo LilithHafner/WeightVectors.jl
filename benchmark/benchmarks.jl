@@ -134,6 +134,7 @@ SUITE["pathological 5a"] = @benchmarkable pathological5a_setup pathological5a_up
 function pathological5b_setup()
     ds = DynamicDiscreteSampler()
     for i in 128:-1:1
+        i == 33 && continue
         push!(ds, i, 2.0^-i)
     end
     ds
