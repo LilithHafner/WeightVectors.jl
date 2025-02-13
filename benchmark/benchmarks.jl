@@ -139,8 +139,8 @@ function pathological5b_setup()
     ds
 end
 function pathological5b_update(ds)
-    push!(ds, 33, 2.0^30)
-    delete!(ds, 33)
+    push!(ds, 129, 2.0^30)
+    delete!(ds, 129)
 end
 SUITE["pathological 5b"] = @benchmarkable pathological5b_setup pathological5b_update
 
