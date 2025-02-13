@@ -521,21 +521,14 @@ function _set_to_zero!(m::Memory, i::Int)
         if m4 == 0 # There are no groups left
             m[2] = 4
         else
-            m2 = Int(m[2])
+            m2 = m[2]
             if weight_index == m2 # We zeroed out the first group
-                m2′ = m2
-                while chunk == 0
+                while chunk == 0 # Find the new m[2]
                     level_weights_nonzero_index -= 1
-                    m2′ -= 64
+                    m2 -= 64
                     chunk = m[level_weights_nonzero_index]
                 end
-                m2′ += (63-trailing_zeros(chunk)) - level_weights_nonzero_subindex
-                m[4] != 0 && 1 < m2 <= lastindex(m) && m2 isa Int || error() # This makes the following @inbounds safe. If the compiler can follow my reasoning, then the error checking can also improve effect analysis and therefore performance.
-                while true # Update m[2]
-                    m2 -= 1
-                    @inbounds m[m2] != 0 && break # TODO, see if the compiler can infer noub
-                end
-                @assert m2 == m2′
+                m2 += 63-trailing_zeros(chunk) - level_weights_nonzero_subindex
                 m[2] = m2
             end
         end
