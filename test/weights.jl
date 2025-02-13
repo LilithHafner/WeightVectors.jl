@@ -193,6 +193,12 @@ w[1939] = 7.075668919342077e18
 w[979] = 0.8922993294513122
 resize!(w, 1612) # This previously threw an AssertionError: 48 <= Base.top_set_bit(m[4]) <= 49
 
+w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+for x in (floatmin(Float64), prevfloat(1.0, 2), prevfloat(1.0), 1.0, nextfloat(1.0), nextfloat(1.0, 2), floatmax(Float64))
+    w[1] = x # This previously threw on prevfloat(1.0) and floatmax(Float64)
+    @test w[1] === x
+end
+
 include("invariants.jl")
 
 w = DynamicDiscreteSamplers.ResizableWeights(31)
