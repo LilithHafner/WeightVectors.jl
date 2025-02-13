@@ -201,7 +201,12 @@ function error_d03fb()
         push!(ds, i, 0.1)
     end
     for i in 1:25_000
-        push!(ds, rand(ds), exp(8randn()))
+        j = rand(ds)
+        if ds.w[j] != 0
+            ds.w[j] = exp(8randn())
+        else
+            push!(ds, j, exp(8randn()))
+        end
     end
 end
 error_d03fb() # This threw AssertionError: 48 <= Base.top_set_bit(m[4]) <= 50 90% of the time on d03fb84d1b62272c5d6ab54c49e643af9b87201b
