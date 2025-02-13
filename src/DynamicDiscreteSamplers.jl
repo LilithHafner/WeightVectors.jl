@@ -735,6 +735,7 @@ end
 WeightBasedSampler() = WeightBasedSampler(ResizableWeights(512))
 
 function Base.push!(wbs::WeightBasedSampler, index, weight)
+    index ∈ eachindex(wbs.w) && !(index in wbs) && throw(ArgumentError("Element $index is already present"))
     index > length(wbs.w) && resize!(wbs.w, max(index, 2length(wbs.w)))
     wbs.w[index] = weight
     wbs
@@ -745,15 +746,18 @@ function Base.append!(wbs::WeightBasedSampler, inds::AbstractVector, weights::Ab
     min_ind < 1 && throw(BoundsError(wbs.w, min_ind))
     max_ind > length(wbs.w) && resize!(wbs.w, max(max_ind, 2length(wbs.w)))
     for (i,w) in zip(inds, weights)
+        i ∈ eachindex(wbs.w) && !(i in wbs) && throw(ArgumentError("Element $i is already present"))
         wbs.w[i] = w
     end
     wbs
 end
 function Base.delete!(wbs::WeightBasedSampler, index)
-    index ∈ eachindex(wbs.w) && wbs.w[index] != 0 || throw(ArgumentError("Element $index is not present"))
+    index ∈ eachindex(wbs.w) && !(index in wbs) || throw(ArgumentError("Element $index is not present"))
     wbs.w[index] = 0
     wbs
 end
+Base.in(index::Int, wbs::WeightBasedSampler) = wbs.w.m[index+10491] == 0
+
 Base.rand(rng::AbstractRNG, wbs::WeightBasedSampler) = rand(rng, wbs.w)
 Base.rand(rng::AbstractRNG, wbs::WeightBasedSampler, n::Integer) = [rand(rng, wbs.w) for _ in 1:n]
 
