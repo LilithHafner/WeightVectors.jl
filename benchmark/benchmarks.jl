@@ -1,7 +1,7 @@
 
 using DynamicDiscreteSamplers
 
-if !isdefined(:DynamicDiscreteSampler)
+if @isdefined DynamicDiscreteSampler
     include("weightedsampler.jl")
 end
 
