@@ -253,12 +253,12 @@ end
 
 function get_significand_sum(m, i)
     i = _convert(Int, 2i+2041)
-    significand_sum = UInt128(m[i]) | (UInt128(m[i+1]) << 64)
+    significand_sum = @inline reinterpret(UInt128, (m[i], m[i+1]))
 end
 function update_significand_sum(m, i, delta)
     j = _convert(Int, 2i+2041)
     significand_sum = get_significand_sum(m, i) + delta
-    m[j:j+1] .= (significand_sum % UInt64, (significand_sum >>> 64) % UInt64)
+    m[j:j+1] .= @inline reinterpret(Tuple{UInt64, UInt64}, significand_sum)
     significand_sum
 end
 
