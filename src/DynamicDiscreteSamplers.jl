@@ -157,6 +157,7 @@ TODO
 # Trivial extensions:
 # push!, delete!
 
+Base.rand(rng::AbstractRNG, w::Weights, n::Integer) = [rand(rng, w) for _ in 1:n]
 Base.rand(rng::AbstractRNG, w::Weights) = _rand(rng, w.m)
 Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
