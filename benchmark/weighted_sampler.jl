@@ -8,7 +8,7 @@ end
 WeightBasedSampler() = WeightBasedSampler(ResizableWeights(512))
 
 function Base.push!(wbs::WeightBasedSampler, index, weight)
-    (index ∈ eachindex(wbs.w) && !(index in wbs)) && throw(ArgumentError("Element $index is already present"))
+    (index ∈ eachindex(wbs.w) && (index in wbs)) && throw(ArgumentError("Element $index is already present"))
     index > length(wbs.w) && resize!(wbs.w, max(index, 2length(wbs.w)))
     wbs.w[index] = weight
     wbs
@@ -25,7 +25,7 @@ function Base.append!(wbs::WeightBasedSampler, inds::AbstractVector, weights::Ab
     wbs
 end
 function Base.delete!(wbs::WeightBasedSampler, index)
-    (index ∈ eachindex(wbs.w) && !(index in wbs)) || throw(ArgumentError("Element $index is not present"))
+    (index ∈ eachindex(wbs.w) && (index in wbs)) || throw(ArgumentError("Element $index is not present"))
     wbs.w[index] = 0
     wbs
 end
