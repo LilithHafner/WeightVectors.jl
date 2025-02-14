@@ -19,7 +19,7 @@ function Base.append!(wbs::WeightBasedSampler, inds::AbstractVector, weights::Ab
     min_ind < 1 && throw(BoundsError(wbs.w, min_ind))
     max_ind > length(wbs.w) && resize!(wbs.w, max(max_ind, 2length(wbs.w)))
     for (i,w) in zip(inds, weights)
-        (i ∈ eachindex(wbs.w) && !(i in wbs)) && throw(ArgumentError("Element $i is already present"))
+        (i ∈ eachindex(wbs.w) && (i in wbs)) && throw(ArgumentError("Element $i is already present"))
         wbs.w[i] = w
     end
     wbs
