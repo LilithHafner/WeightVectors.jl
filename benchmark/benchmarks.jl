@@ -1,4 +1,9 @@
+
 using DynamicDiscreteSamplers
+
+if !isdefined(:DynamicDiscreteSampler)
+    include("weightedsampler.jl")
+end
 
 t0 = time()
 ds = DynamicDiscreteSampler()
