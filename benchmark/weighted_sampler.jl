@@ -1,4 +1,6 @@
 
+using Random
+
 # Shoe-horn into the legacy DynamicDiscreteSampler API so that we can leverage existing tests
 struct WeightBasedSampler
     w::ResizableWeights
