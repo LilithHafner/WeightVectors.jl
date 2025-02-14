@@ -25,7 +25,7 @@ function Base.append!(wbs::WeightBasedSampler, inds::AbstractVector, weights::Ab
     wbs
 end
 function Base.delete!(wbs::WeightBasedSampler, index)
-    (index ∈ eachindex(wbs.w) && (index in wbs)) || throw(ArgumentError("Element $index is not present"))
+    (index ∈ eachindex(wbs.w) && !(index in wbs)) || throw(ArgumentError("Element $index is not present"))
     wbs.w[index] = 0
     wbs
 end
