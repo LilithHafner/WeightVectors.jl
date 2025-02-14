@@ -198,7 +198,7 @@ end
 include("weights.jl")
 
 function error_d03fb()
-    ds = ResizableWeights(512)
+    ds = ResizableWeights(25_000)
     for i in 1:1_500
         ds[i] = 0.1
     end
