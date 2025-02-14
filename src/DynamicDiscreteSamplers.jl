@@ -731,8 +731,8 @@ Base.size(w::Weights) = (w.m[1],)
 
 # Precompile
 precompile(ResizableWeights, (Int,))
-precompile(Base.setindex, (ResizableWeights, Float64, Int))
-precompile(Base.getindex, (ResizableWeights, Int))
+precompile(setindex!, (ResizableWeights, Float64, Int))
+precompile(getindex, (ResizableWeights, Int))
 precompile(rand, (typeof(Random.default_rng()), ResizableWeights))
 precompile(rand, (ResizableWeights,))
 
