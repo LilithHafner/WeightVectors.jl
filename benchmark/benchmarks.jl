@@ -2,7 +2,7 @@
 using DynamicDiscreteSamplers
 
 if @isdefined DynamicDiscreteSampler
-    include("weightedsampler.jl")
+    include("weighted_sampler.jl")
 end
 
 t0 = time()
