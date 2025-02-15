@@ -577,7 +577,7 @@ function _set_to_zero!(m::Memory, i::Int)
     # shift the last element of the group into the spot occupied by the removed element
     m[pos] = m[group_lastpos]
     shifted_element = m[pos+1] = m[group_lastpos+1]
-    
+
     # adjust the edit map entry of the shifted element
     m[shifted_element + 10491] = pos << 11 + exponent
     m[j] = 0
