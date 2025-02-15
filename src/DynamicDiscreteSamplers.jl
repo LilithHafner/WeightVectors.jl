@@ -581,8 +581,8 @@ function _set_to_zero!(m::Memory, i::Int)
     
         # adjust the edit map entry of the shifted element
         m[shifted_element + 10491] = pos << 11 + exponent
-        m[j] = 0
     end
+    m[j] = 0
 
     # When zeroing out a group, mark the group as empty so that compaction will update the group metadata and then skip over it.
     if significand_sum == 0
