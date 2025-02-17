@@ -126,9 +126,9 @@ TODO
 # 16 unused bits
 # 10236..10491           level allocated length::[UInt8 2046] (2^(x-1) is implied)
 
-# 10492..10491+len       edit_map (maps index to current location in sub_weights)::[(pos<<11 + exponent)::UInt64] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs.
+# 10492..10491+len       edit_map (maps index to current location in sub_weights)::[(pos<<11 + exponent)::UInt64] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. (len refers to allocated length, not m[1])
 
-# 10492+2allocated_len..10491+2allocated_len+6len sub_weights (woven with targets)::[[significand::UInt64, target::Int}]]. allocated_len == length_from_memory(length(m))
+# 10492+2len..10491+7len sub_weights (woven with targets)::[[significand::UInt64, target::Int}]]. allocated_len == length_from_memory(length(m)) (len refers to allocated length, not m[1])
 
 # significands are stored in sub_weights with their implicit leading 1 added
 #     element_from_sub_weights = 0x8000000000000000 | (reinterpret(UInt64, weight::Float64) << 11)
@@ -706,9 +706,6 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         new_chunk = allocs_chunk + Int64(log2_new_allocated_size - log2_allocated_size) << allocs_subindex
         dst[allocs_index] = new_chunk
 
-        # Copy the group to a compacted location
-        unsafe_copyto!(dst, dst_i, src, src_i, 2group_length)
-
         # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
         delta = unsigned(Int64(dst_i-src_i)) << 11
         dst[j] += delta
@@ -717,6 +714,9 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
             j = target + 10491
             dst[j] += delta
         end
+
+        # Copy the group to a compacted location
+        unsafe_copyto!(dst, dst_i, src, src_i, 2group_length)
 
         # Advance indices
         src_i += 2*1<<log2_allocated_size # TODO add test that fails if the 2* part is removed
