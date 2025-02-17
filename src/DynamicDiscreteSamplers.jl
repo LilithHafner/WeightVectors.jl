@@ -219,10 +219,10 @@ end
 function _getindex(m::Memory{UInt64}, i::Int)
     @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeights(m), i))
     j = i + 10491
-    edit_index = m[j]
-    edit_index == 0 && return 0.0
-    pos = _convert(Int, edit_index >> 11)
-    exponent = edit_index & 2047
+    mj = m[j]
+    mj == 0 && return 0.0
+    pos = _convert(Int, mj >> 11)
+    exponent = mj & 2047
     weight = m[pos]
     reinterpret(Float64, (exponent<<52) | (weight - 0x8000000000000000) >> 11)
 end
