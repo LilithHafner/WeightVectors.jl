@@ -167,7 +167,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 
     # Select level
     x = rand(rng, Base.OneTo(m[4]))
-    i = m[2]
+    i = _convert(Int, m[2])
     local mi
     while #=i < 2046+4=# true
         mi = m[i]
@@ -210,7 +210,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
     while true
         r = rand(rng, UInt64)
         k1 = (r>>leading_zeros(len-1))
-        k2 = k1<<1+pos # TODO for perf: try %Int here (and everywhere)
+        k2 = _convert(Int, k1<<1+pos)
         # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to 0
         k1 < len && rand(rng, UInt64) < m[k2] && return Int(signed(m[k2+1]))
     end
@@ -220,7 +220,7 @@ function _getindex(m::Memory{UInt64}, i::Int)
     @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeights(m), i))
     j = i + 10491
     exponent = m[j] & 2047
-    pos = m[j] >> 11
+    pos = _convert(Int, m[j] >> 11)
     pos == 0 && return 0.0
     weight = m[pos]
     reinterpret(Float64, (exponent<<52) | (weight - 0x8000000000000000) >> 11)
@@ -270,7 +270,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     exponent = uv >> 52
     # update group total weight and total weight
     significand = 0x8000000000000000 | uv << 11
-    weight_index = exponent + 4
+    weight_index = _convert(Int, exponent + 4)
     significand_sum = update_significand_sum(m, weight_index, significand)
 
     if m[4] == 0 # if we were empty, set global shift (m[3]) so that m[4] will become ~2^40.
@@ -323,7 +323,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     m[2] = max(m[2], weight_index) # Set after insertion because update_weights! may need to update the global shift, in which case knowing the old m[2] will help it skip checking empty levels
 
     # lookup the group by exponent and bump length
-    group_length_index = 4 + 3*2046 + 2exponent
+    group_length_index = _convert(Int, 4 + 3*2046 + 2exponent)
     group_pos = m[group_length_index-1]
     group_length = m[group_length_index]+1
     m[group_length_index] = group_length # setting this before compaction means that compaction will ensure there is enough space for this expanded group, but will also copy one index (16 bytes) of junk which could access past the end of m. The junk isn't an issue once coppied because we immediately overwrite it. The former (copying past the end of m) only happens if the group to be expanded is already kissing the end. In this case, it will end up at the end after compaction and be easily expanded afterwords. Consequently, we treat that case specially and bump group length and manually expand after compaction
@@ -368,7 +368,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
                 new_next_free_space = next_free_space+twice_new_allocated_size
                 @assert new_next_free_space < length(m)+1 # After compaction there should be room TODO for perf, delete this
 
-                group_pos = m[group_length_index-1] # The group likely moved during compaction
+                group_pos = _convert(Int, m[group_length_index-1]) # The group likely moved during compaction
 
                 # Re-lookup allocated chunk because compaction could have changed other
                 # chunk elements. However, the allocated size of this group could not have
@@ -393,8 +393,8 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
             delta = (next_free_space-group_pos) << 11
             for k in 1:group_length-1
-                target = m[next_free_space+2k-1]
-                l = target + 10491
+                target = m[_convert(Int, next_free_space)+2k-1]
+                l = _convert(Int, target + 10491)
                 m[l] += delta
             end
 
@@ -411,7 +411,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     end
 
     # insert the element into the group
-    group_lastpos = (group_pos-2)+2group_length
+    group_lastpos = _convert(Int, (group_pos-2)+2group_length)
     m[group_lastpos] = significand
     m[group_lastpos+1] = i
 
@@ -491,12 +491,12 @@ function recompute_weights!(m, m3, m4, range)
     m4
 end
 
-get_alloced_indices(exponent::UInt64) = 10236 + exponent >> 3, exponent << 3 & 0x38
+get_alloced_indices(exponent::UInt64) = _convert(Int, 10236 + exponent >> 3), exponent << 3 & 0x38
 
 function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
     j = i + 10491
-    pos = m[j] >> 11
+    pos = _convert(Int, m[j] >> 11)
     pos == 0 && return # if the entry is already zero, return
     exponent = m[j] & 2047
     # set the entry to zero (no need to zero the exponent)
@@ -504,7 +504,7 @@ function _set_to_zero!(m::Memory, i::Int)
 
     # update group total weight and total weight
     significand = m[pos]
-    weight_index = exponent + 4
+    weight_index = _convert(Int, exponent + 4)
     significand_sum = update_significand_sum(m, weight_index, -UInt128(significand))
     old_weight = m[weight_index]
     m4 = m[4]
@@ -514,7 +514,7 @@ function _set_to_zero!(m::Memory, i::Int)
         if m4 == 0 # There are no groups left
             m[2] = 4
         else
-            m2 = Int(m[2])
+            m2 = _convert(Int, m[2])
             if weight_index == m2 # We zeroed out the first group
                 m[4] != 0 && 1 < m2 <= lastindex(m) && m2 isa Int || error() # This makes the following @inbounds safe. If the compiler can follow my reasoning, then the error checking can also improve effect analysis and therefore performance.
                 while true # Update m[2]
@@ -569,15 +569,16 @@ function _set_to_zero!(m::Memory, i::Int)
     end
 
     # lookup the group by exponent
-    group_length_index = 4 + 3*2046 + 2exponent
+    group_length_index = _convert(Int, 4 + 3*2046 + 2exponent)
     group_pos = m[group_length_index-1]
     group_length = m[group_length_index]
-    group_lastpos = (group_pos-2)+2group_length
+    group_lastpos = _convert(Int, (group_pos-2)+2group_length)
 
     # TODO for perf: see if it's helpful to gate this on pos != group_lastpos
     # shift the last element of the group into the spot occupied by the removed element
     m[pos] = m[group_lastpos]
-    shifted_element = m[pos+1] = m[group_lastpos+1]
+    m[pos+1] = m[group_lastpos+1]
+    shifted_element = _convert(Int, m[pos+1])
 
     # adjust the edit map entry of the shifted element
     m[shifted_element + 10491] = pos << 11 + exponent
@@ -685,7 +686,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         # Lookup the group in the group location table to find its length (performance optimization for copying, necessary to decide new allocated size and update pos)
         # exponent of 0x00000000000007fe is index 6+3*2046
         # exponent of 0x0000000000000001 is index 4+5*2046
-        group_length_index = 4 + 3*2046 + 2exponent
+        group_length_index = _convert(Int, 4 + 3*2046 + 2exponent)
         group_length = src[group_length_index]
 
         # Update group pos in level_location_info
@@ -713,7 +714,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         dst[j] += delta
         for k in 1:signed(group_length)-1 # TODO: add a benchmark that stresses compaction and try hoisting this bounds checking
             target = src[src_i+2k+1]
-            j = target + 10491
+            j = _convert(Int, target + 10491)
             dst[j] += delta
         end
 
