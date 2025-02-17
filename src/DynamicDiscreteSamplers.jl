@@ -194,7 +194,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
             x = rand(rng, UInt64)
             # p_stage = significand_sum << shift & ...00000.111111...64...11110000
             shift += 64
-            target = significand_sum << shift % UInt64
+            target = _convert(UInt64, significand_sum << shift)
             x > target && @goto reject
             x < target && break
             shift >= 0 && break
@@ -277,7 +277,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         m[3] = -24 - exponent
 
         shift = -24
-        weight = UInt64(significand_sum<<shift) + 1 # TODO for perf: change to % UInt64
+        weight = _convert(UInt64, significand_sum << shift) + 1
 
         @assert Base.top_set_bit(weight-1) == 40 # TODO for perf: delete
         m[weight_index] = weight
@@ -295,7 +295,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             set_global_shift_decrease!(m, m3) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
             shift = signed(exponent + m3)
         end
-        weight = UInt64(significand_sum<<shift) + 1 # TODO for perf: change to % UInt64
+        weight = _convert(UInt64, significand_sum << shift) + 1
 
         old_weight = m[weight_index]
         m[weight_index] = weight
@@ -308,7 +308,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             set_global_shift_decrease!(m, m3, m4) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
             if weight_index > m[2] # if the new weight was not adjusted by set_global_shift_decrease!, then adjust it manually
                 shift = signed(exponent+m3)
-                new_weight = (significand_sum<<shift) % UInt64 + 1
+                new_weight = _convert(UInt64, significand_sum << shift) + 1
 
                 @assert significand_sum != 0
                 @assert m[weight_index] == weight
@@ -482,7 +482,7 @@ function recompute_weights!(m, m3, m4, range)
         significand_sum = get_significand_sum(m, i)
         significand_sum == 0 && continue # in this case, the weight was and still is zero
         shift = signed(i-4+m3)
-        weight = (significand_sum<<shift) % UInt64 + 1
+        weight = _convert(UInt64, (significand_sum << shift)) + 1
 
         old_weight = m[i]
         m[i] = weight
@@ -526,7 +526,7 @@ function _set_to_zero!(m::Memory, i::Int)
         end
     else # We did not zero out a group
         shift = signed(exponent + m[3])
-        new_weight = UInt64(significand_sum<<shift) + 1# TODO for perf: change to % UInt64
+        new_weight = _convert(UInt64, significand_sum << shift) + 1
         m[weight_index] = new_weight
         m4 += new_weight
     end
@@ -538,9 +538,8 @@ function _set_to_zero!(m::Memory, i::Int)
 
         # TODO for perf: we can almost get away with loading only the most significant word of significand_sums. Here, we use the most significant 65 bits.
         m2 = m[2]
-        x = get_significand_sum(m, m2)
         # TODO refactor indexing for simplicity
-        x2 = UInt64(x>>63) #TODO for perf %UInt64
+        x2 = _convert(UInt64, get_significand_sum(m, m2) >> 63)
         @assert x2 != 0
         for i in Sys.WORD_SIZE:-1:1 # This loop is backwards so that memory access is forwards. TODO for perf, we can get away with shaving 1 to 10 off of this loop.
             # This can underflow from significand sums into weights, but that underflow is safe because it can only happen if all the latter weights are zero. Be careful about this when re-arranging the memory layout!
