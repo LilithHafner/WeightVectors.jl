@@ -256,6 +256,7 @@ try
             push!(LOG, len)
             w = DynamicDiscreteSamplers.ResizableWeights(len)
             v = fill(0.0, len)
+            resize = rand(Bool) # Some behavior emerges when not resizing for a long period
             for _ in 1:rand((10,100,3000))
                 @test v == w
                 verify(w.m)
@@ -264,22 +265,22 @@ try
                     sm == 0 || statistical_test(w, v ./ sm)
                 end
                 x = rand()
-                if x < .5
+                if x < .2 && !all(iszero, v)
+                    i = rand(findall(!iszero, v))
+                    push!(LOG, i => 0)
+                    v[i] = 0
+                    w[i] = 0
+                elseif x < .4 && !all(iszero, v)
+                    i = rand(w)
+                    push!(LOG, i => 0)
+                    v[i] = 0
+                    w[i] = 0
+                elseif x < .9 || !resize
                     i = rand(eachindex(v))
                     x = exp(rand((.1, 7, 100))*randn())
                     push!(LOG, i => x)
                     v[i] = x
                     w[i] = x
-                elseif x < .7 && !all(iszero, v)
-                    i = rand(findall(!iszero, v))
-                    push!(LOG, i => 0)
-                    v[i] = 0
-                    w[i] = 0
-                elseif x < .9 && !all(iszero, v)
-                    i = rand(w)
-                    push!(LOG, i => 0)
-                    v[i] = 0
-                    w[i] = 0
                 else
                     l_old = length(v)
                     l_new = rand(1:rand((10,100,3000)))
