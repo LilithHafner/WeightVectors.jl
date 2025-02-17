@@ -213,6 +213,28 @@ w[2] = floatmax(Float64)
 w[2] = 0 # This previously threw an assertion error due to overflow when estimating sum of level weights
 verify(w.m)
 
+w = DynamicDiscreteSamplers.FixedSizeWeights(9)
+v = zeros(9)
+v[4] = w[4] = 2.44
+v[5] = w[5] = 0.76
+v[6] = w[6] = 0.61
+v[7] = w[7] = 0.62
+v[9] = w[9] = 2.15
+v[1] = w[1] = 1.65
+v[7] = w[7] = 1.46
+v[8] = w[8] = 0.25
+v[2] = w[2] = 0.93
+v[3] = w[3] = 3.67
+v[6] = w[6] = 9.92
+v[5] = w[5] = 1.72
+v[6] = w[6] = 0.70
+v[8] = w[8] = 0.72
+v[5] = w[5] = 0.20
+v[1] = w[1] = 0.71
+v[3] = w[3] = 0.92
+# verify(w.m)
+@test_broken v == w
+
 # These tests have never revealed a bug that was not revealed by one of the above tests:
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)
 w[1] = 1
