@@ -232,8 +232,8 @@ v[8] = w[8] = 0.72
 v[5] = w[5] = 0.20
 v[1] = w[1] = 0.71
 v[3] = w[3] = 0.92
-# verify(w.m)
-@test_broken v == w
+verify(w.m)
+@test v == w
 
 # These tests have never revealed a bug that was not revealed by one of the above tests:
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)

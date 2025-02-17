@@ -705,9 +705,6 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         new_chunk = allocs_chunk + Int64(log2_new_allocated_size - log2_allocated_size) << allocs_subindex
         dst[allocs_index] = new_chunk
 
-        # Copy the group to a compacted location
-        unsafe_copyto!(dst, dst_i, src, src_i, 2group_length)
-
         # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
         delta = unsigned(Int64(dst_i-src_i)) << 11
         dst[j] += delta
@@ -716,6 +713,9 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
             j = target + 10491
             dst[j] += delta
         end
+
+        # Copy the group to a compacted location
+        unsafe_copyto!(dst, dst_i, src, src_i, 2group_length)
 
         # Advance indices
         src_i += 2*1<<log2_allocated_size # TODO add test that fails if the 2* part is removed
