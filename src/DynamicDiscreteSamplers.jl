@@ -577,11 +577,10 @@ function _set_to_zero!(m::Memory, i::Int)
     # TODO for perf: see if it's helpful to gate this on pos != group_lastpos
     # shift the last element of the group into the spot occupied by the removed element
     m[pos] = m[group_lastpos]
-    m[pos+1] = m[group_lastpos+1]
-    shifted_element = _convert(Int, m[pos+1])
+    shifted_element = m[pos+1] = m[group_lastpos+1]
 
     # adjust the edit map entry of the shifted element
-    m[shifted_element + 10491] = pos << 11 + exponent
+    m[_convert(Int, shifted_element) + 10491] = pos << 11 + exponent
     m[j] = 0
 
     # When zeroing out a group, mark the group as empty so that compaction will update the group metadata and then skip over it.
