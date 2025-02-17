@@ -29,7 +29,7 @@ function Base.delete!(wbs::WeightBasedSampler, index)
     wbs.w[index] = 0
     wbs
 end
-Base.in(index::Int, wbs::WeightBasedSampler) = wbs.w.m[index+10491] != 0
+Base.in(index::Int, wbs::WeightBasedSampler) = 1 <= index <= wbs.w.m[1] && wbs.w.m[index+10491] != 0
 
 Base.rand(rng::AbstractRNG, wbs::WeightBasedSampler) = rand(rng, wbs.w)
 Base.rand(rng::AbstractRNG, wbs::WeightBasedSampler, n::Integer) = [rand(rng, wbs.w) for _ in 1:n]
