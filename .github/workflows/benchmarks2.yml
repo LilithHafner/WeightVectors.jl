@@ -1,0 +1,8 @@
+name: Benchmark
+
+on:
+  push:
+
+jobs:
+  benchmark:
+    uses: LilithHafner/chairmarks-ci/comment.yml@main
