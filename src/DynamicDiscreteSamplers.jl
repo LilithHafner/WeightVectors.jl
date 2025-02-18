@@ -238,8 +238,7 @@ function _setindex!(m::Memory, v::Float64, i::Int)
 
     # Find the entry's pos in the edit map table
     j = i + 10491
-    pos = m[j] >> 11
-    if pos == 0
+    if m[j] == 0
         _set_from_zero!(m, v, i)
     else
         _set_nonzero!(m, v, i)
@@ -497,9 +496,10 @@ get_alloced_indices(exponent::UInt64) = 10236 + exponent >> 3, exponent << 3 & 0
 function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
     j = i + 10491
-    pos = m[j] >> 11
-    pos == 0 && return # if the entry is already zero, return
-    exponent = m[j] & 2047
+    mj = m[j]
+    mj == 0 && return # if the entry is already zero, return
+    pos = mj >> 11
+    exponent = mj & 2047
     # set the entry to zero (no need to zero the exponent)
     # m[j] = 0 is moved to after we adjust the edit_map entry for the shifted element, in case there is no shifted element
 
