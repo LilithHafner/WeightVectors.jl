@@ -9,4 +9,4 @@ permissions:
 
 jobs:
   benchmark:
-    uses: LilithHafner/chairmarks-ci/.github/workflows/comment.yml@main
+    uses: LilithHafner/chairmarks-ci/.github/workflows/comment.yml
