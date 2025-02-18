@@ -496,7 +496,7 @@ get_alloced_indices(exponent::UInt64) = _convert(Int, 10236 + exponent >> 3), ex
 function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
     j = i + 10491
-    pos = _convert(Int, m[j] >> 11)
+    pos = m[j] >> 11 #_convert(Int, m[j] >> 11)
     pos == 0 && return # if the entry is already zero, return
     exponent = m[j] & 2047
     # set the entry to zero (no need to zero the exponent)
