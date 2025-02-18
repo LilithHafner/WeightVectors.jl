@@ -234,6 +234,7 @@ function _setindex!(m::Memory, v::Float64, i::Int)
         return
     end
     0x0010000000000000 <= uv <= 0x7fefffffffffffff || throw(DomainError(v, "Invalid weight")) # Excludes subnormals
+
     # Find the entry's pos in the edit map table
     j = i + 10491
     pos = m[j] >> 11
