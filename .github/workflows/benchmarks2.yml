@@ -1,7 +1,7 @@
 name: Benchmark
 
 on:
-  push
+  pull_request
 
 permissions:
   # Lets chairmarks-ci post bot comment to the pull request
