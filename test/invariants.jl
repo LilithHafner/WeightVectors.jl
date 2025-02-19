@@ -30,7 +30,7 @@ function verify_edit_map_points_to_correct_target(m::Memory)
     filled_len = m[1]
     len = _length_from_memory(length(m))
     for i in 1:len
-        edit_map_entry = m[i+10491]
+        edit_map_entry = m[i+10523]
         if i > filled_len
             @assert edit_map_entry == 0
         elseif edit_map_entry != 0
