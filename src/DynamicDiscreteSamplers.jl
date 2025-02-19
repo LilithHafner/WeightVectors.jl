@@ -496,7 +496,7 @@ get_alloced_indices(exponent::UInt64) = _convert(Int, 10236 + exponent >> 3), ex
 function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
     j = i + 10491
-    pos = _convert(Int, m[j] >> 11)
+    pos = m[j] >> 11
     pos == 0 && return # if the entry is already zero, return
     exponent = m[j] & 2047
     # set the entry to zero (no need to zero the exponent)
@@ -504,7 +504,7 @@ function _set_to_zero!(m::Memory, i::Int)
 
     # update group total weight and total weight
     significand = m[pos]
-    weight_index = _convert(Int, exponent + 4)
+    weight_index = exponent + 4
     significand_sum = update_significand_sum(m, weight_index, -UInt128(significand))
     old_weight = m[weight_index]
     m4 = m[4]
@@ -568,10 +568,10 @@ function _set_to_zero!(m::Memory, i::Int)
     end
 
     # lookup the group by exponent
-    group_length_index = _convert(Int, 4 + 3*2046 + 2exponent)
+    group_length_index = 4 + 3*2046 + 2exponent
     group_pos = m[group_length_index-1]
     group_length = m[group_length_index]
-    group_lastpos = _convert(Int, (group_pos-2)+2group_length)
+    group_lastpos = (group_pos-2)+2group_length
 
     # TODO for perf: see if it's helpful to gate this on pos != group_lastpos
     # shift the last element of the group into the spot occupied by the removed element
@@ -579,7 +579,7 @@ function _set_to_zero!(m::Memory, i::Int)
     shifted_element = m[pos+1] = m[group_lastpos+1]
 
     # adjust the edit map entry of the shifted element
-    m[_convert(Int, shifted_element) + 10491] = pos << 11 + exponent
+    m[shifted_element + 10491] = pos << 11 + exponent
     m[j] = 0
 
     # When zeroing out a group, mark the group as empty so that compaction will update the group metadata and then skip over it.
