@@ -7,7 +7,7 @@ using Random
 isdefined(@__MODULE__, :Memory) || const Memory = Vector # Compat for Julia < 1.11
 
 const DEBUG = Base.JLOptions().check_bounds == 1
-_convert(T, x) = DEBUG ? T(x) : x%T
+_convert(T, x) = DEBUG ? T(x) : T(x) 
 
 """
     Weights <: AbstractVector{Float64}
