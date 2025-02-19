@@ -496,7 +496,7 @@ get_alloced_indices(exponent::UInt64) = _convert(Int, 10236 + exponent >> 3), ex
 function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
     j = i + 10491
-    pos = m[j] >> 11
+    pos = _convert(Int, m[j] >> 11)
     pos == 0 && return # if the entry is already zero, return
     exponent = m[j] & 2047
     # set the entry to zero (no need to zero the exponent)
@@ -579,7 +579,7 @@ function _set_to_zero!(m::Memory, i::Int)
     shifted_element = m[pos+1] = m[group_lastpos+1]
 
     # adjust the edit map entry of the shifted element
-    m[shifted_element + 10491] = pos << 11 + exponent
+    m[shifted_element + 10491] = convert(UInt64, pos) << 11 + exponent
     m[j] = 0
 
     # When zeroing out a group, mark the group as empty so that compaction will update the group metadata and then skip over it.
