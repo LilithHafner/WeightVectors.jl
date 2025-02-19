@@ -167,7 +167,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 
     # Select level
     x = rand(rng, Base.OneTo(m[4]))
-    i = _convert(Int6464, m[2])
+    i = _convert(Int64, m[2])
     local mi
     while #=i < 2046+4=# true
         mi = m[i]
