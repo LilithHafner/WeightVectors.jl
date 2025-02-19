@@ -496,7 +496,7 @@ function recompute_weights!(m, m3, m4, range)
 end
 
 get_alloced_indices(exponent::UInt64) = _convert(Int, 10268 + exponent >> 3), exponent << 3 & 0x38
-get_level_weights_nonzero_indices(exponent::UInt64) = 10235 + exponent >> 6, exponent & 0x3f
+get_level_weights_nonzero_indices(exponent::UInt64) = _convert(Int, 10235 + exponent >> 6), exponent & 0x3f
 
 function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
@@ -521,7 +521,7 @@ function _set_to_zero!(m::Memory, i::Int)
         if m4 == 0 # There are no groups left
             m[2] = 4
         else
-            m2 = _convert(Int, m[2])
+            m2 = m[2]
             if weight_index == m2 # We zeroed out the first group
                 while chunk == 0 # Find the new m[2]
                     level_weights_nonzero_index -= 1
