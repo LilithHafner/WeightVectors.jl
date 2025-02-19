@@ -213,6 +213,38 @@ w[2] = floatmax(Float64)
 w[2] = 0 # This previously threw an assertion error due to overflow when estimating sum of level weights
 verify(w.m)
 
+w = DynamicDiscreteSamplers.FixedSizeWeights(9)
+v = zeros(9)
+v[4] = w[4] = 2.44
+v[5] = w[5] = 0.76
+v[6] = w[6] = 0.61
+v[7] = w[7] = 0.62
+v[9] = w[9] = 2.15
+v[1] = w[1] = 1.65
+v[7] = w[7] = 1.46
+v[8] = w[8] = 0.25
+v[2] = w[2] = 0.93
+v[3] = w[3] = 3.67
+v[6] = w[6] = 9.92
+v[5] = w[5] = 1.72
+v[6] = w[6] = 0.70
+v[8] = w[8] = 0.72
+v[5] = w[5] = 0.20
+v[1] = w[1] = 0.71
+v[3] = w[3] = 0.92
+verify(w.m)
+@test v == w
+
+# This test catches a bug that was not revealed by the RNG tests below.
+# The final line is calibrated to have about a 50% fail rate on that bug
+# and run in about 3 seconds:
+w = DynamicDiscreteSamplers.FixedSizeWeights(2046*2048)
+w .= repeat(ldexp.(1.0, -1022:1023), inner=2048)
+w[(2046-16)*2048+1:2046*2048] .= 0
+@test w.m[4] < 2.0^32*1.1 # Confirm that we created an interesting condition
+f(w,n) = sum(Int64(rand(w)) for _ in 1:n)
+@test f(w, 2^27) ≈ 4.1543685e6*2^27 rtol=1e-6 # This should fail less than 1e-40 of the time
+
 # These tests have never revealed a bug that was not revealed by one of the above tests:
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)
 w[1] = 1
@@ -241,7 +273,7 @@ let
     end
 end
 
-# This alone probably catches all bugs that are caught by tests above.
+# This alone probably catches all bugs that are caught by tests above (with one exception).
 # However, whenever we identify and fix a bug, we add a specific test for it above.
 include("statistical.jl")
 try
@@ -256,6 +288,7 @@ try
             push!(LOG, len)
             w = DynamicDiscreteSamplers.ResizableWeights(len)
             v = fill(0.0, len)
+            resize = rand(Bool) # Some behavior emerges when not resizing for a long period
             for _ in 1:rand((10,100,3000))
                 @test v == w
                 verify(w.m)
@@ -264,22 +297,22 @@ try
                     sm == 0 || statistical_test(w, v ./ sm)
                 end
                 x = rand()
-                if x < .5
+                if x < .2 && !all(iszero, v)
+                    i = rand(findall(!iszero, v))
+                    push!(LOG, i => 0)
+                    v[i] = 0
+                    w[i] = 0
+                elseif x < .4 && !all(iszero, v)
+                    i = rand(w)
+                    push!(LOG, i => 0)
+                    v[i] = 0
+                    w[i] = 0
+                elseif x < .9 || !resize
                     i = rand(eachindex(v))
                     x = exp(rand((.1, 7, 100))*randn())
                     push!(LOG, i => x)
                     v[i] = x
                     w[i] = x
-                elseif x < .7 && !all(iszero, v)
-                    i = rand(findall(!iszero, v))
-                    push!(LOG, i => 0)
-                    v[i] = 0
-                    w[i] = 0
-                elseif x < .9 && !all(iszero, v)
-                    i = rand(w)
-                    push!(LOG, i => 0)
-                    v[i] = 0
-                    w[i] = 0
                 else
                     l_old = length(v)
                     l_new = rand(1:rand((10,100,3000)))
