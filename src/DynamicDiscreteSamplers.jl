@@ -323,7 +323,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     m[2] = max(m[2], weight_index) # Set after insertion because update_weights! may need to update the global shift, in which case knowing the old m[2] will help it skip checking empty levels
 
     # lookup the group by exponent and bump length
-    group_length_index = _convert(Int, 4 + 3*2046 + 2exponent)
+    group_length_index = 4 + 3*2046 + 2exponent
     group_pos = m[group_length_index-1]
     group_length = m[group_length_index]+1
     m[group_length_index] = group_length # setting this before compaction means that compaction will ensure there is enough space for this expanded group, but will also copy one index (16 bytes) of junk which could access past the end of m. The junk isn't an issue once coppied because we immediately overwrite it. The former (copying past the end of m) only happens if the group to be expanded is already kissing the end. In this case, it will end up at the end after compaction and be easily expanded afterwords. Consequently, we treat that case specially and bump group length and manually expand after compaction
@@ -393,8 +393,8 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
             delta = (next_free_space-group_pos) << 11
             for k in 1:group_length-1
-                target = m[_convert(Int, next_free_space)+2k-1]
-                l = _convert(Int, target + 10491)
+                target = m[next_free_space+2k-1]
+                l = target + 10491
                 m[l] += delta
             end
 
@@ -402,7 +402,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # TODO for perf: delete this and instead have compaction check if the index
             # pointed to by the start of the group points back (in the edit map) to that location
             if allocated_size != 0
-                m[_convert(Int, group_pos)+1] = unsigned(Int64(-allocated_size))
+                m[group_pos+1] = unsigned(Int64(-allocated_size))
             end
 
             # update group start location
@@ -411,7 +411,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     end
 
     # insert the element into the group
-    group_lastpos = _convert(Int, (group_pos-2)+2group_length)
+    group_lastpos = (group_pos-2)+2group_length
     m[group_lastpos] = significand
     m[group_lastpos+1] = i
 
