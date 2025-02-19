@@ -1,6 +1,5 @@
 module DynamicDiscreteSamplers
 
-
 export DynamicDiscreteSampler
 
 using Random
@@ -394,8 +393,8 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
             delta = (next_free_space-group_pos) << 11
             for k in 1:group_length-1
-                target = m[next_free_space+2k-1]
-                l = target + 10491
+                target = m[_convert(Int, next_free_space)+2k-1]
+                l = _convert(Int, target + 10491)
                 m[l] += delta
             end
 
@@ -403,7 +402,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # TODO for perf: delete this and instead have compaction check if the index
             # pointed to by the start of the group points back (in the edit map) to that location
             if allocated_size != 0
-                m[group_pos+1] = unsigned(Int64(-allocated_size))
+                m[_convert(Int, group_pos)+1] = unsigned(Int64(-allocated_size))
             end
 
             # update group start location
@@ -412,7 +411,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     end
 
     # insert the element into the group
-    group_lastpos = (group_pos-2)+2group_length
+    group_lastpos = _convert(Int, (group_pos-2)+2group_length)
     m[group_lastpos] = significand
     m[group_lastpos+1] = i
 
@@ -497,7 +496,7 @@ get_alloced_indices(exponent::UInt64) = _convert(Int, 10236 + exponent >> 3), ex
 function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
     j = i + 10491
-    pos = m[j] >> 11
+    pos = _convert(Int, m[j] >> 11)
     pos == 0 && return # if the entry is already zero, return
     exponent = m[j] & 2047
     # set the entry to zero (no need to zero the exponent)
@@ -515,7 +514,7 @@ function _set_to_zero!(m::Memory, i::Int)
         if m4 == 0 # There are no groups left
             m[2] = 4
         else
-            m2 = m[2]
+            m2 = _convert(Int, m[2])
             if weight_index == m2 # We zeroed out the first group
                 m[4] != 0 && 1 < m2 <= lastindex(m) && m2 isa Int || error() # This makes the following @inbounds safe. If the compiler can follow my reasoning, then the error checking can also improve effect analysis and therefore performance.
                 while true # Update m[2]
@@ -580,7 +579,7 @@ function _set_to_zero!(m::Memory, i::Int)
     shifted_element = m[pos+1] = m[group_lastpos+1]
 
     # adjust the edit map entry of the shifted element
-    m[shifted_element + 10491] = pos << 11 + exponent
+    m[_convert(Int, shifted_element) + 10491] = pos << 11 + exponent
     m[j] = 0
 
     # When zeroing out a group, mark the group as empty so that compaction will update the group metadata and then skip over it.
@@ -710,7 +709,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         dst[j] += delta
         for k in 1:signed(group_length)-1 # TODO: add a benchmark that stresses compaction and try hoisting this bounds checking
             target = src[src_i+2k+1]
-            j = target + 10491
+            j = _convert(Int, target + 10491)
             dst[j] += delta
         end
 
