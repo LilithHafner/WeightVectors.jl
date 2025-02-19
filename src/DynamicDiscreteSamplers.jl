@@ -1,5 +1,6 @@
 module DynamicDiscreteSamplers
 
+
 export DynamicDiscreteSampler
 
 using Random
