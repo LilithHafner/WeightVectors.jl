@@ -270,7 +270,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     exponent = uv >> 52
     # update group total weight and total weight
     significand = 0x8000000000000000 | uv << 11
-    weight_index = _convert(Int, exponent + 4)
+    weight_index = exponent + 4
     significand_sum = update_significand_sum(m, weight_index, significand)
 
     if m[4] == 0 # if we were empty, set global shift (m[3]) so that m[4] will become ~2^40.
