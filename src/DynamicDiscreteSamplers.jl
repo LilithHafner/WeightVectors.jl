@@ -416,7 +416,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     m[group_lastpos+1] = i
 
     # log the insertion location in the edit map
-    m[j] = group_lastpos << 11 + exponent
+    m[j] = _convert(UInt64, group_lastpos) << 11 + exponent
 
     nothing
 end
@@ -579,7 +579,7 @@ function _set_to_zero!(m::Memory, i::Int)
     shifted_element = m[pos+1] = m[group_lastpos+1]
 
     # adjust the edit map entry of the shifted element
-    m[_convert(Int, shifted_element) + 10491] = pos << 11 + exponent
+    m[_convert(Int, shifted_element) + 10491] = _convert(UInt64, pos) << 11 + exponent
     m[j] = 0
 
     # When zeroing out a group, mark the group as empty so that compaction will update the group metadata and then skip over it.
