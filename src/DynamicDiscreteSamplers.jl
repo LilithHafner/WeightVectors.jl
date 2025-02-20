@@ -659,8 +659,8 @@ function _resize!(w::ResizableWeights, len::Integer)
 end
 
 function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
-    dst_i = Int(length_from_memory(length(dst)) + 10524)
-    src_i = Int(length_from_memory(length(src)) + 10524)
+    dst_i = length_from_memory(length(dst)) + 10524
+    src_i = length_from_memory(length(src)) + 10524
     next_free_space = src[10267]
 
     while src_i < next_free_space
