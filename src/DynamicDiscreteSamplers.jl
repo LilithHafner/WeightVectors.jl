@@ -190,7 +190,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
         # acceptance_p = exact(significand_sum)<<shift & ...0000.1111...  (for example, if significand_sum<<shift is exact, then acceptance_p will be zero)
         # TODO for confidence: add a test that fails if this were to mix up floor+1 and ceil.
         exponent = i-4
-        shift = signed(exponent + m[3])
+        shift = _convert(Int, exponent + m[3])
         significand_sum = get_significand_sum(m, i)
         while true
             x = rand(rng, UInt64)
@@ -285,7 +285,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         m[weight_index] = weight
         m[4] = weight
     else
-        shift = signed(exponent + m[3])
+        shift = _convert(Int, exponent + m[3])
         if Base.top_set_bit(significand_sum)+shift > 64
             # if this would overflow, drop shift so that it renormalizes down to 48.
             # this drops shift at least ~16 and makes the sum of weights at least ~2^48. # TODO: add an assert
@@ -295,7 +295,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # signed(m[3]) == 48 - Base.top_set_bit(significand_sum) - signed(exponent)
             m3 = 48 - Base.top_set_bit(significand_sum) - exponent
             set_global_shift_decrease!(m, m3) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
-            shift = signed(exponent + m3)
+            shift = _convert(Int, exponent + m3)
         end
         weight = _convert(UInt64, significand_sum << shift) + 1
 
@@ -309,7 +309,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             m3 = m[3]-0x10
             set_global_shift_decrease!(m, m3, m4) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
             if weight_index > m[2] # if the new weight was not adjusted by set_global_shift_decrease!, then adjust it manually
-                shift = signed(exponent+m3)
+                shift = _convert(Int, exponent+m3)
                 new_weight = _convert(UInt64, significand_sum << shift) + 1
 
                 @assert significand_sum != 0
@@ -447,7 +447,7 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase sh
     So for -signed(m3)-118 < i, we could need to adjust the ith weight
     =#
     recompute_range = max(5, -signed(m3)-117):m2 # TODO It would be possible to scale this range with length (m[1]) in which case testing could be stricter and performance could be (marginally) better, though not in large cases so possibly not worth doing at all)
-    m[4] = recompute_weights!(m, m3, m4, recompute_range)
+    m[4] = recompute_weights!(m, _convert(Int, m3), m4, recompute_range)
 end
 
 function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease shift, on insertion of elements
@@ -475,7 +475,7 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
         m[i] = weight
         m4 += weight-old_weight
     end
-    m4 = recompute_weights!(m, m3, m4, recompute_range)
+    m4 = recompute_weights!(m, _convert(Int, m3), m4, recompute_range)
 
     m[4] = m4
 end
@@ -485,7 +485,7 @@ function recompute_weights!(m, m3, m4, range)
     @inbounds for i in range
         significand_sum = get_significand_sum(m, i)
         significand_sum == 0 && continue # in this case, the weight was and still is zero
-        shift = signed(i-4+m3)
+        shift = i-4+m3
         weight = _convert(UInt64, (significand_sum << shift)) + 1
 
         old_weight = m[i]
@@ -534,7 +534,7 @@ function _set_to_zero!(m::Memory, i::Int)
             end
         end
     else # We did not zero out a group
-        shift = signed(exponent + m[3])
+        shift = _convert(Int, exponent + m[3])
         new_weight = _convert(UInt64, significand_sum << shift) + 1
         m[weight_index] = new_weight
         m4 += new_weight
