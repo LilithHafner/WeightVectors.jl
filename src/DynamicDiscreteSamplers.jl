@@ -221,9 +221,10 @@ end
 function _getindex(m::Memory{UInt64}, i::Int)
     @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeights(m), i))
     j = i + 10523
-    exponent = m[j] & 2047
-    pos = _convert(Int, m[j] >> 11)
-    pos == 0 && return 0.0
+    mj = m[j]
+    mj == 0 && return 0.0
+    pos = _convert(Int, mj >> 11)
+    exponent = mj & 2047
     weight = m[pos]
     reinterpret(Float64, (exponent<<52) | (weight - 0x8000000000000000) >> 11)
 end
@@ -239,8 +240,7 @@ function _setindex!(m::Memory, v::Float64, i::Int)
 
     # Find the entry's pos in the edit map table
     j = i + 10523
-    pos = m[j] >> 11
-    if pos == 0
+    if m[j] == 0
         _set_from_zero!(m, v, i)
     else
         _set_nonzero!(m, v, i)
@@ -501,9 +501,10 @@ get_level_weights_nonzero_indices(exponent::UInt64) = _convert(Int, 10235 + expo
 function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
     j = i + 10523
-    pos = _convert(Int, m[j] >> 11)
-    pos == 0 && return # if the entry is already zero, return
-    exponent = m[j] & 2047
+    mj = m[j]
+    mj == 0 && return # if the entry is already zero, return
+    pos = _convert(Int, mj >> 11)
+    exponent = mj & 2047
     # set the entry to zero (no need to zero the exponent)
     # m[j] = 0 is moved to after we adjust the edit_map entry for the shifted element, in case there is no shifted element
 
