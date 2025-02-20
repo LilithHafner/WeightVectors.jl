@@ -611,7 +611,7 @@ function FixedSizeWeights(len::Integer)
     m[4:10523+len] .= 0 # metadata and edit map need to be zeroed but the bulk does not
     m[1] = len
     m[2] = 4
-    # no need to set m[3]
+    m[3] = 0
     m[10267] = 10524+len
     _FixedSizeWeights(m)
 end
