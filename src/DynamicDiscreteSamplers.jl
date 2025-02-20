@@ -204,7 +204,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
     end
 
     # Lookup level info
-    j = 2i + 6133
+    j = _convert(Int, 2i + 6133)
     pos = m[j]
     len = m[j+1]
 
@@ -214,7 +214,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
         k1 = (r>>leading_zeros(len-1))
         k2 = _convert(Int, k1<<1+pos)
         # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to 0
-        k1 < len && rand(rng, UInt64) < m[k2] && return Int(signed(m[k2+1]))
+        k1 < len && rand(rng, UInt64) < m[k2] && return _convert(Int, signed(m[k2+1]))
     end
 end
 
@@ -676,7 +676,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
                 allocs_chunk = dst[allocs_index] # TODO for perf: consider not copying metadata on out of place compaction (and consider the impact here)
                 log2_allocated_size_p1 = allocs_chunk >> allocs_subindex % UInt8
                 allocated_size = 1<<(log2_allocated_size_p1-1)
-                new_chunk = allocs_chunk - UInt64(log2_allocated_size_p1) << allocs_subindex
+                new_chunk = allocs_chunk - _convert(UInt64, log2_allocated_size_p1) << allocs_subindex
                 dst[allocs_index] = new_chunk # zero out allocated size (this will force re-allocation so we can let the old, wrong pos info stand)
                 src_i += 2allocated_size # skip the group
             else # the decaying corpse of an abandoned group. Ignore it.
