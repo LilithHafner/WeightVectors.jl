@@ -694,7 +694,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         # exponent of 0x00000000000007fe is index 6+3*2046
         # exponent of 0x0000000000000001 is index 4+5*2046
         group_length_index = _convert(Int, 4 + 3*2046 + 2exponent)
-        group_length = src[group_length_index]
+        group_length = _convert(Int, src[group_length_index])
 
         # Update group pos in level_location_info
         dst[group_length_index-1] += unsigned(Int64(dst_i-src_i))
@@ -716,7 +716,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
         delta = unsigned(Int64(dst_i-src_i)) << 11
         dst[j] += delta
-        for k in 1:signed(group_length)-1 # TODO: add a benchmark that stresses compaction and try hoisting this bounds checking
+        for k in 1:group_length-1 # TODO: add a benchmark that stresses compaction and try hoisting this bounds checking
             target = src[src_i+2k+1]
             j = _convert(Int, target + 10523)
             dst[j] += delta
