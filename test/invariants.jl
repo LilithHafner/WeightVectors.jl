@@ -1,6 +1,6 @@
 isdefined(@__MODULE__, :Memory) || const Memory = Vector # Compat for Julia < 1.11
 _get_UInt128(m::Memory, i::Integer) = UInt128(m[i]) | (UInt128(m[i+1]) << 64)
-_length_from_memory(allocated_memory::Integer) = Int((allocated_memory-10491)/7)
+_length_from_memory(allocated_memory::Integer) = Int((allocated_memory-10523)/7)
 function verify_weights(m::Memory)
     m3 = m[3]
     for i in 5:2050
@@ -30,7 +30,7 @@ function verify_edit_map_points_to_correct_target(m::Memory)
     filled_len = m[1]
     len = _length_from_memory(length(m))
     for i in 1:len
-        edit_map_entry = m[i+10491]
+        edit_map_entry = m[i+10523]
         if i > filled_len
             @assert edit_map_entry == 0
         elseif edit_map_entry != 0
