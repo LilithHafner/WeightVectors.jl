@@ -128,7 +128,7 @@ TODO
 # 16 unused bits
 # 10268..10523           level allocated length::[UInt8 2046] (2^(x-1) is implied)
 
-# 10524..10523+len       edit_map (maps index to current location in sub_weights)::[(pos<<11 + exponent)::UInt64] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs.
+# 10524..10523+len       edit_map (maps index to current location in sub_weights)::[(pos<<11 + exponent)::UInt64] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. (len refers to allocated length, not m[1])
 
 # 10524+2len..10523+7len sub_weights (woven with targets)::[[significand::UInt64, target::Int}]]. allocated_len == length_from_memory(length(m)) (len refers to allocated length, not m[1])
 
