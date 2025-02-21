@@ -260,8 +260,7 @@ end
 function update_significand_sum(m, i, delta)
     j = _convert(Int, 2i+2041)
     significand_sum = get_significand_sum(m, i) + delta
-    m[j] = significand_sum % UInt64
-    m[j+1] = (significand_sum >>> 64) % UInt64
+    m[j:j+1] .= (significand_sum % UInt64, (significand_sum >>> 64) % UInt64)
     significand_sum
 end
 
@@ -617,7 +616,7 @@ function FixedSizeWeights(len::Integer)
     _FixedSizeWeights(m)
 end
 allocated_memory(length::Integer) = 10523 + 7*length # TODO for perf: consider giving some extra constant factor allocation to avoid repeated compaction at small sizes
-length_from_memory(allocated_memory::Integer) = Int((allocated_memory-10523)/7)
+length_from_memory(allocated_memory::Integer) = unsafe_trunc(Int, (allocated_memory-10523)/7)
 
 Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Integer) = resize!(w, Int(len))
 function Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Int)
@@ -710,7 +709,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         allocs_index, allocs_subindex = get_alloced_indices(exponent)
         allocs_chunk = dst[allocs_index]
         log2_allocated_size = allocs_chunk >> allocs_subindex % 0x0000000000000100 - 1
-        log2_new_allocated_size = ifelse(group_length == 0, 0, Base.top_set_bit(group_length-1))
+        log2_new_allocated_size = group_length == 0 ? 0 : Base.top_set_bit(group_length-1)
         new_chunk = allocs_chunk + (log2_new_allocated_size - log2_allocated_size) << allocs_subindex
         dst[allocs_index] = new_chunk
 
