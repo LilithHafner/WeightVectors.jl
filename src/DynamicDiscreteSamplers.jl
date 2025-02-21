@@ -333,7 +333,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     m[group_length_index] = group_length # setting this before compaction means that compaction will ensure there is enough space for this expanded group, but will also copy one index (16 bytes) of junk which could access past the end of m. The junk isn't an issue once coppied because we immediately overwrite it. The former (copying past the end of m) only happens if the group to be expanded is already kissing the end. In this case, it will end up at the end after compaction and be easily expanded afterwords. Consequently, we treat that case specially and bump group length and manually expand after compaction
     allocs_index,allocs_subindex = get_alloced_indices(exponent)
     allocs_chunk = m[allocs_index]
-    log2_allocated_size = allocs_chunk >> allocs_subindex % UInt8 - 1
+    log2_allocated_size = allocs_chunk >> allocs_subindex % 0x0000000000000100 - 1
     allocated_size = 1<<log2_allocated_size
 
     # if there is not room in the group, shift and expand
@@ -355,7 +355,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
                 # chunk elements. However, the allocated size of this group could not have
                 # changed because it was previously maxed out.
                 allocs_chunk = m[allocs_index]
-                @assert log2_allocated_size == allocs_chunk >> allocs_subindex % UInt8 - 1
+                @assert log2_allocated_size == allocs_chunk >> allocs_subindex % 0x0000000000000100 - 1
                 @assert allocated_size == 1<<log2_allocated_size
             end
             # expand the allocated size and bump next_free_space
@@ -378,7 +378,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
                 # chunk elements. However, the allocated size of this group could not have
                 # changed because it was previously maxed out.
                 allocs_chunk = m[allocs_index]
-                @assert log2_allocated_size == allocs_chunk >> allocs_subindex % UInt8 - 1
+                @assert log2_allocated_size == allocs_chunk >> allocs_subindex % 0x0000000000000100 - 1
                 @assert allocated_size == 1<<log2_allocated_size
             end
             # TODO for perf: make compact! re-allocate the expanded group larger so there's no need to double the allocated size here if the compact branch is taken
@@ -674,13 +674,13 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
                 exponent = target - 0x8000000000000000 # TODO for clarity: dry this
                 allocs_index, allocs_subindex = get_alloced_indices(exponent)
                 allocs_chunk = dst[allocs_index] # TODO for perf: consider not copying metadata on out of place compaction (and consider the impact here)
-                log2_allocated_size_p1 = allocs_chunk >> allocs_subindex % UInt8
+                log2_allocated_size_p1 = allocs_chunk >> allocs_subindex % 0x0000000000000100
                 allocated_size = 1 << (log2_allocated_size_p1-1)
-                new_chunk = allocs_chunk - _convert(UInt64, log2_allocated_size_p1) << allocs_subindex
+                new_chunk = allocs_chunk - log2_allocated_size_p1 << allocs_subindex
                 dst[allocs_index] = new_chunk # zero out allocated size (this will force re-allocation so we can let the old, wrong pos info stand)
-                src_i += 2 * allocated_size # skip the group
+                src_i += 2allocated_size # skip the group
             else # the decaying corpse of an abandoned group. Ignore it.
-                src_i -= 2 * signed(target)
+                src_i -= 2signed(target)
             end
             src_i >= next_free_space && @goto break_outer
             target = src[src_i+1]
@@ -708,9 +708,9 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         # exponent of 0x0000000000000001 is index 5+5*2046+512, 1
         allocs_index, allocs_subindex = get_alloced_indices(exponent)
         allocs_chunk = dst[allocs_index]
-        log2_allocated_size = allocs_chunk >> allocs_subindex % UInt8 - 1
+        log2_allocated_size = allocs_chunk >> allocs_subindex % 0x0000000000000100 - 1
         log2_new_allocated_size = ifelse(group_length == 0, 0, Base.top_set_bit(group_length-1))
-        new_chunk = allocs_chunk + Int64(log2_new_allocated_size - log2_allocated_size) << allocs_subindex
+        new_chunk = allocs_chunk + (log2_new_allocated_size - log2_allocated_size) << allocs_subindex
         dst[allocs_index] = new_chunk
 
         # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
