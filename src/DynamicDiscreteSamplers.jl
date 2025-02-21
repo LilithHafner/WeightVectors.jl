@@ -260,7 +260,8 @@ end
 function update_significand_sum(m, i, delta)
     j = _convert(Int, 2i+2041)
     significand_sum = get_significand_sum(m, i) + delta
-    m[j:j+1] .= (significand_sum % UInt64, (significand_sum >>> 64) % UInt64)
+    m[j] = significand_sum % UInt64
+    m[j+1] = (significand_sum >>> 64) % UInt64
     significand_sum
 end
 
@@ -608,7 +609,10 @@ SemiResizableWeights(len::Integer) = SemiResizableWeights(FixedSizeWeights(len))
 function FixedSizeWeights(len::Integer)
     m = Memory{UInt64}(undef, allocated_memory(len))
     # m .= 0 # This is here so that a sparse rendering for debugging is easier TODO for tests: set this to 0xdeadbeefdeadbeed
-    m[4:10523+len] .= 0 # metadata and edit map need to be zeroed but the bulk does not
+    # metadata and edit map need to be zeroed but the bulk does not
+    @inbounds for i in 4:10523+len
+        m[i] = 0
+    end
     m[1] = len
     m[2] = 4
     # no need to set m[3]
@@ -631,7 +635,10 @@ function Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Int
             m[1] = len
         end
     else
-        w[len+1:old_len] .= 0 # This is a necessary but highly nontrivial operation
+        # This is a necessary but highly nontrivial operation
+        @inbounds for i in len+1:old_len
+            w[i] = 0
+        end
         m[1] = len
     end
     w
