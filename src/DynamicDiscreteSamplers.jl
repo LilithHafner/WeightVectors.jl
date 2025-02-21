@@ -178,8 +178,13 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
         i -= 1
     end
 
-    # Low-probability rejection to improve accuracy from very close to perfect
-    if x == mi # mi is the weight rounded down plus 1. If they are equal than we should refine further and possibly reject. This branch is very uncommon and still O(1); constant factors don't matter here.
+    if x == mi # mi is the weight rounded down plus 1. If they are equal than we should refine further and possibly reject.
+        # Low-probability rejection to improve accuracy from very close to perfect.
+        # This branch should typically be followed with probability < 2^-21. In cases where
+        # the probability is higher (i.e. m[4] < 2^32), _rand_slow_path will mutate m by
+        # modifying m[3] and recomputing approximate weights to increase m[4] above 2^32.
+        # This branch is still O(1) but constant factors don't matter except for in the case
+        # of repeated large swings in m[4] with calls to rand interspersed.
         if @noinline _rand_slow_path(rng, m, i)
             @goto reject
         end
@@ -249,7 +254,7 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
         @assert 46 <= Base.top_set_bit(m[4]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8 # TODO for perf: delete
     end
 
-    while true
+    while true # TODO for confidence: move this to a separate, documented function and add unit tests.
         x = rand(rng, UInt64)
         # p_stage = significand_sum << shift & ...00000.111111...64...11110000
         shift += 64
