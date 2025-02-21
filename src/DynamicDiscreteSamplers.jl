@@ -260,8 +260,7 @@ end
 function update_significand_sum(m, i, delta)
     j = _convert(Int, 2i+2041)
     significand_sum = get_significand_sum(m, i) + delta
-    m[j] = significand_sum % UInt64
-    m[j+1] = (significand_sum >>> 64) % UInt64
+    m[j:j+1] .= (significand_sum % UInt64, (significand_sum >>> 64) % UInt64)
     significand_sum
 end
 
