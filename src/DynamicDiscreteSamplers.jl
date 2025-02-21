@@ -213,6 +213,42 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
     exponent = i-4
     shift = signed(exponent + m[3])
     significand_sum = get_significand_sum(m, i)
+
+    m4 = m[4]
+    if 0 < m4 < UInt64(1)<<32
+        # If weights become less than 2^32 (but only if there are any nonzero weights), then for performance reasons (to keep the low probability rejection step sufficiently low probability)
+        # Increase the shift to a reasonable level.
+        # All nonzero significand_sums correspond to nonzero weights so 0 < m4 is a sufficient check to determine if we have fully emptied out the weights or not
+
+        # TODO for perf: we can almost get away with loading only the most significant word of significand_sums. Here, we use the most significant 65 bits.
+        m2 = m[2]
+        # TODO refactor indexing for simplicity
+        x2 = _convert(UInt64, get_significand_sum(m, m2) >> 63)
+        @assert x2 != 0
+        for i in Sys.WORD_SIZE:-1:1 # This loop is backwards so that memory access is forwards. TODO for perf, we can get away with shaving 1 to 10 off of this loop.
+            # This can underflow from significand sums into weights, but that underflow is safe because it can only happen if all the latter weights are zero. Be careful about this when re-arranging the memory layout!
+            x2 += _convert(UInt64, get_significand_sum(m, m2-i) >> (63+i))
+        end
+
+        # x2 is computed by rounding down at a certain level and then summing
+        # m[4] will be computed by rounding up at a more precise level and then summing
+        # x2 could be 1, composed of 1.9 + .9 + .9 + ... for up to about log2(length) levels
+        # meaning m[4] could be up to 1+log2(length) times greater than predicted according to x2
+        # if length is 2^64 than this could push m[4]'s top set bit up to 8 bits higher.
+
+        # If, on the other hand, x2 was computed with significantly higher precision, then
+        # it could overflow if there were 2^64 elements in a weight. TODO: We could probably
+        # squeeze a few more bits out of this, but targeting 46 with a window of 46 to 52 is
+        # plenty good enough.
+
+        m3 = -17 - Base.top_set_bit(x2) - (m2 - 4)
+        # TODO test that this actually achieves the desired shift and results in a new sum of about 2^48
+
+        set_global_shift_increase!(m, m2, m3, m4) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+
+        @assert 46 <= Base.top_set_bit(m[4]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8 # TODO for perf: delete
+    end
+
     while true
         x = rand(rng, UInt64)
         # p_stage = significand_sum << shift & ...00000.111111...64...11110000
@@ -546,41 +582,7 @@ function _set_to_zero!(m::Memory, i::Int)
         m4 += new_weight
     end
 
-    if 0 < m4 < UInt64(1)<<32
-        # If weights become less than 2^32 (but only if there are any nonzero weights), then for performance reasons (to keep the low probability rejection step sufficiently low probability)
-        # Increase the shift to a reasonable level.
-        # All nonzero significand_sums correspond to nonzero weights so 0 < m4 is a sufficient check to determine if we have fully emptied out the weights or not
-
-        # TODO for perf: we can almost get away with loading only the most significant word of significand_sums. Here, we use the most significant 65 bits.
-        m2 = m[2]
-        # TODO refactor indexing for simplicity
-        x2 = _convert(UInt64, get_significand_sum(m, m2) >> 63)
-        @assert x2 != 0
-        for i in Sys.WORD_SIZE:-1:1 # This loop is backwards so that memory access is forwards. TODO for perf, we can get away with shaving 1 to 10 off of this loop.
-            # This can underflow from significand sums into weights, but that underflow is safe because it can only happen if all the latter weights are zero. Be careful about this when re-arranging the memory layout!
-            x2 += _convert(UInt64, get_significand_sum(m, m2-i) >> (63+i))
-        end
-
-        # x2 is computed by rounding down at a certain level and then summing
-        # m[4] will be computed by rounding up at a more precise level and then summing
-        # x2 could be 1, composed of 1.9 + .9 + .9 + ... for up to about log2(length) levels
-        # meaning m[4] could be up to 1+log2(length) times greater than predicted according to x2
-        # if length is 2^64 than this could push m[4]'s top set bit up to 8 bits higher.
-
-        # If, on the other hand, x2 was computed with significantly higher precision, then
-        # it could overflow if there were 2^64 elements in a weight. TODO: We could probably
-        # squeeze a few more bits out of this, but targeting 46 with a window of 46 to 52 is
-        # plenty good enough.
-
-        m3 = -17 - Base.top_set_bit(x2) - (m2 - 4)
-        # TODO test that this actually achieves the desired shift and results in a new sum of about 2^48
-
-        set_global_shift_increase!(m, m2, m3, m4) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
-
-        @assert 46 <= Base.top_set_bit(m[4]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8 # TODO for perf: delete
-    else
-        m[4] = m4
-    end
+    m[4] = m4 # This might be less than 2^32, but that's okay. If it is, and that's relevant, it will be corrected in _rand_slow_path
 
     # lookup the group by exponent
     group_length_index = _convert(Int, 4 + 3*2046 + 2exponent)

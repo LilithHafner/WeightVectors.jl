@@ -23,7 +23,7 @@ function verify_m4(m::Memory)
         m4 = Base.checked_add(m4, m[i])
     end
     @assert m[4] == m4
-    @assert m4 == 0 || UInt64(2)^32 <= m4
+    # @assert m4 == 0 || UInt64(2)^32 <= m4
 end
 
 function verify_edit_map_points_to_correct_target(m::Memory)
