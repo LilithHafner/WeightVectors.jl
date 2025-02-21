@@ -667,27 +667,27 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
     while src_i < next_free_space
 
         # Skip over abandoned groups TODO refactor these loops for clarity
-        target = signed(src[src_i+1])
-        while target < 0
-            if unsigned(target) < 0xc000000000000000 # empty non-abandoned group; let's clean it up
-                @assert 0x8000000000000001 <= unsigned(target) <= 0x80000000000007fe
-                exponent = unsigned(target) - 0x8000000000000000 # TODO for clarity: dry this
+        target = src[src_i+1]
+        while target >= 0x8000000000000000
+            if target < 0xc000000000000000 # empty non-abandoned group; let's clean it up
+                @assert 0x8000000000000001 <= target <= 0x80000000000007fe
+                exponent = target - 0x8000000000000000 # TODO for clarity: dry this
                 allocs_index, allocs_subindex = get_alloced_indices(exponent)
                 allocs_chunk = dst[allocs_index] # TODO for perf: consider not copying metadata on out of place compaction (and consider the impact here)
                 log2_allocated_size_p1 = allocs_chunk >> allocs_subindex % UInt8
-                allocated_size = 1<<(log2_allocated_size_p1-1)
+                allocated_size = 1 << (log2_allocated_size_p1-1)
                 new_chunk = allocs_chunk - _convert(UInt64, log2_allocated_size_p1) << allocs_subindex
                 dst[allocs_index] = new_chunk # zero out allocated size (this will force re-allocation so we can let the old, wrong pos info stand)
-                src_i += 2allocated_size # skip the group
+                src_i += 2 * allocated_size # skip the group
             else # the decaying corpse of an abandoned group. Ignore it.
-                src_i -= 2target
+                src_i -= 2 * signed(target)
             end
             src_i >= next_free_space && @goto break_outer
-            target = signed(src[src_i+1])
+            target = src[src_i+1]
         end
 
         # Trace an element of the group back to the edit info table to find the group id
-        j = target + 10523
+        j = _convert(Int, target + 10523)
         exponent = src[j] & 2047
 
         # Lookup the group in the group location table to find its length (performance optimization for copying, necessary to decide new allocated size and update pos)
