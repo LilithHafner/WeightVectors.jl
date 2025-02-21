@@ -709,7 +709,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         allocs_index, allocs_subindex = get_alloced_indices(exponent)
         allocs_chunk = dst[allocs_index]
         log2_allocated_size = allocs_chunk >> allocs_subindex % UInt8 - 1
-        log2_new_allocated_size = group_length == 0 ? 0 : Base.top_set_bit(group_length-1)
+        log2_new_allocated_size = ifelse(group_length == 0, 0, Base.top_set_bit(group_length-1))
         new_chunk = allocs_chunk + Int64(log2_new_allocated_size - log2_allocated_size) << allocs_subindex
         dst[allocs_index] = new_chunk
 
