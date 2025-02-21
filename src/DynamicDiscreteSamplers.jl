@@ -180,26 +180,8 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 
     # Low-probability rejection to improve accuracy from very close to perfect
     if x == mi # mi is the weight rounded down plus 1. If they are equal than we should refine further and possibly reject. This branch is very uncommon and still O(1); constant factors don't matter here.
-        # shift::Int = exponent+m[3]
-        # significand_sum::UInt128 = ...
-        # weight::UInt64 = significand_sum<<shift+1
-        # true_weight::ExactReal = exact(significand_sum)<<shift
-        # true_weight::ExactReal = significand_sum<<shift + exact(significand_sum)<<shift & ...0000.1111...
-        # rejection_p = weight-true_weight = (significand_sum<<shift+1) - (significand_sum<<shift + exact(significand_sum)<<shift & ...0000.1111...)
-        # rejection_p = 1 - exact(significand_sum)<<shift & ...0000.1111...
-        # acceptance_p = exact(significand_sum)<<shift & ...0000.1111...  (for example, if significand_sum<<shift is exact, then acceptance_p will be zero)
-        # TODO for confidence: add a test that fails if this were to mix up floor+1 and ceil.
-        exponent = i-4
-        shift = signed(exponent + m[3])
-        significand_sum = get_significand_sum(m, i)
-        while true
-            x = rand(rng, UInt64)
-            # p_stage = significand_sum << shift & ...00000.111111...64...11110000
-            shift += 64
-            target = (significand_sum << shift) % UInt64
-            x > target && @goto reject
-            x < target && break
-            shift >= 0 && break
+        if @noinline _rand_slow_path(rng, m, i)
+            @goto reject
         end
     end
 
@@ -215,6 +197,30 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
         k2 = _convert(Int, k1<<1+pos)
         # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to 0
         k1 < len && rand(rng, UInt64) < m[k2] && return Int(signed(m[k2+1]))
+    end
+end
+
+function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
+    # shift::Int = exponent+m[3]
+    # significand_sum::UInt128 = ...
+    # weight::UInt64 = significand_sum<<shift+1
+    # true_weight::ExactReal = exact(significand_sum)<<shift
+    # true_weight::ExactReal = significand_sum<<shift + exact(significand_sum)<<shift & ...0000.1111...
+    # rejection_p = weight-true_weight = (significand_sum<<shift+1) - (significand_sum<<shift + exact(significand_sum)<<shift & ...0000.1111...)
+    # rejection_p = 1 - exact(significand_sum)<<shift & ...0000.1111...
+    # acceptance_p = exact(significand_sum)<<shift & ...0000.1111...  (for example, if significand_sum<<shift is exact, then acceptance_p will be zero)
+    # TODO for confidence: add a test that fails if this were to mix up floor+1 and ceil.
+    exponent = i-4
+    shift = signed(exponent + m[3])
+    significand_sum = get_significand_sum(m, i)
+    while true
+        x = rand(rng, UInt64)
+        # p_stage = significand_sum << shift & ...00000.111111...64...11110000
+        shift += 64
+        target = (significand_sum << shift) % UInt64
+        x > target && return true
+        x < target && return false
+        shift >= 0 && return false
     end
 end
 
