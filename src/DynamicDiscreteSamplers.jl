@@ -8,7 +8,7 @@ isdefined(@__MODULE__, :Memory) || const Memory = Vector # Compat for Julia < 1.
 
 const DEBUG = Base.JLOptions().check_bounds == 1
 _convert(T, x) = DEBUG ? T(x) : x%T
-_convert(T::Int, x::Float64) = DEBUG ? Int(x) : unsafe_trunc(Int, x)
+_convert(::Type{Int}, x::Float64) = DEBUG ? Int(x) : unsafe_trunc(Int, x)
 
 """
     Weights <: AbstractVector{Float64}
