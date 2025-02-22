@@ -221,34 +221,32 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
     significand_sum = get_significand_sum(m, i)
 
     m4 = m[4]
-    if 0 < m4 < UInt64(1)<<32
-        # If weights become less than 2^32 (but only if there are any nonzero weights), then for performance reasons (to keep the low probability rejection step sufficiently low probability)
+    if m4 < UInt64(1)<<32
+        # If the sum of approximate weights becomes less than 2^32, then for performance reasons (to keep this low probability rejection step sufficiently low probability)
         # Increase the shift to a reasonable level.
-        # All nonzero significand_sums correspond to nonzero weights so 0 < m4 is a sufficient check to determine if we have fully emptied out the weights or not
+        # The fact that we are here past the isempty check in `rand` means that there are some nonzero weights.
 
-        # TODO for perf: we can almost get away with loading only the most significant word of significand_sums. Here, we use the most significant 65 bits.
-        m2 = m[2]
-        # TODO refactor indexing for simplicity
-        x2 = _convert(UInt64, get_significand_sum(m, m2) >> 63)
-        @assert x2 != 0
-        for i in Sys.WORD_SIZE:-1:1 # This loop is backwards so that memory access is forwards. TODO for perf, we can get away with shaving 1 to 10 off of this loop.
+        m2 = signed(m[2])
+        x = zero(UInt64)
+        checkbounds(m, 2m2-2Sys.WORD_SIZE+2042:2m2+2042)
+        @inbounds for i in Sys.WORD_SIZE:-1:0 # This loop is backwards so that memory access is forwards. TODO for perf, we can get away with shaving 1 to 10 off of this loop.
             # This can underflow from significand sums into weights, but that underflow is safe because it can only happen if all the latter weights are zero. Be careful about this when re-arranging the memory layout!
-            x2 += _convert(UInt64, get_significand_sum(m, m2-i) >> (63+i))
+            x += m[2m2-2i+2042] >> (i - 1)
         end
 
-        # x2 is computed by rounding down at a certain level and then summing
+        # x is computed by rounding down at a certain level and then summing (and adding 1)
         # m[4] will be computed by rounding up at a more precise level and then summing
-        # x2 could be 1, composed of 1.9 + .9 + .9 + ... for up to about log2(length) levels
-        # meaning m[4] could be up to 1+log2(length) times greater than predicted according to x2
-        # if length is 2^64 than this could push m[4]'s top set bit up to 8 bits higher.
+        # x could be 0 (treated as 1/2 when computing log2 with top_set_bit), composed of
+        # .9 + .9 + .9 + ... for up to about log2(length) levels
+        # meaning m[4] could be up to 2log2(length) times greater than predicted according to x2
+        # if length is 2^64 than this could push m[4]'s top set bit up to 9 bits higher.
 
-        # If, on the other hand, x2 was computed with significantly higher precision, then
-        # it could overflow if there were 2^64 elements in a weight. TODO: We could probably
-        # squeeze a few more bits out of this, but targeting 46 with a window of 46 to 52 is
+        # If, on the other hand, x was computed with significantly higher precision, then
+        # it could overflow if there were 2^64 elements in a weight. We could probably
+        # squeeze a few more bits out of this, but targeting 46 with a window of 46 to 53 is
         # plenty good enough.
 
-        m3 = -17 - Base.top_set_bit(x2) - (m2 - 4)
-        # TODO test that this actually achieves the desired shift and results in a new sum of about 2^48
+        m3 = unsigned(-17 - Base.top_set_bit(x) - (m2 - 4))
 
         set_global_shift_increase!(m, m2, m3, m4) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
 
@@ -494,7 +492,7 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase sh
     i <= -signed(m3)-122+4
     So for -signed(m3)-118 < i, we could need to adjust the ith weight
     =#
-    recompute_range = max(5, -signed(m3)-117):signed(m2) # TODO It would be possible to scale this range with length (m[1]) in which case testing could be stricter and performance could be (marginally) better, though not in large cases so possibly not worth doing at all)
+    recompute_range = max(5, -signed(m3)-117):m2 # TODO It would be possible to scale this range with length (m[1]) in which case testing could be stricter and performance could be (marginally) better, though not in large cases so possibly not worth doing at all)
     m[4] = recompute_weights!(m, m3, m4, recompute_range)
 end
 
