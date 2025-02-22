@@ -122,9 +122,10 @@ end
     chisq_test = ChisqTest(counts_est, ps_exact)
     @test pvalue(chisq_test) > 0.002
 
-    ds2 = ResizableWeights(1000)
+    ds2 = ResizableWeights(512)
 
     for (i, w) in zip(range, weights)
+        i > length(ds2) && resize!(ds2, 2length(ds2))
         ds2[i] = w
     end
 
