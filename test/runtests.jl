@@ -55,12 +55,13 @@ end
 end
 
 @testset "interleaved randomized end to end tests" begin
-    ds = ResizableWeights(30000)
+    ds = ResizableWeights(512)
     elements = Set{Int}()
     for i in 1:30000
         if rand() < 0.5
             i = rand(1:10000)
             if i ∉ elements
+                i > length(ds) && resize!(ds, 2length(ds))
                 ds[i] = exp(100randn())
                 push!(elements, i)
             end
