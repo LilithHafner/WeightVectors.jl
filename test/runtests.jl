@@ -125,7 +125,6 @@ end
     ds2 = ResizableWeights(512)
 
     for (i, w) in zip(range, weights)
-        i > length(ds2) && resize!(ds2, max(i, 2length(ds2)))
         ds2[i] = w
     end
 
@@ -133,6 +132,7 @@ end
     ds2[2] = 0.0
 
     ds2[2] = 200.0
+    resize!(ds2, 1024)
     ds2[1000] = 1000.0
 
     samples_counts = countmap(rand(rng, ds2, 10^5))
