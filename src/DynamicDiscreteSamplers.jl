@@ -204,7 +204,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
     end
 
     # Lookup level info
-    j = _convert(Int, 2i + 6133)
+    j = 2i + 6133
     pos = m[j]
     len = m[j+1]
 
