@@ -687,9 +687,9 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
                 exponent = target - 0x8000000000000000 # TODO for clarity: dry this
                 allocs_index, allocs_subindex = get_alloced_indices(exponent)
                 allocs_chunk = dst[allocs_index] # TODO for perf: consider not copying metadata on out of place compaction (and consider the impact here)
-                log2_allocated_size_p1 = allocs_chunk >> allocs_subindex % 0x0000000000000100
+                log2_allocated_size_p1 = allocs_chunk >> allocs_subindex % UInt8
                 allocated_size = 1 << (log2_allocated_size_p1-1)
-                new_chunk = allocs_chunk - log2_allocated_size_p1 << allocs_subindex
+                new_chunk = allocs_chunk - _convert(UInt64, log2_allocated_size_p1) << allocs_subindex
                 dst[allocs_index] = new_chunk # zero out allocated size (this will force re-allocation so we can let the old, wrong pos info stand)
                 src_i += 2allocated_size # skip the group
             else # the decaying corpse of an abandoned group. Ignore it.
