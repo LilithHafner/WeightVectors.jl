@@ -235,6 +235,11 @@ v[3] = w[3] = 0.92
 verify(w.m)
 @test v == w
 
+w = DynamicDiscreteSamplers.ResizableWeights(2)
+w[1] = 0.95
+w[2] = 6.41e14
+verify(w.m)
+
 # This test catches a bug that was not revealed by the RNG tests below.
 # The final line is calibrated to have about a 50% fail rate on that bug
 # and run in about 3 seconds:
