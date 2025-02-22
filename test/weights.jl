@@ -248,6 +248,7 @@ w .= repeat(ldexp.(1.0, -1022:1023), inner=2048)
 w[(2046-16)*2048+1:2046*2048] .= 0
 @test w.m[4] < 2.0^32*1.1 # Confirm that we created an interesting condition
 f(w,n) = sum(Int64(rand(w)) for _ in 1:n)
+verify(w.m)
 @test f(w, 2^27) ≈ 4.1543685e6*2^27 rtol=1e-6 # This should fail less than 1e-40 of the time
 
 # These tests have never revealed a bug that was not revealed by one of the above tests:
