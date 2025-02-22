@@ -622,6 +622,7 @@ SemiResizableWeights(len::Integer) = SemiResizableWeights(FixedSizeWeights(len))
 function FixedSizeWeights(len::Integer)
     m = Memory{UInt64}(undef, allocated_memory(len))
     # m .= 0 # This is here so that a sparse rendering for debugging is easier TODO for tests: set this to 0xdeadbeefdeadbeed
+    checkbounds(m, 4:10523+len)
     # metadata and edit map need to be zeroed but the bulk does not
     @inbounds for i in 4:10523+len
         m[i] = 0
@@ -648,6 +649,7 @@ function Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Int
             m[1] = len
         end
     else
+        checkbounds(m, len+1:old_len)
         # This is a necessary but highly nontrivial operation
         @inbounds for i in len+1:old_len
             w[i] = 0
