@@ -300,7 +300,7 @@ function _set_nonzero!(m, v, i)
     _set_from_zero!(m, v, i)
 end
 
-function get_significand_sum(m, i)
+Base.@propagate_inbounds function get_significand_sum(m, i)
     i = _convert(Int, 2i+2041)
     significand_sum = UInt128(m[i]) | (UInt128(m[i+1]) << 64)
 end
@@ -527,8 +527,8 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
     m[4] = m4
 end
 
-function recompute_weights!(m, m3, m4, range)
-    checkbounds(m, range)
+function recompute_weights!(m, m3, m4, range::UnitRange{Int64})
+    checkbounds(m, first(range):2last(range)+2042)
     @inbounds for i in range
         significand_sum = get_significand_sum(m, i)
         significand_sum == 0 && continue # in this case, the weight was and still is zero
