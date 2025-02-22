@@ -162,7 +162,7 @@ function pathological5b_update(ds)
 end
 SUITE["pathological 5b"] = @benchmarkable pathological5b_setup pathological5b_update
 function pathological5b′_update(ds)
-    push!(ds, 129, 2.0^30)
+    push!(ds, 129, 2.0^48)
     delete!(ds, 129)
     rand(ds)
 end
