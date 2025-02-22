@@ -629,7 +629,7 @@ function FixedSizeWeights(len::Integer)
     _FixedSizeWeights(m)
 end
 allocated_memory(length::Integer) = 10523 + 7*length # TODO for perf: consider giving some extra constant factor allocation to avoid repeated compaction at small sizes
-length_from_memory(allocated_memory::Integer) = Int((allocated_memory-10523)/7)
+length_from_memory(allocated_memory::Integer) = unsafe_trunc(Int, (allocated_memory-10523)/7)
 
 Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Integer) = resize!(w, Int(len))
 function Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Int)
