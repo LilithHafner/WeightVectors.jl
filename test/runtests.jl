@@ -61,7 +61,7 @@ end
         if rand() < 0.5
             i = rand(1:10000)
             if i ∉ elements
-                i > length(ds) && resize!(ds, 2length(ds))
+                i > length(ds) && resize!(ds, max(i, 2length(ds)))
                 ds[i] = exp(100randn())
                 push!(elements, i)
             end
@@ -125,7 +125,7 @@ end
     ds2 = ResizableWeights(512)
 
     for (i, w) in zip(range, weights)
-        i > length(ds2) && resize!(ds2, 2length(ds2))
+        i > length(ds2) && resize!(ds2, max(i, 2length(ds2)))
         ds2[i] = w
     end
 
@@ -201,7 +201,7 @@ include("weights.jl")
 function error_d03fb()
     ds = ResizableWeights(512)
     for i in 1:1_500
-        i > length(ds) && resize!(ds, 2length(ds))
+        i > length(ds) && resize!(ds, max(i, 2length(ds)))
         ds[i] = 0.1
     end
     for i in 1:25_000
