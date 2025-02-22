@@ -531,9 +531,7 @@ function recompute_weights!(m::Memory{UInt64}, m3::UInt64, m4::UInt64, range::Un
     # shift = signed(i-4+m3)
     # weight = significand_sum == 0 ? 0 : UInt64(significand_sum << shift) + 1
     # shift < -64; the low 64 bits are shifted off.
-    # 0 < shift; the high bits stay off
     # i < -60-signed(m3); the low 64 bits are shifted off.
-    # 4-signed(m3) < i; the high bits stay off
 
     checkbounds(m, r0:2r1+2042)
     @inbounds for i in r0:min(r1, -61-signed(m3))
@@ -543,15 +541,8 @@ function recompute_weights!(m::Memory{UInt64}, m3::UInt64, m4::UInt64, range::Un
         shift = signed(i-4+m3) + 64
         m4 += update_weight!(m, i, significand_sum_hi << shift)
     end
-    @inbounds for i in max(r0,-60-signed(m3)):min(r1, 4-signed(m3))
+    @inbounds for i in max(r0,-60-signed(m3)):r1
         significand_sum = get_significand_sum(m, i)
-        significand_sum == 0 && continue # in this case, the weight was and still is zero
-        shift = signed(i-4+m3)
-        m4 += update_weight!(m, i, significand_sum << shift)
-    end
-    @inbounds for i in max(r0, 5-signed(m3)):r1
-        significand_sum = m[_convert(Int, 2i+2041)]
-        # @assert m[_convert(Int, 2i+2042)] == 0
         significand_sum == 0 && continue # in this case, the weight was and still is zero
         shift = signed(i-4+m3)
         m4 += update_weight!(m, i, significand_sum << shift)
