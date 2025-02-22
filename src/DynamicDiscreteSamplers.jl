@@ -8,6 +8,7 @@ isdefined(@__MODULE__, :Memory) || const Memory = Vector # Compat for Julia < 1.
 
 const DEBUG = Base.JLOptions().check_bounds == 1
 _convert(T, x) = DEBUG ? T(x) : x%T
+_convert(T::Int, x::Float64) = DEBUG ? Int(x) : unsafe_trunc(Int, x)
 
 """
     Weights <: AbstractVector{Float64}
@@ -629,7 +630,7 @@ function FixedSizeWeights(len::Integer)
     _FixedSizeWeights(m)
 end
 allocated_memory(length::Integer) = 10523 + 7*length # TODO for perf: consider giving some extra constant factor allocation to avoid repeated compaction at small sizes
-length_from_memory(allocated_memory::Integer) = unsafe_trunc(Int, (allocated_memory-10523)/7)
+length_from_memory(allocated_memory::Integer) = _convert(Int, (allocated_memory-10523)/7)
 
 Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Integer) = resize!(w, Int(len))
 function Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Int)
