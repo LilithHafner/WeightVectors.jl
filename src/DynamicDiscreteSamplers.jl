@@ -225,7 +225,7 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
         # Increase the shift to a reasonable level.
         # The fact that we are here past the isempty check in `rand` means that there are some nonzero weights.
 
-        m2 = m[2]
+        m2 = signed(m[2])
         x = zero(UInt64)
         checkbounds(m, 2m2-2Sys.WORD_SIZE+2042:2m2+2042)
         @inbounds for i in Sys.WORD_SIZE:-1:0 # This loop is backwards so that memory access is forwards. TODO for perf, we can get away with shaving 1 to 10 off of this loop.
@@ -245,7 +245,7 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
         # squeeze a few more bits out of this, but targeting 46 with a window of 46 to 53 is
         # plenty good enough.
 
-        m3 = -17 - Base.top_set_bit(x) - (m2 - 4)
+        m3 = unsigned(-17 - Base.top_set_bit(x) - (m2 - 4))
 
         set_global_shift_increase!(m, m2, m3, m4) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
 
@@ -491,7 +491,7 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase sh
     i <= -signed(m3)-122+4
     So for -signed(m3)-118 < i, we could need to adjust the ith weight
     =#
-    recompute_range = max(5, -signed(m3)-117):signed(m2) # TODO It would be possible to scale this range with length (m[1]) in which case testing could be stricter and performance could be (marginally) better, though not in large cases so possibly not worth doing at all)
+    recompute_range = max(5, -signed(m3)-117):m2 # TODO It would be possible to scale this range with length (m[1]) in which case testing could be stricter and performance could be (marginally) better, though not in large cases so possibly not worth doing at all)
     m[4] = recompute_weights!(m, m3, m4, recompute_range)
 end
 
