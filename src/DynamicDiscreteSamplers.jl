@@ -721,7 +721,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         # exponent of 0x0000000000000001 is index 5+5*2046+512, 1
         allocs_index, allocs_subindex = get_alloced_indices(exponent)
         allocs_chunk = dst[allocs_index]
-        log2_allocated_size = allocs_chunk >> allocs_subindex % 0x0000000000000100 - 1
+        log2_allocated_size = _convert(Int, allocs_chunk >> allocs_subindex % 0x0000000000000100 - 1)
         log2_new_allocated_size = group_length == 0 ? 0 : Base.top_set_bit(group_length-1)
         new_chunk = allocs_chunk + (log2_new_allocated_size - log2_allocated_size) << allocs_subindex
         dst[allocs_index] = new_chunk
