@@ -493,7 +493,7 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase sh
     i <= -signed(m3)-122+4
     So for -signed(m3)-118 < i, we could need to adjust the ith weight
     =#
-    recompute_range = max(5, -signed(m3)-117):m2 # TODO It would be possible to scale this range with length (m[1]) in which case testing could be stricter and performance could be (marginally) better, though not in large cases so possibly not worth doing at all)
+    recompute_range = max(5, -signed(m3)-117):signed(m2) # TODO It would be possible to scale this range with length (m[1]) in which case testing could be stricter and performance could be (marginally) better, though not in large cases so possibly not worth doing at all)
     m[4] = recompute_weights!(m, m3, m4, recompute_range)
 end
 
