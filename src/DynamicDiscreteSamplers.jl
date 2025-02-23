@@ -357,7 +357,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             set_global_shift_decrease!(m, m3, m4) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
             if weight_index > m[2] # if the new weight was not adjusted by set_global_shift_decrease!, then adjust it manually
                 shift = signed(exponent+m3)
-                new_weight = _convert(UInt64, significand_sum << shift) + 1 # TODO: refactor to match set_global_shift_decrease!'s implementation
+                new_weight = _convert(UInt64, significand_sum << shift) + 1
 
                 @assert significand_sum != 0
                 @assert m[weight_index] == weight
