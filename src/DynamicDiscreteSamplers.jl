@@ -201,7 +201,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
         k1 = rand(rng, UInt64) >> shift
         k2 = _convert(Int, 2k1 + pos)
         # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to 0
-        rand(rng, UInt64) < m[k2] * _convert(UInt64, (k1 < len)) && return _convert(Int, m[k2+1])
+        rand(rng, UInt64) < m[k2] * _convert(UInt64, k1 < len) && return _convert(Int, m[k2+1])
     end
 end
 
