@@ -527,7 +527,7 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
     checkbounds(m, recompute_range)
     @inbounds for i in recompute_range
         old_weight = m[i]
-        old_weight == 0 && continue # in this case, the weight was and still is zero TODO: 1
+        old_weight <= 1 && continue # in this case, the weight was and still is 0 or 1
         m4 += update_weight!(m, i, (old_weight-1) >> delta)
     end
 
