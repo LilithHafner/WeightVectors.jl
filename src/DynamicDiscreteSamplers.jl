@@ -525,19 +525,35 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
     m[4] = m4
 end
 
-function recompute_weights!(m, m3, m4, range::UnitRange{Int64})
-    checkbounds(m, first(range):2last(range)+2042)
-    @inbounds for i in range
+function recompute_weights!(m::Memory{UInt64}, m3::UInt64, m4::UInt64, range::UnitRange{Int64})
+    isempty(range) && return m4
+    r0,r1 = extrema(range)
+    # shift = signed(i-4+m3)
+    # weight = significand_sum == 0 ? 0 : UInt64(significand_sum << shift) + 1
+    # shift < -64; the low 64 bits are shifted off.
+    # i < -60-signed(m3); the low 64 bits are shifted off.
+
+    checkbounds(m, r0:2r1+2042)
+    @inbounds for i in r0:min(r1, -61-signed(m3))
+        significand_sum_lo = m[_convert(Int, 2i+2041)]
+        significand_sum_hi = m[_convert(Int, 2i+2042)]
+        significand_sum_lo == significand_sum_hi == 0 && continue # in this case, the weight was and still is zero
+        shift = signed(i-4+m3) + 64
+        m4 += update_weight!(m, i, significand_sum_hi << shift)
+    end
+    @inbounds for i in max(r0,-60-signed(m3)):r1
         significand_sum = get_significand_sum(m, i)
         significand_sum == 0 && continue # in this case, the weight was and still is zero
         shift = signed(i-4+m3)
-        weight = _convert(UInt64, (significand_sum << shift)) + 1
-
-        old_weight = m[i]
-        m[i] = weight
-        m4 += weight-old_weight
+        m4 += update_weight!(m, i, significand_sum << shift)
     end
     m4
+end
+Base.@propagate_inbounds function update_weight!(m::Memory{UInt64}, i, shifted_significand_sum)
+    weight = _convert(UInt64, shifted_significand_sum) + 1
+    old_weight = m[i]
+    m[i] = weight
+    weight-old_weight
 end
 
 get_alloced_indices(exponent::UInt64) = _convert(Int, 10268 + exponent >> 3), exponent << 3 & 0x38
