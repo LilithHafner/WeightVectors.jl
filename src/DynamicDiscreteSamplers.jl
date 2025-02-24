@@ -522,16 +522,23 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
         m[i] = weight
         m4 += weight-old_weight
     end
+    m4 = recompute_weights_decrease!(m, m3_old, m3, m4, recompute_range)
+
+    m[4] = m4
+end
+
+function recompute_weights_decrease!(m::Memory{UInt64}, m3_old::UInt64, m3::UInt64, m4::UInt64, range::UnitRange{Int64})
+    isempty(range) && return m4
+    extrema(range) # why is this here?
 
     delta = m3_old-m3
-    checkbounds(m, recompute_range)
-    @inbounds for i in recompute_range
+    checkbounds(m, range)
+    @inbounds for i in range
         old_weight = m[i]
         old_weight <= 1 && continue # in this case, the weight was and still is 0 or 1
         m4 += update_weight!(m, i, (old_weight-1) >> delta)
     end
-
-    m[4] = m4
+    m4
 end
 
 function recompute_weights!(m::Memory{UInt64}, m3::UInt64, m4::UInt64, range::UnitRange{Int64})
