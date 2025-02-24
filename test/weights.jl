@@ -235,6 +235,18 @@ v[3] = w[3] = 0.92
 verify(w.m)
 @test v == w
 
+w = DynamicDiscreteSamplers.ResizableWeights(2)
+w[1] = 0.95
+w[2] = 6.41e14
+verify(w.m)
+
+# This test catches a bug that was not revealed by the RNG tests below
+w = DynamicDiscreteSamplers.FixedSizeWeights(3);
+w[1] = 1.5
+w[2] = prevfloat(1.5)
+w[3] = 2^25
+verify(w.m)
+
 # This test catches a bug that was not revealed by the RNG tests below.
 # The final line is calibrated to have about a 50% fail rate on that bug
 # and run in about 3 seconds:
@@ -243,6 +255,7 @@ w .= repeat(ldexp.(1.0, -1022:1023), inner=2048)
 w[(2046-16)*2048+1:2046*2048] .= 0
 @test w.m[4] < 2.0^32*1.1 # Confirm that we created an interesting condition
 f(w,n) = sum(Int64(rand(w)) for _ in 1:n)
+verify(w.m)
 @test f(w, 2^27) ≈ 4.1543685e6*2^27 rtol=1e-6 # This should fail less than 1e-40 of the time
 
 # These tests have never revealed a bug that was not revealed by one of the above tests:
