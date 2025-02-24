@@ -61,6 +61,9 @@ jobs:
                 echo 'A plot of the benchmark results have been uploaded as an artifact to the workflow run for this PR.' >> body.md
                 echo 'Go to "Actions"->"Benchmark a pull request"->[the most recent run]->"Artifacts" (at the bottom).' >> body.md
 
+            - name: ssh
+              uses: mxschmitt/action-tmate@v3
+
             - name: wait
               run: sleep 90
 
