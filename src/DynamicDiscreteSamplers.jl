@@ -494,7 +494,7 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase sh
     So for -signed(m3)-118 < i, we could need to adjust the ith weight
     =#
     recompute_range = max(5, -signed(m3)-117):m2 # TODO It would be possible to scale this range with length (m[1]) in which case testing could be stricter and performance could be (marginally) better, though not in large cases so possibly not worth doing at all)
-    m[4] = recompute_weights_decrease!(m, m3, m4, recompute_range)
+    m[4] = recompute_weights!(m, m3, m4, recompute_range)
 end
 
 function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease shift, on insertion of elements
@@ -522,34 +522,16 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
         m[i] = weight
         m4 += weight-old_weight
     end
-    m4 = recompute_weights_decrease!(m, m3, m4, recompute_range)
+
+    delta = m3_old-m3
+    checkbounds(m, recompute_range)
+    @inbounds for i in recompute_range
+        old_weight = m[i]
+        old_weight <= 1 && continue # in this case, the weight was and still is 0 or 1
+        m4 += update_weight!(m, i, (old_weight-1) >> delta)
+    end
 
     m[4] = m4
-end
-
-function recompute_weights_decrease!(m::Memory{UInt64}, m3::UInt64, m4::UInt64, range::UnitRange{Int64})
-    isempty(range) && return m4
-    r0,r1 = extrema(range)
-    # shift = signed(i-4+m3)
-    # weight = significand_sum == 0 ? 0 : UInt64(significand_sum << shift) + 1
-    # shift < -64; the low 64 bits are shifted off.
-    # i < -60-signed(m3); the low 64 bits are shifted off.
-
-    checkbounds(m, r0:2r1+2042)
-    @inbounds for i in r0:min(r1, -61-signed(m3))
-        significand_sum_lo = m[_convert(Int, 2i+2041)]
-        significand_sum_hi = m[_convert(Int, 2i+2042)]
-        significand_sum_lo == significand_sum_hi == 0 && continue # in this case, the weight was and still is zero
-        shift = signed(i-4+m3) + 64
-        m4 += update_weight!(m, i, significand_sum_hi << shift)
-    end
-    @inbounds for i in max(r0,-60-signed(m3)):r1
-        significand_sum = get_significand_sum(m, i)
-        significand_sum == 0 && continue # in this case, the weight was and still is zero
-        shift = signed(i-4+m3)
-        m4 += update_weight!(m, i, significand_sum << shift)
-    end
-    m4
 end
 
 function recompute_weights!(m::Memory{UInt64}, m3::UInt64, m4::UInt64, range::UnitRange{Int64})
