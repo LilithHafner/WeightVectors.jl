@@ -1,0 +1,37 @@
+name: Benchmark
+
+on:
+  workflow_call:
+    inputs:
+      artifact-name:
+        required: true
+        type: string
+      ref:
+        required: true
+        type: string
+      os:
+        required: false
+        type: string
+        default: ubuntu-latest
+
+concurrency:
+  # Skip and cancel ongoing benchmarks for this ref:
+  group: ${{ github.workflow }}-${{ inputs.artifact-name }}-${{ inputs.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: ${{ inputs.ref }}
+    - uses: julia-actions/setup-julia@v2
+    - uses: julia-actions/cache@v2
+    - name: Run benchmarks
+      run: julia -e 'using Pkg; Pkg.add(path="https://github.com/LilithHafner/ChairmarksForAirspeedVelocity.jl"); Pkg.activate("."); include("benchmarks/benchmark.jl"); using Serialization; serialize("results.jls", run(SUITE))'
+    - uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: results.jls

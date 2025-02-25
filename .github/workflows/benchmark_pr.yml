@@ -1,0 +1,52 @@
+name: Benchmark
+
+on:
+  pull_request
+
+permissions:
+  # Lets us post bot a comment to the pull request
+  pull-requests: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    strategy:
+      matrix:
+        trial: [1, 2]
+        os: [ubuntu-latest, macos-latest]
+        ref: [${{ github.event.pull_request.head.sha }}, ${{ github.event.pull_request.base.sha }}]
+    uses: ./.github/workflows/benchmark.yml
+    with:
+      os: ${{ matrix.os }}
+      ref: ${{ matrix.rev }}
+      artifact-name: ${{ matrix.trial }}-${{ matrix.os }}-${{ matrix.ref }}
+  post-comment:
+    needs: benchmark
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: julia-actions/setup-julia@v2
+    - uses: julia-actions/cache@v2
+    - uses: actions/download-artifact@v4
+    - name: Debug with tmate
+      uses: mxschmitt/action-tmate@v3
+    - name: aggregate results
+      run: julia .github/workflows/aggregate.jl
+    - name: Find Comment
+      uses: peter-evans/find-comment@v3
+      id: fcbenchmark
+      with:
+        issue-number: ${{ github.event.pull_request.number }}
+        comment-author: 'github-actions[bot]'
+        body-includes: Benchmark Results
+    - name: Comment on PR
+      uses: peter-evans/create-or-update-comment@v4
+      with:
+        comment-id: ${{ steps.fcbenchmark.outputs.comment-id }}
+        issue-number: ${{ github.event.pull_request.number }}
+        body-path: comment.md
+        edit-mode: replace
