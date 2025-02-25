@@ -15,9 +15,15 @@ jobs:
   benchmark:
     strategy:
       matrix:
-        trial: [1, 2]
-        os: ["ubuntu-latest", "macos-latest"]
-        ref: [${{ github.event.pull_request.head.sha }}, ${{ github.event.pull_request.base.sha }}]
+        trial:
+          - 1
+          - 2
+        os:
+          - ubuntu-latest
+          - macos-latest
+        ref:
+          - ${{ github.event.pull_request.head.sha }}
+          - ${{ github.event.pull_request.base.sha }}
     uses: ./.github/workflows/benchmark.yml
     with:
       os: ${{ matrix.os }}
