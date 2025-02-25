@@ -30,7 +30,7 @@ jobs:
     - uses: julia-actions/setup-julia@v2
     - uses: julia-actions/cache@v2
     - name: Run benchmarks
-      run: julia -e 'using Pkg; Pkg.add(path="https://github.com/LilithHafner/ChairmarksForAirspeedVelocity.jl"); Pkg.activate("."); include("benchmarks/benchmark.jl"); using Serialization; serialize("results.jls", run(SUITE))'
+      run: julia -e 'using Pkg; Pkg.add(path="https://github.com/LilithHafner/ChairmarksForAirspeedVelocity.jl"); Pkg.activate("."); include("benchmark/benchmarks.jl"); using Serialization; serialize("results.jls", run(SUITE))'
     - uses: actions/upload-artifact@v4
       with:
         name: ${{ inputs.artifact-name }}
