@@ -80,7 +80,7 @@ times(sha, name) = [1e-9median(median(results[[trial, os, sha]][name]).time for 
 
 open("comment.md", "w") do io
     println(io, "### Benchmark Results\n")
-    println(io, "|", ' '^name_len, " | base (", base_sha, ")  | pr (", head_sha, ") | pr/base (", head_sha, "/", base_sha, ") |")
+    println(io, "|", ' '^name_len, " | [base](", base_sha, ")  | [pr](", head_sha, ") | [pr](", head_sha, ")/[base](", base_sha, ") |")
     println(io, "|:", '-'^(name_len+1), "|:---:|:---:|:---:|")
     for name in benchmark_names
         print(io, "| ", name, ' '^(name_len-length(name)), " | ")
