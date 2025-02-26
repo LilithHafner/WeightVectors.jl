@@ -120,15 +120,17 @@ TODO
 # 5..2050                level weights::[UInt64 2046] # earlier is lower. first is exponent 0x001, last is exponent 0x7fe. Subnormal are not supported (TODO).
 # 2051..6142             significand_sums::[UInt128 2046] # sum of significands (the maximum significand contributes 0xfffffffffffff800)
 # 6143..10234            level location info::[NamedTuple{pos::Int, length::Int} 2046] indexes into sub_weights, pos is absolute into m.
+# 10235..10266           level_weights_nonzero::[Bool 2046] # map of which levels have nonzero weight (used to bump m2 efficiently when a level is zeroed out)
+# 2 unused bits
 
 # gc info:
-# 10235                  next_free_space::Int (used to re-allocate)
+# 10267                  next_free_space::Int (used to re-allocate)
 # 16 unused bits
-# 10236..10491           level allocated length::[UInt8 2046] (2^(x-1) is implied)
+# 10268..10523           level allocated length::[UInt8 2046] (2^(x-1) is implied)
 
-# 10492..10491+len       edit_map (maps index to current location in sub_weights)::[(pos<<11 + exponent)::UInt64] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. (len refers to allocated length, not m[1])
+# 10524..10523+len       edit_map (maps index to current location in sub_weights)::[(pos<<11 + exponent)::UInt64] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. (len refers to allocated length, not m[1])
 
-# 10492+2len..10491+7len sub_weights (woven with targets)::[[significand::UInt64, target::Int}]]. allocated_len == length_from_memory(length(m)) (len refers to allocated length, not m[1])
+# 10524+2len..10523+7len sub_weights (woven with targets)::[[significand::UInt64, target::Int}]]. allocated_len == length_from_memory(length(m)) (len refers to allocated length, not m[1])
 
 # significands are stored in sub_weights with their implicit leading 1 added
 #     element_from_sub_weights = 0x8000000000000000 | (reinterpret(UInt64, weight::Float64) << 11)
@@ -167,7 +169,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 
     # Select level
     x = rand(rng, Base.OneTo(m[4]))
-    i = m[2]
+    i = _convert(Int, m[2])
     local mi
     while #=i < 2046+4=# true
         mi = m[i]
@@ -176,28 +178,15 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
         i -= 1
     end
 
-    # Low-probability rejection to improve accuracy from very close to perfect
-    if x == mi # mi is the weight rounded down plus 1. If they are equal than we should refine further and possibly reject. This branch is very uncommon and still O(1); constant factors don't matter here.
-        # shift::Int = exponent+m[3]
-        # significand_sum::UInt128 = ...
-        # weight::UInt64 = significand_sum<<shift+1
-        # true_weight::ExactReal = exact(significand_sum)<<shift
-        # true_weight::ExactReal = significand_sum<<shift + exact(significand_sum)<<shift & ...0000.1111...
-        # rejection_p = weight-true_weight = (significand_sum<<shift+1) - (significand_sum<<shift + exact(significand_sum)<<shift & ...0000.1111...)
-        # rejection_p = 1 - exact(significand_sum)<<shift & ...0000.1111...
-        # acceptance_p = exact(significand_sum)<<shift & ...0000.1111...  (for example, if significand_sum<<shift is exact, then acceptance_p will be zero)
-        # TODO for confidence: add a test that fails if this were to mix up floor+1 and ceil.
-        exponent = i-4
-        shift = signed(exponent + m[3])
-        significand_sum = get_significand_sum(m, i)
-        while true
-            x = rand(rng, UInt64)
-            # p_stage = significand_sum << shift & ...00000.111111...64...11110000
-            shift += 64
-            target = significand_sum << shift % UInt64
-            x > target && @goto reject
-            x < target && break
-            shift >= 0 && break
+    if x == mi # mi is the weight rounded down plus 1. If they are equal than we should refine further and possibly reject.
+        # Low-probability rejection to improve accuracy from very close to perfect.
+        # This branch should typically be followed with probability < 2^-21. In cases where
+        # the probability is higher (i.e. m[4] < 2^32), _rand_slow_path will mutate m by
+        # modifying m[3] and recomputing approximate weights to increase m[4] above 2^32.
+        # This branch is still O(1) but constant factors don't matter except for in the case
+        # of repeated large swings in m[4] with calls to rand interspersed.
+        if @noinline _rand_slow_path(rng, m, i)
+            @goto reject
         end
     end
 
@@ -210,18 +199,77 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
     while true
         r = rand(rng, UInt64)
         k1 = (r>>leading_zeros(len-1))
-        k2 = k1<<1+pos # TODO for perf: try %Int here (and everywhere)
+        k2 = _convert(Int, k1<<1+pos)
         # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to 0
-        k1 < len && rand(rng, UInt64) < m[k2] && return Int(signed(m[k2+1]))
+        rand(rng, UInt64) < m[k2] * (k1 < len) && return Int(signed(m[k2+1]))
+    end
+end
+
+function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
+    # shift::Int = exponent+m[3]
+    # significand_sum::UInt128 = ...
+    # weight::UInt64 = significand_sum<<shift+1
+    # true_weight::ExactReal = exact(significand_sum)<<shift
+    # true_weight::ExactReal = significand_sum<<shift + exact(significand_sum)<<shift & ...0000.1111...
+    # rejection_p = weight-true_weight = (significand_sum<<shift+1) - (significand_sum<<shift + exact(significand_sum)<<shift & ...0000.1111...)
+    # rejection_p = 1 - exact(significand_sum)<<shift & ...0000.1111...
+    # acceptance_p = exact(significand_sum)<<shift & ...0000.1111...  (for example, if significand_sum<<shift is exact, then acceptance_p will be zero)
+    # TODO for confidence: add a test that fails if this were to mix up floor+1 and ceil.
+    exponent = i-4
+    shift = signed(exponent + m[3])
+    significand_sum = get_significand_sum(m, i)
+
+    m4 = m[4]
+    if m4 < UInt64(1)<<32
+        # If the sum of approximate weights becomes less than 2^32, then for performance reasons (to keep this low probability rejection step sufficiently low probability)
+        # Increase the shift to a reasonable level.
+        # The fact that we are here past the isempty check in `rand` means that there are some nonzero weights.
+
+        m2 = signed(m[2])
+        x = zero(UInt64)
+        checkbounds(m, 2m2-2Sys.WORD_SIZE+2042:2m2+2042)
+        @inbounds for i in Sys.WORD_SIZE:-1:0 # This loop is backwards so that memory access is forwards. TODO for perf, we can get away with shaving 1 to 10 off of this loop.
+            # This can underflow from significand sums into weights, but that underflow is safe because it can only happen if all the latter weights are zero. Be careful about this when re-arranging the memory layout!
+            x += m[2m2-2i+2042] >> (i - 1)
+        end
+
+        # x is computed by rounding down at a certain level and then summing (and adding 1)
+        # m[4] will be computed by rounding up at a more precise level and then summing
+        # x could be 0 (treated as 1/2 when computing log2 with top_set_bit), composed of
+        # .9 + .9 + .9 + ... for up to about log2(length) levels
+        # meaning m[4] could be up to 2log2(length) times greater than predicted according to x2
+        # if length is 2^64 than this could push m[4]'s top set bit up to 9 bits higher.
+
+        # If, on the other hand, x was computed with significantly higher precision, then
+        # it could overflow if there were 2^64 elements in a weight. We could probably
+        # squeeze a few more bits out of this, but targeting 46 with a window of 46 to 53 is
+        # plenty good enough.
+
+        m3 = unsigned(-17 - Base.top_set_bit(x) - (m2 - 4))
+
+        set_global_shift_increase!(m, m2, m3, m4) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+
+        @assert 46 <= Base.top_set_bit(m[4]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8 # TODO for perf: delete
+    end
+
+    while true # TODO for confidence: move this to a separate, documented function and add unit tests.
+        x = rand(rng, UInt64)
+        # p_stage = significand_sum << shift & ...00000.111111...64...11110000
+        shift += 64
+        target = (significand_sum << shift) % UInt64
+        x > target && return true
+        x < target && return false
+        shift >= 0 && return false
     end
 end
 
 function _getindex(m::Memory{UInt64}, i::Int)
     @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeights(m), i))
-    j = i + 10491
-    exponent = m[j] & 2047
-    pos = m[j] >> 11
-    pos == 0 && return 0.0
+    j = i + 10523
+    mj = m[j]
+    mj == 0 && return 0.0
+    pos = _convert(Int, mj >> 11)
+    exponent = mj & 2047
     weight = m[pos]
     reinterpret(Float64, (exponent<<52) | (weight - 0x8000000000000000) >> 11)
 end
@@ -236,9 +284,8 @@ function _setindex!(m::Memory, v::Float64, i::Int)
     0x0010000000000000 <= uv <= 0x7fefffffffffffff || throw(DomainError(v, "Invalid weight")) # Excludes subnormals
 
     # Find the entry's pos in the edit map table
-    j = i + 10491
-    pos = m[j] >> 11
-    if pos == 0
+    j = i + 10523
+    if m[j] == 0
         _set_from_zero!(m, v, i)
     else
         _set_nonzero!(m, v, i)
@@ -251,7 +298,7 @@ function _set_nonzero!(m, v, i)
     _set_from_zero!(m, v, i)
 end
 
-function get_significand_sum(m, i)
+Base.@propagate_inbounds function get_significand_sum(m, i)
     i = _convert(Int, 2i+2041)
     significand_sum = UInt128(m[i]) | (UInt128(m[i+1]) << 64)
 end
@@ -264,20 +311,20 @@ end
 
 function _set_from_zero!(m::Memory, v::Float64, i::Int)
     uv = reinterpret(UInt64, v)
-    j = i + 10491
+    j = i + 10523
     @assert m[j] == 0
 
     exponent = uv >> 52
     # update group total weight and total weight
     significand = 0x8000000000000000 | uv << 11
-    weight_index = exponent + 4
-    significand_sum = update_significand_sum(m, weight_index, significand)
+    weight_index = _convert(Int, exponent + 4)
+    significand_sum = update_significand_sum(m, weight_index, significand) # Temporarily break the "weights are accurately computed" invariant
 
     if m[4] == 0 # if we were empty, set global shift (m[3]) so that m[4] will become ~2^40.
         m[3] = -24 - exponent
 
         shift = -24
-        weight = UInt64(significand_sum<<shift) + 1 # TODO for perf: change to % UInt64
+        weight = _convert(UInt64, significand_sum << shift) + 1
 
         @assert Base.top_set_bit(weight-1) == 40 # TODO for perf: delete
         m[weight_index] = weight
@@ -292,23 +339,25 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # Base.top_set_bit(significand_sum)+signed(exponent) + signed(m[3]) == 48
             # signed(m[3]) == 48 - Base.top_set_bit(significand_sum) - signed(exponent)
             m3 = 48 - Base.top_set_bit(significand_sum) - exponent
+            # The "weights are accurately computed" invariant is broken for weight_index, but the "sum(weights) == m[4]" invariant still holds
+            # set_global_shift_decrease! will do something wrong to weight_index, but preserve the "sum(weights) == m[4]" invariant.
             set_global_shift_decrease!(m, m3) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
             shift = signed(exponent + m3)
         end
-        weight = UInt64(significand_sum<<shift) + 1 # TODO for perf: change to % UInt64
+        weight = _convert(UInt64, significand_sum << shift) + 1
 
         old_weight = m[weight_index]
-        m[weight_index] = weight
-        m4 = m[4]
+        m[weight_index] = weight # The "weights are accurately computed" invariant is now restored
+        m4 = m[4] # The "sum(weights) == m[4]" invariant is broken
         m4 -= old_weight
-        m4, o = Base.add_with_overflow(m4, weight)
+        m4, o = Base.add_with_overflow(m4, weight) # The "sum(weights) == m4" invariant now holds, though the computation overflows
         if o
             # If weights overflow (>2^64) then shift down by 16 bits
             m3 = m[3]-0x10
             set_global_shift_decrease!(m, m3, m4) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
             if weight_index > m[2] # if the new weight was not adjusted by set_global_shift_decrease!, then adjust it manually
                 shift = signed(exponent+m3)
-                new_weight = (significand_sum<<shift) % UInt64 + 1
+                new_weight = _convert(UInt64, significand_sum << shift) + 1
 
                 @assert significand_sum != 0
                 @assert m[weight_index] == weight
@@ -321,9 +370,11 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         end
     end
     m[2] = max(m[2], weight_index) # Set after insertion because update_weights! may need to update the global shift, in which case knowing the old m[2] will help it skip checking empty levels
+    level_weights_nonzero_index,level_weights_nonzero_subindex = get_level_weights_nonzero_indices(exponent)
+    m[level_weights_nonzero_index] |= 0x8000000000000000 >> level_weights_nonzero_subindex
 
     # lookup the group by exponent and bump length
-    group_length_index = 4 + 3*2046 + 2exponent
+    group_length_index = _convert(Int, 4 + 3*2046 + 2exponent)
     group_pos = m[group_length_index-1]
     group_length = m[group_length_index]+1
     m[group_length_index] = group_length # setting this before compaction means that compaction will ensure there is enough space for this expanded group, but will also copy one index (16 bytes) of junk which could access past the end of m. The junk isn't an issue once coppied because we immediately overwrite it. The former (copying past the end of m) only happens if the group to be expanded is already kissing the end. In this case, it will end up at the end after compaction and be easily expanded afterwords. Consequently, we treat that case specially and bump group length and manually expand after compaction
@@ -334,7 +385,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
 
     # if there is not room in the group, shift and expand
     if group_length > allocated_size
-        next_free_space = m[10235]
+        next_free_space = m[10267]
         # if at end already, simply extend the allocation # TODO see if removing this optimization is problematic; TODO verify the optimization is triggering
         if next_free_space == (group_pos-2)+2group_length # note that this is valid even if group_length is 1 (previously zero).
             new_allocation_length = max(2, 2allocated_size)
@@ -357,7 +408,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # expand the allocated size and bump next_free_space
             new_chunk = allocs_chunk + UInt64(1) << allocs_subindex
             m[allocs_index] = new_chunk
-            m[10235] = new_next_free_space
+            m[10267] = new_next_free_space
         else # move and reallocate (this branch also handles creating new groups: TODO expirment with perf and clarity by splicing that branch out)
             twice_new_allocated_size = max(0x2,allocated_size<<2)
             new_next_free_space = next_free_space+twice_new_allocated_size
@@ -385,7 +436,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             new_chunk = allocs_chunk + UInt64(1) << allocs_subindex
             m[allocs_index] = new_chunk
 
-            m[10235] = new_next_free_space
+            m[10267] = new_next_free_space
 
             # Copy the group to new location
             (v"1.11" <= VERSION || 2group_length-2 != 0) && unsafe_copyto!(m, next_free_space, m, group_pos, 2group_length-2) # TODO for clarity and maybe perf: remove this version check
@@ -393,8 +444,8 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
             delta = (next_free_space-group_pos) << 11
             for k in 1:group_length-1
-                target = m[next_free_space+2k-1]
-                l = target + 10491
+                target = m[_convert(Int, next_free_space)+2k-1]
+                l = _convert(Int, target + 10523)
                 m[l] += delta
             end
 
@@ -402,7 +453,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # TODO for perf: delete this and instead have compaction check if the index
             # pointed to by the start of the group points back (in the edit map) to that location
             if allocated_size != 0
-                m[group_pos+1] = unsigned(Int64(-allocated_size))
+                m[_convert(Int, group_pos)+1] = unsigned(Int64(-allocated_size))
             end
 
             # update group start location
@@ -411,12 +462,12 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     end
 
     # insert the element into the group
-    group_lastpos = (group_pos-2)+2group_length
+    group_lastpos = _convert(Int, (group_pos-2)+2group_length)
     m[group_lastpos] = significand
     m[group_lastpos+1] = i
 
     # log the insertion location in the edit map
-    m[j] = group_lastpos << 11 + exponent
+    m[j] = _convert(UInt64, group_lastpos) << 11 + exponent
 
     nothing
 end
@@ -442,8 +493,30 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase sh
     i <= -signed(m3)-122+4
     So for -signed(m3)-118 < i, we could need to adjust the ith weight
     =#
-    recompute_range = max(5, -signed(m3)-117):m2 # TODO It would be possible to scale this range with length (m[1]) in which case testing could be stricter and performance could be (marginally) better, though not in large cases so possibly not worth doing at all)
-    m[4] = recompute_weights!(m, m3, m4, recompute_range)
+    r0 = max(5, -signed(m3)-117)
+    r1 = m2 # TODO It would be possible to scale this range with length (m[1]) in which case testing could be stricter and performance could be (marginally) better, though not in large cases so possibly not worth doing at all)
+
+    # shift = signed(i-4+m3)
+    # weight = significand_sum == 0 ? 0 : UInt64(significand_sum << shift) + 1
+    # shift < -64; the low 64 bits are shifted off.
+    # i < -60-signed(m3); the low 64 bits are shifted off.
+
+    checkbounds(m, r0:2r1+2042)
+    @inbounds for i in r0:min(r1, -61-signed(m3))
+        significand_sum_lo = m[_convert(Int, 2i+2041)]
+        significand_sum_hi = m[_convert(Int, 2i+2042)]
+        significand_sum_lo == significand_sum_hi == 0 && continue # in this case, the weight was and still is zero
+        shift = signed(i-4+m3) + 64
+        m4 += update_weight!(m, i, significand_sum_hi << shift)
+    end
+    @inbounds for i in max(r0,-60-signed(m3)):r1
+        significand_sum = get_significand_sum(m, i)
+        significand_sum == 0 && continue # in this case, the weight was and still is zero
+        shift = signed(i-4+m3)
+        m4 += update_weight!(m, i, significand_sum << shift)
+    end
+
+    m[4] = m4
 end
 
 function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease shift, on insertion of elements
@@ -454,7 +527,7 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
     # In the case of adding a giant element, call this first, then add the element.
     # In any case, this only adjusts elements at or before m[2]
     # from the first index that previously could have had a weight > 1 to min(m[2], the first index that can't have a weight > 1) (never empty), set weights to 1 or 0
-    # from the first index that could have a weight > 1 to m[2] (possibly empty), recompute weights.
+    # from the first index that could have a weight > 1 to m[2] (possibly empty), shift weights by delta.
     m2 = signed(m[2])
     i1 = -signed(m3)-117 # see above, this is the first index that could have weight > 1 (anything after this will have weight 1 or 0)
     i1_old = -signed(m3_old)-117 # anything before this is already weight 1 or 0
@@ -471,108 +544,77 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
         m[i] = weight
         m4 += weight-old_weight
     end
-    m4 = recompute_weights!(m, m3, m4, recompute_range)
+
+    delta = m3_old-m3
+    checkbounds(m, recompute_range)
+    @inbounds for i in recompute_range
+        old_weight = m[i]
+        old_weight <= 1 && continue # in this case, the weight was and still is 0 or 1
+        m4 += update_weight!(m, i, (old_weight-1) >> delta)
+    end
 
     m[4] = m4
 end
 
-function recompute_weights!(m, m3, m4, range)
-    checkbounds(m, range)
-    @inbounds for i in range
-        significand_sum = get_significand_sum(m, i)
-        significand_sum == 0 && continue # in this case, the weight was and still is zero
-        shift = signed(i-4+m3)
-        weight = (significand_sum<<shift) % UInt64 + 1
-
-        old_weight = m[i]
-        m[i] = weight
-        m4 += weight-old_weight
-    end
-    m4
+Base.@propagate_inbounds function update_weight!(m::Memory{UInt64}, i, shifted_significand_sum)
+    weight = _convert(UInt64, shifted_significand_sum) + 1
+    old_weight = m[i]
+    m[i] = weight
+    weight-old_weight
 end
 
-get_alloced_indices(exponent::UInt64) = 10236 + exponent >> 3, exponent << 3 & 0x38
+get_alloced_indices(exponent::UInt64) = _convert(Int, 10268 + exponent >> 3), exponent << 3 & 0x38
+get_level_weights_nonzero_indices(exponent::UInt64) = _convert(Int, 10235 + exponent >> 6), exponent & 0x3f
 
 function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
-    j = i + 10491
-    pos = m[j] >> 11
-    pos == 0 && return # if the entry is already zero, return
-    exponent = m[j] & 2047
+    j = i + 10523
+    mj = m[j]
+    mj == 0 && return # if the entry is already zero, return
+    pos = _convert(Int, mj >> 11)
+    exponent = mj & 2047
     # set the entry to zero (no need to zero the exponent)
     # m[j] = 0 is moved to after we adjust the edit_map entry for the shifted element, in case there is no shifted element
 
     # update group total weight and total weight
     significand = m[pos]
-    weight_index = exponent + 4
+    weight_index = _convert(Int, exponent + 4)
     significand_sum = update_significand_sum(m, weight_index, -UInt128(significand))
     old_weight = m[weight_index]
     m4 = m[4]
     m4 -= old_weight
     if significand_sum == 0 # We zeroed out a group
+        level_weights_nonzero_index,level_weights_nonzero_subindex = get_level_weights_nonzero_indices(exponent)
+        chunk = m[level_weights_nonzero_index] &= ~(0x8000000000000000 >> level_weights_nonzero_subindex)
         m[weight_index] = 0
         if m4 == 0 # There are no groups left
             m[2] = 4
         else
-            m2 = Int(m[2])
+            m2 = m[2]
             if weight_index == m2 # We zeroed out the first group
-                m[4] != 0 && 1 < m2 <= lastindex(m) && m2 isa Int || error() # This makes the following @inbounds safe. If the compiler can follow my reasoning, then the error checking can also improve effect analysis and therefore performance.
-                while true # Update m[2]
-                    m2 -= 1
-                    @inbounds m[m2] != 0 && break # TODO, see if the compiler can infer noub
+                while chunk == 0 # Find the new m[2]
+                    level_weights_nonzero_index -= 1
+                    m2 -= 64
+                    chunk = m[level_weights_nonzero_index]
                 end
+                m2 += 63-trailing_zeros(chunk) - level_weights_nonzero_subindex
                 m[2] = m2
             end
         end
     else # We did not zero out a group
         shift = signed(exponent + m[3])
-        new_weight = UInt64(significand_sum<<shift) + 1# TODO for perf: change to % UInt64
+        new_weight = _convert(UInt64, significand_sum << shift) + 1
         m[weight_index] = new_weight
         m4 += new_weight
     end
 
-    if 0 < m4 < UInt64(1)<<32
-        # If weights become less than 2^32 (but only if there are any nonzero weights), then for performance reasons (to keep the low probability rejection step sufficiently low probability)
-        # Increase the shift to a reasonable level.
-        # All nonzero significand_sums correspond to nonzero weights so 0 < m4 is a sufficient check to determine if we have fully emptied out the weights or not
-
-        # TODO for perf: we can almost get away with loading only the most significant word of significand_sums. Here, we use the most significant 65 bits.
-        m2 = m[2]
-        x = get_significand_sum(m, m2)
-        # TODO refactor indexing for simplicity
-        x2 = UInt64(x>>63) #TODO for perf %UInt64
-        @assert x2 != 0
-        for i in Sys.WORD_SIZE:-1:1 # This loop is backwards so that memory access is forwards. TODO for perf, we can get away with shaving 1 to 10 off of this loop.
-            # This can underflow from significand sums into weights, but that underflow is safe because it can only happen if all the latter weights are zero. Be careful about this when re-arranging the memory layout!
-            x2 += _convert(UInt, get_significand_sum(m, m2-i) >> (63+i))
-        end
-
-        # x2 is computed by rounding down at a certain level and then summing
-        # m[4] will be computed by rounding up at a more precise level and then summing
-        # x2 could be 1, composed of 1.9 + .9 + .9 + ... for up to about log2(length) levels
-        # meaning m[4] could be up to 1+log2(length) times greater than predicted according to x2
-        # if length is 2^64 than this could push m[4]'s top set bit up to 8 bits higher.
-
-        # If, on the other hand, x2 was computed with significantly higher precision, then
-        # it could overflow if there were 2^64 elements in a weight. TODO: We could probably
-        # squeeze a few more bits out of this, but targeting 46 with a window of 46 to 52 is
-        # plenty good enough.
-
-        m3 = -17 - Base.top_set_bit(x2) - (m2 - 4)
-        # TODO test that this actually achieves the desired shift and results in a new sum of about 2^48
-
-        set_global_shift_increase!(m, m2, m3, m4) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
-
-        @assert 46 <= Base.top_set_bit(m[4]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8 # TODO for perf: delete
-    else
-        m[4] = m4
-    end
+    m[4] = m4 # This might be less than 2^32, but that's okay. If it is, and that's relevant, it will be corrected in _rand_slow_path
 
     # lookup the group by exponent
-    group_length_index = 4 + 3*2046 + 2exponent
+    group_length_index = _convert(Int, 4 + 3*2046 + 2exponent)
     group_pos = m[group_length_index-1]
     group_length = m[group_length_index]
-    group_lastpos = (group_pos-2)+2group_length
+    group_lastpos = _convert(Int, (group_pos-2)+2group_length)
 
     # TODO for perf: see if it's helpful to gate this on pos != group_lastpos
     # shift the last element of the group into the spot occupied by the removed element
@@ -580,7 +622,7 @@ function _set_to_zero!(m::Memory, i::Int)
     shifted_element = m[pos+1] = m[group_lastpos+1]
 
     # adjust the edit map entry of the shifted element
-    m[shifted_element + 10491] = pos << 11 + exponent
+    m[_convert(Int, shifted_element) + 10523] = _convert(UInt64, pos) << 11 + exponent
     m[j] = 0
 
     # When zeroing out a group, mark the group as empty so that compaction will update the group metadata and then skip over it.
@@ -600,15 +642,15 @@ SemiResizableWeights(len::Integer) = SemiResizableWeights(FixedSizeWeights(len))
 function FixedSizeWeights(len::Integer)
     m = Memory{UInt64}(undef, allocated_memory(len))
     # m .= 0 # This is here so that a sparse rendering for debugging is easier TODO for tests: set this to 0xdeadbeefdeadbeed
-    m[4:10491+len] .= 0 # metadata and edit map need to be zeroed but the bulk does not
+    m[4:10523+len] .= 0 # metadata and edit map need to be zeroed but the bulk does not
     m[1] = len
     m[2] = 4
     # no need to set m[3]
-    m[10235] = 10492+len
+    m[10267] = 10524+len
     _FixedSizeWeights(m)
 end
-allocated_memory(length::Integer) = 10491 + 7*length # TODO for perf: consider giving some extra constant factor allocation to avoid repeated compaction at small sizes
-length_from_memory(allocated_memory::Integer) = Int((allocated_memory-10491)/7)
+allocated_memory(length::Integer) = 10523 + 7*length # TODO for perf: consider giving some extra constant factor allocation to avoid repeated compaction at small sizes
+length_from_memory(allocated_memory::Integer) = Int((allocated_memory-10523)/7)
 
 Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Integer) = resize!(w, Int(len))
 function Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Int)
@@ -640,10 +682,10 @@ function _resize!(w::ResizableWeights, len::Integer)
     # m2 .= 0 # For debugging; TODO: set to 0xdeadbeefdeadbeef to test
     m2[1] = len
     if len > old_len # grow
-        unsafe_copyto!(m2, 2, m, 2, old_len + 10491)
-        m2[old_len + 10492:len + 10491] .= 0
+        unsafe_copyto!(m2, 2, m, 2, old_len + 10523)
+        m2[old_len + 10524:len + 10523] .= 0
     else # shrink
-        unsafe_copyto!(m2, 2, m, 2, len + 10491)
+        unsafe_copyto!(m2, 2, m, 2, len + 10523)
     end
 
     compact!(m2, m)
@@ -652,9 +694,9 @@ function _resize!(w::ResizableWeights, len::Integer)
 end
 
 function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
-    dst_i = Int(length_from_memory(length(dst)) + 10492)
-    src_i = Int(length_from_memory(length(src)) + 10492)
-    next_free_space = src[10235]
+    dst_i = length_from_memory(length(dst)) + 10524
+    src_i = length_from_memory(length(src)) + 10524
+    next_free_space = src[10267]
 
     while src_i < next_free_space
 
@@ -679,13 +721,13 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         end
 
         # Trace an element of the group back to the edit info table to find the group id
-        j = target + 10491
+        j = target + 10523
         exponent = src[j] & 2047
 
         # Lookup the group in the group location table to find its length (performance optimization for copying, necessary to decide new allocated size and update pos)
         # exponent of 0x00000000000007fe is index 6+3*2046
         # exponent of 0x0000000000000001 is index 4+5*2046
-        group_length_index = 4 + 3*2046 + 2exponent
+        group_length_index = _convert(Int, 4 + 3*2046 + 2exponent)
         group_length = src[group_length_index]
 
         # Update group pos in level_location_info
@@ -710,7 +752,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         dst[j] += delta
         for k in 1:signed(group_length)-1 # TODO: add a benchmark that stresses compaction and try hoisting this bounds checking
             target = src[src_i+2k+1]
-            j = target + 10491
+            j = _convert(Int, target + 10523)
             dst[j] += delta
         end
 
@@ -722,7 +764,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         dst_i += 2*1<<log2_new_allocated_size
     end
     @label break_outer
-    dst[10235] = dst_i
+    dst[10267] = dst_i
 end
 
 # Conform to the AbstractArray API
