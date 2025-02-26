@@ -46,9 +46,13 @@ end
 show_number(io, x, ::Nothing, _=nothing) = show_number(io, x, pick_unit(x), true)
 function show_number(io, x, unit, show_unit=true)
     x /= unit[1]
-    sigfigs = x < 1 ? 3 : 4
-    r = round(x, digits=max(1, ceil(Int, sigfigs-log10(x))))
-    print(io, r)
+    if x == 0
+        print(io, '0')
+    else
+        sigfigs = x < 1 ? 3 : 4
+        r = round(x, digits=max(1, ceil(Int, sigfigs-log10(x))))
+        print(io, r)
+    end
     if show_unit
         print(io, " ", unit[2])
     end
