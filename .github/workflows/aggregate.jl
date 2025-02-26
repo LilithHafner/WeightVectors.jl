@@ -66,6 +66,7 @@ function show_comma_separated(io, x, unit)
 end
 function round_ratio(x)
     isinteger(x) && return string(Int(x))
+    isinf(x) && return string(x)
     sigfigs = 3
     r = round(x, digits=max(1, ceil(Int, sigfigs-log10(x))))
     string(r)
