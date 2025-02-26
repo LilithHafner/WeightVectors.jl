@@ -39,10 +39,15 @@ jobs:
     - uses: julia-actions/setup-julia@v2
     - uses: julia-actions/cache@v2
     - uses: actions/download-artifact@v4
+      with:
+        path: results
     - name: Debug with tmate
       uses: mxschmitt/action-tmate@v3
     - name: aggregate results
       run: julia .github/workflows/aggregate.jl
+      env:
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
     - name: Find Comment
       uses: peter-evans/find-comment@v3
       id: fcbenchmark
