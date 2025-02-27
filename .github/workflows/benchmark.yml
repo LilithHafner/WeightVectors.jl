@@ -6,7 +6,13 @@ on:
       artifact-name:
         required: true
         type: string
-      ref:
+      ref-a:
+        required: true
+        type: string
+      ref-b:
+        required: true
+        type: string
+      bench-on:
         required: true
         type: string
       os:
@@ -24,14 +30,37 @@ jobs:
     runs-on: ${{ inputs.os }}
     timeout-minutes: 10
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v4 # Setup
       with:
-        ref: ${{ inputs.ref }}
+        ref: ${{ inputs.bench-on }}
+        sparse-checkout: benchmark/benchmarks.jl
+    - run: cp benchmark/benchmarks.jl ..
     - uses: julia-actions/setup-julia@v2
     - uses: julia-actions/cache@v2
+
+    - name: Randomize refs # Randomize
+      id: randomize
+      run: (( RANDOM % 2 )) && echo -e "ref1=$REFA\\nref2=$REFB" >> $GITHUB_OUTPUT || echo -e "ref1=$REFB\nref2=$REFA" >> $GITHUB_OUTPUT
+      env:
+        REFA: ${{ inputs.ref-a }}
+        REFB: ${{ inputs.ref-b }}
+
+    - uses: actions/checkout@v4 # ref1
+      with:
+        ref: ${{ steps.randomize.outputs.ref1 }}
     - name: Run benchmarks
-      run: julia -e 'using Pkg; Pkg.add(path="https://github.com/LilithHafner/ChairmarksForAirspeedVelocity.jl"); Pkg.activate("."); include("benchmark/benchmarks.jl"); using Serialization; serialize("results.jls", run(SUITE))'
+      run: julia -e 'using Pkg; Pkg.add(path="https://github.com/LilithHafner/ChairmarksForAirspeedVelocity.jl"); Pkg.activate("."); include("../benchmarks.jl"); using Serialization; serialize("results.jls", run(SUITE))'
     - uses: actions/upload-artifact@v4
       with:
-        name: ${{ inputs.artifact-name }}
+        name: ${{ inputs.artifact-name }}-${{ steps.randomize.outputs.ref1 }}
+        path: results.jls
+
+    - uses: actions/checkout@v4 # ref2
+      with:
+        ref: ${{ steps.randomize.outputs.ref2 }}
+    - name: Run benchmarks
+      run: julia -e 'using Pkg; Pkg.add(path="https://github.com/LilithHafner/ChairmarksForAirspeedVelocity.jl"); Pkg.activate("."); include("../benchmarks.jl"); using Serialization; serialize("results.jls", run(SUITE))'
+    - uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}-${{ steps.randomize.outputs.ref2 }}
         path: results.jls
