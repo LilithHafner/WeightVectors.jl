@@ -49,7 +49,7 @@ jobs:
         sparse-checkout: benchmark
     - uses: julia-actions/julia-buildpkg@v1
     - name: tmate
-      uses: mxschmitt/action-tmate@v4
+      uses: mxschmitt/action-tmate@v3
     - name: Run benchmarks
       run: julia -e 'using Pkg; Pkg.add(path="https://github.com/LilithHafner/ChairmarksForAirspeedVelocity.jl"); Pkg.activate("."); include("benchmark/benchmarks.jl"); using Serialization; serialize("results.jls", run(SUITE))'
     - uses: actions/upload-artifact@v4
