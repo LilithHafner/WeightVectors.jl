@@ -80,8 +80,10 @@ for n in [100, 1000, 10000], σ in [.1, 1, 10, 100]
     end
 end
 
+using Random
+
 for n in [10^3, 10^4, 10^5, 10^6], σ in [.1, 1, 10, 100]
-    SUITE["sample (bulk) n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(10^6, σ) rand(_, $n)
+    SUITE["sample (bulk) n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(10^6, σ) rand(Random.default_rng(), _, $n)
 end
 
 function pathological1_setup()
