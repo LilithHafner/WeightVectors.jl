@@ -159,9 +159,39 @@ TODO
 # Trivial extensions:
 # push!, delete!
 
+Base.rand(rng::AbstractRNG, w::Weights, n::Integer) = _rand(rng, w.m, n)
 Base.rand(rng::AbstractRNG, w::Weights) = _rand(rng, w.m)
 Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
+
+function rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
+    n < 10000 && return [rand(rng, w) for _ in 1:n]
+    i = _convert(Int, m[2])
+    weights = [get_significand_sum(m, j)*(BigInt(2)^j) for j in i:-1:5]
+    counts = multinomial_int(rng, n, weights)
+    samples = Vector{Int}(undef, n)
+    k = 1
+    j = 2i + 6133
+    @inbounds for c in counts
+        pos = m[j]
+        len = m[j+1]
+        l = leading_zeros(len-1)
+        for _ in 1:c
+            while true
+                r = rand(rng, UInt64)
+                k1 = r >> l 
+                k2 = _convert(Int, k1<<1+pos)
+                if rand(rng, UInt64) < m[k2] * (k1 < len) 
+                    samples[k] = _convert(Int, (m[k2+1]))
+                    k += 1
+                    break
+                end
+            end
+        end
+        j -= 2
+    end
+    return shuffle!(rng, samples)
+end
 
 #=@inbounds=# function _rand(rng::AbstractRNG, m::Memory{UInt64})
 
