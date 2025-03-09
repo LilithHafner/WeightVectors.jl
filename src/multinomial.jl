@@ -51,14 +51,14 @@ function binomial_int_12(rng, trials)
 end
 
 function multinomial_int(rng, trials, weights)
-    cum_weights = cumsum(weights)
+    sum_weights = sum(weights)
     counts = Vector{Int}(undef, length(weights))
     @inbounds for i in 1:length(weights)
-        n = weights[i]
-        d = cum_weights[end] - ((i>1) ? cum_weights[i-1] : 0)
-        b = binomial_int(rng, trials, n, d)
+        b = binomial_int(rng, trials, weights[i], sum_weights)
         counts[i] = b
         trials -= b
+        trials == 0 && break
+        sum_weights -= weights[i]
     end
     return counts
 end
