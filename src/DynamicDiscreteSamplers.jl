@@ -827,7 +827,7 @@ function Base.delete!(wbs::WeightBasedSampler, index)
     wbs
 end
 Base.rand(rng::AbstractRNG, wbs::WeightBasedSampler) = rand(rng, wbs.w)
-Base.rand(rng::AbstractRNG, wbs::WeightBasedSampler, n::Integer) = [rand(rng, wbs.w) for _ in 1:n]
+Base.rand(rng::AbstractRNG, wbs::WeightBasedSampler, n::Integer) = rand(rng, wbs.w, n)
 
 const DynamicDiscreteSampler = WeightBasedSampler
 
