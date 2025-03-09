@@ -164,8 +164,8 @@ Base.rand(rng::AbstractRNG, w::Weights) = _rand(rng, w.m)
 Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 
-function rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
-    n < 10000 && return [rand(rng, m) for _ in 1:n]
+function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
+    n < 10000 && return [_rand(rng, m) for _ in 1:n]
     i = _convert(Int, m[2])
     weights = [get_significand_sum(m, j)*(BigInt(2)^j) for j in i:-1:5]
     counts = multinomial_int(rng, n, weights)
