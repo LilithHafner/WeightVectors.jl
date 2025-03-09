@@ -831,6 +831,8 @@ Base.rand(rng::AbstractRNG, wbs::WeightBasedSampler, n::Integer) = [rand(rng, wb
 
 const DynamicDiscreteSampler = WeightBasedSampler
 
+include("multinomial.jl")
+
 # Precompile
 precompile(WeightBasedSampler, ())
 precompile(push!, (WeightBasedSampler, Int, Float64))
