@@ -2,13 +2,13 @@
 using AliasTables
 
 const tables = [
-    AliasTable{UInt128}(UInt128.([binomial(1,i) for i in 0:1])), 
-    AliasTable{UInt128}(UInt128.([binomial(2,i) for i in 0:2])),
-    AliasTable{UInt128}(UInt128.([binomial(4,i) for i in 0:4])), 
-    AliasTable{UInt128}(UInt128.([binomial(8,i) for i in 0:8])),
-    AliasTable{UInt128}(UInt128.([binomial(16,i) for i in 0:16])), 
-    AliasTable{UInt128}(UInt128.([binomial(32,i) for i in 0:32])),
-    AliasTable{UInt128}(UInt128.([binomial(64,i) for i in 0:64])), 
+    AliasTable{UInt128}(UInt128.([binomial(BigInt(1),i) for i in 0:1])), 
+    AliasTable{UInt128}(UInt128.([binomial(BigInt(2),i) for i in 0:2])),
+    AliasTable{UInt128}(UInt128.([binomial(BigInt(4),i) for i in 0:4])), 
+    AliasTable{UInt128}(UInt128.([binomial(BigInt(8),i) for i in 0:8])),
+    AliasTable{UInt128}(UInt128.([binomial(BigInt(16),i) for i in 0:16])), 
+    AliasTable{UInt128}(UInt128.([binomial(BigInt(32),i) for i in 0:32])),
+    AliasTable{UInt128}(UInt128.([binomial(BigInt(64),i) for i in 0:64])), 
     AliasTable{UInt128}(UInt128.([binomial(BigInt(128),i) for i in 0:128]))
 ]
 
