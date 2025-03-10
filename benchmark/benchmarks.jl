@@ -174,6 +174,7 @@ function pathological5b′_update(ds)
 end
 SUITE["pathological 5b′"] = @benchmarkable pathological5b_setup pathological5b′_update
 function pathological6_setup()
+    ds = DynamicDiscreteSampler()
     for i in -1022:1023
         push!(ds, i+1023, 2.0^i)
     end
