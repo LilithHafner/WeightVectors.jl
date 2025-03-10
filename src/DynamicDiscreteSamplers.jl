@@ -171,16 +171,18 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
     max_i = _convert(Int, m[2])
     m[max_i]/m[4] > 0.98 && return [_rand(rng, m) for _ in 1:n]
     min_i = findfirst(i -> m[i] != 0, 5:2050)
-    weights = [get_significand_sum(m, j)*BIGPOWS2[j-min_i+1] for j in max_i:-1:min_i]
+    inds = [j for j in max_i:-1:min_i if get_significand_sum(m, j) != 0]
+    weights = [get_significand_sum(m, j)*bigpowers2[j-min_i+1] for j in inds]
     counts = multinomial_int(rng, n, weights)
     samples = Vector{Int}(undef, n)
     k = 1
-    j = 2(max_i+1) + 6133
+    j = 2max_i + 6133
     t = 0
-    @inbounds for c in counts
-        j -= 2
+    @inbounds for i in 1:length(counts)
+        c = counts[i]
         c == 0 && continue
         t += c
+        j = 2*inds[i] + 6133
         pos = m[j]
         len = m[j+1]
         l = leading_zeros(len-1)
@@ -190,7 +192,7 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
                 k1 = r >> l 
                 k2 = _convert(Int, k1<<1+pos)
                 if rand(rng, UInt64) < m[k2] * (k1 < len) 
-                    samples[k] = _convert(Int, (m[k2+1]))
+                    samples[k] = _convert(Int, m[k2+1])
                     k += 1
                     break
                 end
