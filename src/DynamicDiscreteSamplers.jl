@@ -168,12 +168,13 @@ const bigpowers2 = [BigInt(2)^i for i in 1:2046]
 
 function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
     n < 10000 && return [_rand(rng, m) for _ in 1:n]
-    i = _convert(Int, m[2])
-    weights = [get_significand_sum(m, j)*bigpowers2[j-4] for j in i:-1:5]
+    max_i = _convert(Int, m[2])
+    min_i = findfirst(i -> m[i] == 0, 5:2050)
+    weights = [get_significand_sum(m, j)*bigpowers2[j-4] for j in max_i:-1:min_i]
     counts = multinomial_int(rng, n, weights)
     samples = Vector{Int}(undef, n)
     k = 1
-    j = 2i + 6133
+    j = 2max_i + 6133
     t = 0
     @inbounds for c in counts
         t += c
