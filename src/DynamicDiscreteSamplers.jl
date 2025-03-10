@@ -192,7 +192,7 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
         pos = m[j]
         len = m[j+1]
         for _ in 1:c
-            samples[k] = sample_level(rng, m, pos, len)
+            samples[k] = sample_within_level(rng, m, pos, len)
             k += 1
         end
         t += c
@@ -233,10 +233,10 @@ end
     pos = m[j]
     len = m[j+1]
 
-    return sample_level(rng, m, pos, len)
+    return sample_within_level(rng, m, pos, len)
 end
 
-function sample_level(rng, m, pos, len)
+@inline function sample_within_level(rng, m, pos, len)
     while true
         r = rand(rng, UInt64)
         k1 = (r>>leading_zeros(len-1))
