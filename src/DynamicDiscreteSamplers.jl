@@ -170,12 +170,17 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
     n < 10000 && return [_rand(rng, m) for _ in 1:n]
     max_i = _convert(Int, m[2])
     m[max_i]/m[4] > 0.98 && return [_rand(rng, m) for _ in 1:n]
-    inds = Vector{Int}(undef, 2046)
-    q = 1
-    min_i = max_i
-    @inbounds for j in max_i:-1:1
+    min_i = 5
+    @inbounds for j in 5:max_i
         if m[j] != 0
             min_i = j
+            break
+        end
+    end
+    inds = Vector{Int}(undef, max_i-min_i+1)
+    q = 1
+    @inbounds for j in max_i:-1:min_i
+        if m[j] != 0
             inds[q] = j
             q += 1
         end
