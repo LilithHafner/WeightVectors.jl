@@ -174,8 +174,10 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
     samples = Vector{Int}(undef, n)
     k = 1
     j = 2i + 6133
+    t = 0
     @inbounds for c in counts
-        c == typemax(Int64) && break
+        t += c
+        t == n && break
         pos = m[j]
         len = m[j+1]
         l = leading_zeros(len-1)
