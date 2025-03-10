@@ -175,9 +175,10 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
     counts = multinomial_int(rng, n, weights)
     samples = Vector{Int}(undef, n)
     k = 1
-    j = 2max_i + 6133
+    j = 2(max_i+1) + 6133
     t = 0
     @inbounds for c in counts
+        j -= 2
         c == 0 && continue
         t += c
         pos = m[j]
@@ -196,7 +197,6 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
             end
         end
         t == n && break
-        j -= 2
     end
     return shuffle!(rng, samples)
 end
