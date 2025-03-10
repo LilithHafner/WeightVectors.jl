@@ -15,7 +15,7 @@ const tables = [
 # implementation based on Farach-Colton, M. and Tsai, M.T., 2015. Exact sublinear binomial sampling
 function binomial_int(rng, trials, px, py)
     if trials == 0 || px == 0
-		return 0
+        return 0
     elseif px == py
         return trials
     end
@@ -58,11 +58,9 @@ function multinomial_int(rng, trials, weights)
         counts[i] = b
         trials -= b
         if trials == 0
-	    for j in i+1:length(weights)
-		counts[j] = 0
-	    end
-	    break
-	end
+            i+1 <= length(weights) && (counts[i+1] = typemax(Int64))
+            break
+        end
         sum_weights -= weights[i]
     end
     return counts
