@@ -57,10 +57,8 @@ function multinomial_int(rng, trials, weights)
         b = binomial_int(rng, trials, weights[i], sum_weights)
         counts[i] = b
         trials -= b
-        if trials == 0
-            i+1 <= length(weights) && (counts[i+1] = typemax(Int64))
-            break
-        end
+        trials == 0 && break
+    end
         sum_weights -= weights[i]
     end
     return counts
