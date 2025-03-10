@@ -90,6 +90,12 @@ function pathological1_update(ds)
     delete!(ds, 2)
 end
 SUITE["pathological 1"] = @benchmarkable pathological1_setup pathological1_update
+function pathological1′_update(ds)
+    push!(ds, 2, 1e100)
+    delete!(ds, 2)
+    rand(ds)
+end
+SUITE["pathological 1′"] = @benchmarkable pathological1_setup pathological1′_update
 
 function pathological2_setup()
     ds = DynamicDiscreteSampler()
@@ -101,6 +107,12 @@ function pathological2_update(ds)
     delete!(ds, 2)
 end
 SUITE["pathological 2"] = @benchmarkable pathological2_setup pathological2_update
+function pathological2′_update(ds)
+    push!(ds, 2, 1e300)
+    delete!(ds, 2)
+    rand(ds)
+end
+SUITE["pathological 2′"] = @benchmarkable pathological2_setup pathological2′_update
 
 pathological3 = DynamicDiscreteSampler()
 push!(pathological3, 1, 1e300)
@@ -118,6 +130,12 @@ function pathological4_update(ds)
     delete!(ds, 2)
 end
 SUITE["pathological 4"] = @benchmarkable pathological4_setup pathological4_update
+function pathological4′_update(ds)
+    push!(ds, 2, 1e307)
+    delete!(ds, 2)
+    rand(ds)
+end
+SUITE["pathological 4′"] = @benchmarkable pathological4_setup pathological4′_update
 
 
 function pathological5a_setup()
@@ -140,10 +158,16 @@ function pathological5b_setup()
     ds
 end
 function pathological5b_update(ds)
-    push!(ds, 33, 2.0^30)
-    delete!(ds, 33)
+    push!(ds, 129, 2.0^30)
+    delete!(ds, 129)
 end
 SUITE["pathological 5b"] = @benchmarkable pathological5b_setup pathological5b_update
+function pathological5b′_update(ds)
+    push!(ds, 129, 2.0^48)
+    delete!(ds, 129)
+    rand(ds)
+end
+SUITE["pathological 5b′"] = @benchmarkable pathological5b_setup pathological5b′_update
 
 include("code_size.jl")
 _code_size = code_size(dirname(pathof(DynamicDiscreteSamplers)))
