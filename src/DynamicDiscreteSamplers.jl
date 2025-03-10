@@ -171,8 +171,16 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
     max_i = _convert(Int, m[2])
     m[max_i]/m[4] > 0.98 && return [_rand(rng, m) for _ in 1:n]
     min_i = findfirst(i -> m[i] != 0, 5:2050)
-    inds = [j for j in max_i:-1:min_i if get_significand_sum(m, j) != 0]
-    weights = [get_significand_sum(m, j)*BIGPOWS2[j-min_i+1] for j in inds]
+    inds = Vector{Tuple{Int, UInt128}}(undef, 2046)
+    q = 1
+    @inbounds for j in max_i:-1:min_i
+        significand_sum = get_significand_sum(m, j)
+        if significand_sum != 0
+            inds[q] = (j, significand_sum)
+            q += 1
+        end
+    end
+    weights = [s*BIGPOWS2[j-min_i+1] for (j, s) in @view(inds[1:q-1])]
     counts = multinomial_int(rng, n, weights)
     samples = Vector{Int}(undef, n)
     k = 1
@@ -182,7 +190,7 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
         c = counts[i]
         c == 0 && continue
         t += c
-        j = 2*inds[i] + 6133
+        j = 2*inds[i][1] + 6133
         pos = m[j]
         len = m[j+1]
         l = leading_zeros(len-1)
