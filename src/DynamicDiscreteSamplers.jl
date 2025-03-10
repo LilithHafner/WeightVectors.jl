@@ -177,7 +177,6 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
     t = 0
     @inbounds for c in counts
         t += c
-        t == n && break
         pos = m[j]
         len = m[j+1]
         l = leading_zeros(len-1)
@@ -193,6 +192,7 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
                 end
             end
         end
+        t == n && break
         j -= 2
     end
     return shuffle!(rng, samples)
