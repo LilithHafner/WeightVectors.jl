@@ -191,18 +191,9 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
         j = 2*inds[i] + 6133
         pos = m[j]
         len = m[j+1]
-        l = leading_zeros(len-1)
         for _ in 1:c
-            while true
-                r = rand(rng, UInt64)
-                k1 = r >> l 
-                k2 = _convert(Int, k1<<1+pos)
-                if rand(rng, UInt64) < m[k2] * (k1 < len) 
-                    samples[k] = _convert(Int, m[k2+1])
-                    k += 1
-                    break
-                end
-            end
+            samples[k] = sample_level(rng, m, pos, len)
+            k += 1
         end
         t += c
         t == n && break
@@ -242,7 +233,10 @@ end
     pos = m[j]
     len = m[j+1]
 
-    # Sample within level
+    return sample_level(rng, m, pos, len)
+end
+
+function sample_level(rng, m, pos, len)
     while true
         r = rand(rng, UInt64)
         k1 = (r>>leading_zeros(len-1))
