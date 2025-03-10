@@ -173,6 +173,12 @@ function pathological5b′_update(ds)
     rand(ds)
 end
 SUITE["pathological 5b′"] = @benchmarkable pathological5b_setup pathological5b′_update
+function pathological6_setup()
+    for i in -1022:1023
+        push!(ds, i+1023, 2.0^i)
+    end
+end
+SUITE["pathological 6"] = @benchmarkable pathological5b_setup rand(Random.default_rng(), _, 10^4)
 
 include("code_size.jl")
 _code_size = code_size(dirname(pathof(DynamicDiscreteSamplers)))
