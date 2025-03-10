@@ -169,6 +169,7 @@ const bigpowers2 = [BigInt(2)^i for i in 1:2046]
 function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
     n < 10000 && return [_rand(rng, m) for _ in 1:n]
     max_i = _convert(Int, m[2])
+    m[max_i]/m[4] > 0.98 && return [_rand(rng, m) for _ in 1:n]
     min_i = findfirst(i -> m[i] != 0, 5:2050)
     weights = [get_significand_sum(m, j)*bigpowers2[j-min_i+1] for j in max_i:-1:min_i]
     counts = multinomial_int(rng, n, weights)
