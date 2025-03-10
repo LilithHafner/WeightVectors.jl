@@ -9,6 +9,8 @@ isdefined(@__MODULE__, :Memory) || const Memory = Vector # Compat for Julia < 1.
 const DEBUG = Base.JLOptions().check_bounds == 1
 _convert(T, x) = DEBUG ? T(x) : x%T
 
+const BIGPOWS2 = [BigInt(2)^i for i in 1:2046]
+
 """
     Weights <: AbstractVector{Float64}
 
@@ -164,20 +166,19 @@ Base.rand(rng::AbstractRNG, w::Weights) = _rand(rng, w.m)
 Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 
-const bigpowers2 = [BigInt(2)^i for i in 1:2046]
-
 function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
     n < 10000 && return [_rand(rng, m) for _ in 1:n]
     max_i = _convert(Int, m[2])
     m[max_i]/m[4] > 0.98 && return [_rand(rng, m) for _ in 1:n]
     min_i = findfirst(i -> m[i] != 0, 5:2050)
-    weights = [get_significand_sum(m, j)*bigpowers2[j-min_i+1] for j in max_i:-1:min_i]
+    weights = [get_significand_sum(m, j)*BIGPOWS2[j-min_i+1] for j in max_i:-1:min_i]
     counts = multinomial_int(rng, n, weights)
     samples = Vector{Int}(undef, n)
     k = 1
     j = 2max_i + 6133
     t = 0
     @inbounds for c in counts
+        c == 0 && continue
         t += c
         pos = m[j]
         len = m[j+1]
