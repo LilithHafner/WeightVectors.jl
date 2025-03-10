@@ -58,7 +58,6 @@ function multinomial_int(rng, trials, weights)
         counts[i] = b
         trials -= b
         trials == 0 && break
-    end
         sum_weights -= weights[i]
     end
     return counts
