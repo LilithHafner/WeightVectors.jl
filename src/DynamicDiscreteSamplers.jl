@@ -166,11 +166,6 @@ Base.rand(rng::AbstractRNG, w::Weights) = _rand(rng, w.m)
 Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 
-Base.rand(rng::AbstractRNG, w::Weights, n::Integer) = _rand(rng, w.m, n)
-Base.rand(rng::AbstractRNG, w::Weights) = _rand(rng, w.m)
-Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
-Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
-
 function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Int)
     n < 10000 && return [_rand(rng, m) for _ in 1:n]
     max_i = _convert(Int, m[2])
