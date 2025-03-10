@@ -166,21 +166,28 @@ Base.rand(rng::AbstractRNG, w::Weights) = _rand(rng, w.m)
 Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 
-function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
+Base.rand(rng::AbstractRNG, w::Weights, n::Integer) = _rand(rng, w.m, n)
+Base.rand(rng::AbstractRNG, w::Weights) = _rand(rng, w.m)
+Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
+Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
+
+function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Int)
     n < 10000 && return [_rand(rng, m) for _ in 1:n]
     max_i = _convert(Int, m[2])
     m[max_i]/m[4] > 0.98 && return [_rand(rng, m) for _ in 1:n]
-    inds = Vector{Int}(undef, 2046)
-    q = 1
-    min_i = max_i
-    @inbounds for j in max_i:-1:1
+    min_i = 5
+    @inbounds for j in 5:max_i
         if m[j] != 0
             min_i = j
-            inds[q] = j
-            q += 1
+            break
         end
     end
-    weights = [get_significand_sum(m, j)*BIGPOWS2[j-min_i+1] for j in @view(inds[1:q-1])]
+    inds = Int[]
+    sizehint!(inds, max_i-min_i+1)
+    @inbounds for j in max_i:-1:min_i
+        m[j] != 0 && push!(inds, j)
+    end
+    weights = [get_significand_sum(m, j)*BIGPOWS2[j-min_i+1] for j in inds]
     counts = multinomial_int(rng, n, weights)
     samples = Vector{Int}(undef, n)
     k = 1
