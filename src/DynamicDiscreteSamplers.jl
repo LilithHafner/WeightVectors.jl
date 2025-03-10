@@ -166,7 +166,7 @@ Base.rand(rng::AbstractRNG, w::Weights) = _rand(rng, w.m)
 Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 
-function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Int)
+function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
     n < 10000 && return [_rand(rng, m) for _ in 1:n]
     max_i = _convert(Int, m[2])
     m[max_i]/m[4] > 0.98 && return [_rand(rng, m) for _ in 1:n]
@@ -177,17 +177,22 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Int)
             break
         end
     end
-    inds = Int[]
-    sizehint!(inds, max_i-min_i+1)
+    inds = Vector{Int}(undef, max_i-min_i+1)
+    q = 0
     @inbounds for j in max_i:-1:min_i
-        m[j] != 0 && push!(inds, j)
+        if m[j] != 0
+            q += 1
+            inds[q] = j
+        end
     end
-    weights = [get_significand_sum(m, j)*BIGPOWS2[j-min_i+1] for j in inds]
+    weights = Vector{BigInt}(undef, q)
+    @inbounds for j in 1:q
+        weights[j] = get_significand_sum(m, inds[j])*BIGPOWS2[inds[j]-min_i+1]
+    end
     counts = multinomial_int(rng, n, weights)
     samples = Vector{Int}(undef, n)
-    k = 1
-    t = 0
-    @inbounds for i in 1:length(counts)
+    ct, k = 0, 1
+    @inbounds for i in 1:q
         c = counts[i]
         c == 0 && continue
         j = 2*inds[i] + 6133
@@ -197,8 +202,8 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Int)
             samples[k] = sample_within_level(rng, m, pos, len)
             k += 1
         end
-        t += c
-        t == n && break
+        ct += c
+        ct == n && break
     end
     return shuffle!(rng, samples)
 end
