@@ -9,6 +9,8 @@ isdefined(@__MODULE__, :Memory) || const Memory = Vector # Compat for Julia < 1.
 const DEBUG = Base.JLOptions().check_bounds == 1
 _convert(T, x) = DEBUG ? T(x) : x%T
 
+const BIGPOWS2 = [BigInt(2)^i for i in 1:2046]
+
 """
     Weights <: AbstractVector{Float64}
 
