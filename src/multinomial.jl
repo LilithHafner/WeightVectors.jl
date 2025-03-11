@@ -1,7 +1,9 @@
 
 using AliasTables
 
-const tables = [
+const BIGPOWS2 = [BigInt(2)^i for i in 1:2046]
+
+const ALIASTABLES = [
     AliasTable{UInt128}(UInt128.([binomial(BigInt(1),i) for i in 0:1])), 
     AliasTable{UInt128}(UInt128.([binomial(BigInt(2),i) for i in 0:2])),
     AliasTable{UInt128}(UInt128.([binomial(BigInt(4),i) for i in 0:4])), 
@@ -20,21 +22,23 @@ function binomial_int(rng, trials, px, py)
         return trials
     end
     count = 0
-    if px * 2 == py
+    px *= 2
+    if px == py
         count += binomial_int_12(rng, trials)
     else
-        pw = Rational(px, py)
-        pt = Rational(1, 2)
+        k = 1
         while trials > 0
             c = binomial_int_12(rng, trials)
-            if pw >= pt
+            if px >= py
                 count += c
                 trials -= c
-                pw -= pt
+                px -= py
+                py *= BIGPOWS2[k]
             else
                 trials = c
             end
-            pt /= 2
+            px *= 2
+            k += 1
         end
     end
     return count
@@ -44,7 +48,7 @@ function binomial_int_12(rng, trials)
     count = 0
     @inbounds while trials != 0
         p = min(7, exponent(trials)) + 1
-        count += rand(rng, tables[p]) - 1
+        count += rand(rng, ALIASTABLES[p]) - 1
         trials -= 1 << (p-1)
     end
     return count
