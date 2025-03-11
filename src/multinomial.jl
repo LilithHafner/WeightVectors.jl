@@ -32,10 +32,10 @@ function binomial_int(rng, trials, px, py)
         k, t = 1, 0
         while trials > 0
             c = binomial_int_12(rng, trials)
-            if BIGPOWS2[k] * px >= py
+            px *= 2
+            if px >= pys
                 count += c
                 trials -= c
-                px *= BIGPOWS2[k-t]
                 px -= pys
                 py *= BIGPOWS2[k-t]
                 t = k
