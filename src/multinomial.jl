@@ -22,22 +22,26 @@ function binomial_int(rng, trials, px, py)
         return trials
     end
     count = 0
-    px *= 2
-    if px == py
+    if px * 2 == py
         count += binomial_int_12(rng, trials)
     else
-        k = 1
+        gcd_xy = gcd(px, py)
+        px /= gcd_xy
+        py /= gcd_xy
+        pys = py
+        k, t = 1, 0
         while trials > 0
             c = binomial_int_12(rng, trials)
-            if px >= py
+            if BIGPOWS2[k] * px >= py
                 count += c
                 trials -= c
-                px -= py
-                py *= BIGPOWS2[k]
+                px *= BIGPOWS2[k-t]
+                px -= pys
+                py *= BIGPOWS2[k-t]
+                t = k
             else
                 trials = c
             end
-            px *= 2
             k += 1
         end
     end
