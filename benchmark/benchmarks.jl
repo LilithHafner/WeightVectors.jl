@@ -71,13 +71,19 @@ end
 for n in [100, 1000, 10000], σ in [.1, 1, 10, 100]
     # TODO: try to use min over noise, average over rng, and max over treatment in analysis
     SUITE["constructor n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push($n, $σ)
-    SUITE["sample n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand
+    SUITE["sample (single) n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand
     SUITE["delete ∘ rand n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand_delete(_, $n) evals=1
     SUITE["update ∘ rand n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand_update(_, $σ) evals=n
     SUITE["intermixed_h n=$n σ=$σ"] = @benchmarkable intermixed_h($n, $σ)
     SUITE["summarysize n=$n σ=$σ"] = ChairmarksForAirspeedVelocity.Runnable() do
         vector_to_trial([3600Base.summarysize(gaussian_weights_sequential_push(n, σ)) for _ in 1:1_000_000÷n])
     end
+end
+
+using Random
+
+for n in [10^3, 10^6], k in [10^4, 10^5, 10^6], σ in [.1, 1, 10, 100]
+    SUITE["sample (bulk) n=$n k=$k σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand(Random.default_rng(), _, $k)
 end
 
 function pathological1_setup()

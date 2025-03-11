@@ -9,6 +9,8 @@ isdefined(@__MODULE__, :Memory) || const Memory = Vector # Compat for Julia < 1.
 const DEBUG = Base.JLOptions().check_bounds == 1
 _convert(T, x) = DEBUG ? T(x) : x%T
 
+const BIGPOWS2 = [BigInt(2)^i for i in 1:2046]
+
 """
     Weights <: AbstractVector{Float64}
 
@@ -159,9 +161,52 @@ TODO
 # Trivial extensions:
 # push!, delete!
 
+Base.rand(rng::AbstractRNG, w::Weights, n::Integer) = _rand(rng, w.m, n)
 Base.rand(rng::AbstractRNG, w::Weights) = _rand(rng, w.m)
 Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
+
+function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
+    n < 10000 && return [_rand(rng, m) for _ in 1:n]
+    max_i = _convert(Int, m[2])
+    m[max_i]/m[4] > 0.98 && return [_rand(rng, m) for _ in 1:n]
+    min_i = 5
+    @inbounds for j in 5:max_i
+        if m[j] != 0
+            min_i = j
+            break
+        end
+    end
+    inds = Vector{Int}(undef, max_i-min_i+1)
+    q = 0
+    @inbounds for j in max_i:-1:min_i
+        if m[j] != 0
+            q += 1
+            inds[q] = j
+        end
+    end
+    weights = Vector{BigInt}(undef, q)
+    @inbounds for j in 1:q
+        weights[j] = get_significand_sum(m, inds[j])*BIGPOWS2[inds[j]-min_i+1]
+    end
+    counts = multinomial_int(rng, n, weights)
+    samples = Vector{Int}(undef, n)
+    ct, k = 0, 1
+    @inbounds for i in 1:q
+        c = counts[i]
+        c == 0 && continue
+        j = 2*inds[i] + 6133
+        pos = m[j]
+        len = m[j+1]
+        for _ in 1:c
+            samples[k] = sample_within_level(rng, m, pos, len)
+            k += 1
+        end
+        ct += c
+        ct == n && break
+    end
+    return shuffle!(rng, samples)
+end
 
 #=@inbounds=# function _rand(rng::AbstractRNG, m::Memory{UInt64})
 
@@ -195,7 +240,10 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
     pos = m[j]
     len = m[j+1]
 
-    # Sample within level
+    return sample_within_level(rng, m, pos, len)
+end
+
+@inline function sample_within_level(rng, m, pos, len)
     while true
         r = rand(rng, UInt64)
         k1 = (r>>leading_zeros(len-1))
@@ -798,9 +846,13 @@ function Base.delete!(wbs::WeightBasedSampler, index)
 end
 
 Base.rand(rng::AbstractRNG, wbs::WeightBasedSampler) = rand(rng, wbs.w)
-Base.rand(rng::AbstractRNG, wbs::WeightBasedSampler, n::Integer) = [rand(rng, wbs.w) for _ in 1:n]
+Base.rand(rng::AbstractRNG, wbs::WeightBasedSampler, n::Integer) = rand(rng, wbs.w, n)
+Base.rand(wbs::WeightBasedSampler, n::Integer) = rand(Random.default_rng(), wbs.w, n)
+
 
 const DynamicDiscreteSampler = WeightBasedSampler
+
+include("multinomial.jl")
 
 # Precompile
 precompile(WeightBasedSampler, ())
