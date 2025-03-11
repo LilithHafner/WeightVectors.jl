@@ -23,9 +23,6 @@ function binomial_int(rng, trials, px, py)
     if px * 2 == py
         count += binomial_int_12(rng, trials)
     else
-        gcd_xy = gcd(px, py)
-        px ÷= gcd_xy
-        py ÷= gcd_xy
         while trials > 0
             c = binomial_int_12(rng, trials)
             px *= 2
