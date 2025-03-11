@@ -1,8 +1,6 @@
 
 using AliasTables
 
-const BIGPOWS2 = [BigInt(2)^i for i in 1:10000]
-
 const ALIASTABLES = [
     AliasTable{UInt128}(UInt128.([binomial(BigInt(1),i) for i in 0:1])), 
     AliasTable{UInt128}(UInt128.([binomial(BigInt(2),i) for i in 0:2])),
