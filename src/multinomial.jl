@@ -1,6 +1,7 @@
 
-using AliasTables
 using MutableArithmetics
+
+using AliasTables
 
 const ALIASTABLES = [
     AliasTable{UInt128}(UInt128.([binomial(BigInt(1),i) for i in 0:1])), 
@@ -17,7 +18,7 @@ const BIGTWO = BigInt(2)
 
 # implementation based on Farach-Colton, M. and Tsai, M.T., 2015. Exact sublinear binomial sampling
 function binomial_int(rng, trials, px, py)
-    if trials == 0 || px == 0
+    if trials == 0 || iszero(px)
         return 0
     elseif px == py
         return trials
@@ -26,12 +27,15 @@ function binomial_int(rng, trials, px, py)
     while trials > 0
         c = binomial_int_12(rng, trials)
         mul!!(px, BIGTWO)
-        if px >= py
+        if px > py
             count += c
             trials -= c
             sub!!(px, py)
-        else
+        elseif px < py
             trials = c
+        else
+            count += c
+            break
         end
     end
     return count
