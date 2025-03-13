@@ -18,7 +18,7 @@ const BIGTWO = BigInt(2)
 
 # implementation based on Farach-Colton, M. and Tsai, M.T., 2015. Exact sublinear binomial sampling
 function binomial_int(rng, trials, px, py)
-    if trials == 0 || iszero(px)
+    if iszero(trials) || iszero(px)
         return 0
     elseif px == py
         return trials
@@ -45,8 +45,12 @@ function binomial_int_12(rng, trials)
     count = 0
     @inbounds while trials != 0
         p = min(7, exponent(trials)) + 1
-        count += rand(rng, ALIASTABLES[p]) - 1
-        trials -= 1 << (p-1)
+        k = 1 << (p-1)
+        n = trials ÷ k
+        for _ in 1:n
+            count += rand(rng, ALIASTABLES[p]) - 1
+        end
+        trials -= n * k
     end
     return count
 end
