@@ -171,9 +171,10 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
     max_i = _convert(Int, m[2])
     m[max_i]/m[4] > 0.98 && return [_rand(rng, m) for _ in 1:n]
     min_i = 5
-    @inbounds for j in 5:max_i
-        if m[j] != 0
-            min_i = j
+    @inbounds for j in 10235:10266
+        chunk = m[j]
+        if chunk != 0
+            min_i = (j-10235) << 6 + leading_zeros(chunk) + 4
             break
         end
     end
@@ -244,7 +245,7 @@ end
 end
 
 @inline function sample_within_level(rng, m, pos, len)
-    while true
+    @inbounds while true
         r = rand(rng, UInt64)
         k1 = (r>>leading_zeros(len-1))
         k2 = _convert(Int, k1<<1+pos)

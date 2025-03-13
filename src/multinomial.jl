@@ -1,4 +1,6 @@
 
+using MutableArithmetics
+
 using AliasTables
 
 const ALIASTABLES = [
@@ -12,30 +14,28 @@ const ALIASTABLES = [
     AliasTable{UInt128}(UInt128.([binomial(BigInt(128),i) for i in 0:128]))
 ]
 
+const BIGTWO = BigInt(2)
+
 # implementation based on Farach-Colton, M. and Tsai, M.T., 2015. Exact sublinear binomial sampling
 function binomial_int(rng, trials, px, py)
-    if trials == 0 || px == 0
+    if trials == 0 || iszero(px)
         return 0
     elseif px == py
         return trials
     end
     count = 0
-    if px * 2 == py
-        count += binomial_int_12(rng, trials)
-    else
-        gcd_xy = gcd(px, py)
-        px /= gcd_xy
-        py /= gcd_xy
-        while trials > 0
-            c = binomial_int_12(rng, trials)
-            px *= 2
-            if px >= py
-                count += c
-                trials -= c
-                px -= py
-            else
-                trials = c
-            end
+    while trials > 0
+        c = binomial_int_12(rng, trials)
+        mul!!(px, BIGTWO)
+        if px > py
+            count += c
+            trials -= c
+            sub!!(px, py)
+        elseif px < py
+            trials = c
+        else
+            count += c
+            break
         end
     end
     return count
@@ -55,11 +55,11 @@ function multinomial_int(rng, trials, weights)
     sum_weights = sum(weights)
     counts = Vector{Int}(undef, length(weights))
     @inbounds for i in 1:length(weights)
-        b = binomial_int(rng, trials, weights[i], sum_weights)
+        b = binomial_int(rng, trials, mutable_copy(weights[i]), sum_weights)
         counts[i] = b
         trials -= b
         trials == 0 && break
-        sum_weights -= weights[i]
+        sub!!(sum_weights, weights[i])
     end
     return counts
 end
