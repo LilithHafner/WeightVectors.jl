@@ -44,13 +44,14 @@ end
 function binomial_int_12(rng, trials)
     count = 0
     @inbounds while trials != 0
-        p = min(7, exponent(trials)) + 1
-        k = 1 << (p-1)
-        n = trials ÷ k
+        p = min(7, exponent(trials))
+        n = trials >> p
+        table = ALIASTABLES[p+1]
         for _ in 1:n
-            count += rand(rng, ALIASTABLES[p]) - 1
+            count += rand(rng, table)
         end
-        trials -= n * k
+        count -= n
+        trials -= n * (1 << p)
     end
     return count
 end
