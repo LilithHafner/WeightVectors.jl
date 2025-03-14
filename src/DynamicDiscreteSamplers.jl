@@ -167,9 +167,8 @@ Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 
 function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
-    n < 10000 && return [_rand(rng, m) for _ in 1:n]
+    n < 100 && return [_rand(rng, m) for _ in 1:n]
     max_i = _convert(Int, m[2])
-    m[max_i]/m[4] > 0.98 && return [_rand(rng, m) for _ in 1:n]
     min_i = 5
     @inbounds for j in 10235:10266
         chunk = m[j]
@@ -178,7 +177,9 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
             break
         end
     end
-    inds = Vector{Int}(undef, max_i-min_i+1)
+    k = max_i-min_i+1
+    n < 100*(k^0.7) && return [_rand(rng, m) for _ in 1:n]
+    inds = Vector{Int}(undef, k)
     q = 0
     @inbounds for j in max_i:-1:min_i
         if m[j] != 0
