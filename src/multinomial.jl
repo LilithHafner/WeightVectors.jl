@@ -58,12 +58,14 @@ end
 function multinomial_int(rng, trials, weights)
     sum_weights = sum(weights)
     counts = Vector{Int}(undef, length(weights))
-    @inbounds for i in 1:length(weights)
+    @inbounds for i in 1:length(weights)-1
         b = binomial_int(rng, trials, mutable_copy(weights[i]), sum_weights)
         counts[i] = b
         trials -= b
-        trials == 0 && break
+        trials == 0 && return counts
         sub!!(sum_weights, weights[i])
     end
+    counts[end] = trials
     return counts
 end
+
