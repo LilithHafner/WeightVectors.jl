@@ -170,39 +170,37 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
     n < 100 && return [_rand(rng, m) for _ in 1:n]
     max_i = _convert(Int, m[2])
     min_i = 5
+    k = 0
     @inbounds for j in 10235:10266
         chunk = m[j]
-        if chunk != 0
+        if k == 0 && chunk != 0
             min_i = (j-10235) << 6 + leading_zeros(chunk) + 4
-            break
         end
+        k += count_ones(chunk)
     end
-    k = max_i-min_i+1
     n < 100*(k^0.7) && return [_rand(rng, m) for _ in 1:n]
     inds = Vector{Int}(undef, k)
+    weights = Vector{BigInt}(undef, k)
     q = 0
     @inbounds for j in max_i:-1:min_i
         if m[j] != 0
             q += 1
             inds[q] = j
+            weights[q] = get_significand_sum(m, j)*BIGPOWS2[j-min_i+1]
         end
-    end
-    weights = Vector{BigInt}(undef, q)
-    @inbounds for j in 1:q
-        weights[j] = get_significand_sum(m, inds[j])*BIGPOWS2[inds[j]-min_i+1]
     end
     counts = multinomial_int(rng, n, weights)
     samples = Vector{Int}(undef, n)
-    ct, k = 0, 1
-    @inbounds for i in 1:q
+    ct, s = 0, 1
+    @inbounds for i in 1:k
         c = counts[i]
         c == 0 && continue
         j = 2*inds[i] + 6133
         pos = m[j]
         len = m[j+1]
         for _ in 1:c
-            samples[k] = sample_within_level(rng, m, pos, len)
-            k += 1
+            samples[s] = sample_within_level(rng, m, pos, len)
+            s += 1
         end
         ct += c
         ct == n && break
