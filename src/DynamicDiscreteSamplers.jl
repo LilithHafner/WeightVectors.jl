@@ -178,7 +178,7 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
         end
         k += count_ones(chunk)
     end
-    n < 100*(k^0.71) && return [_rand(rng, m) for _ in 1:n]
+    n < 100*(k^0.72) && return [_rand(rng, m) for _ in 1:n]
     inds = Vector{Int}(undef, k)
     weights = Vector{BigInt}(undef, k)
     q = 0
