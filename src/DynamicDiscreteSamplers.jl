@@ -168,7 +168,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
     @label reject
 
     # Select level
-    x = rand(rng, Base.OneTo(m[4]))
+    x = @inline rand(rng, Random.Sampler(rng, Base.OneTo(m[4]), Val(1)))
     i = _convert(Int, m[2])
     local mi
     while #=i < 2046+4=# true
