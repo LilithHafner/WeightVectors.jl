@@ -198,7 +198,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
     # Sample within level
     while true
         r = rand(rng, UInt64)
-        k1 = @inline rand(rng, Random.Sampler(rng, Base.OneTo(len)), Val(1))
+        k1 = @inline @inline rand(rng, Random.Sampler(rng, Base.OneTo(len), Val(1)))
         k2 = _convert(Int, (k1-1)<<1+pos)
         # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to 0
         rand(rng, UInt64) < m[k2] && return Int(signed(m[k2+1]))
