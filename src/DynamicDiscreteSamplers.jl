@@ -245,7 +245,7 @@ end
 end
 
 @inline function sample_within_level(rng, m, pos, len)
-    @inbounds while true
+    while true
         r = rand(rng, UInt64)
         k1 = (r>>leading_zeros(len-1))
         k2 = _convert(Int, k1<<1+pos)
