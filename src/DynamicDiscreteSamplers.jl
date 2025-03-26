@@ -215,21 +215,22 @@ end
     # Select level
     x = @inline rand(rng, Random.Sampler(rng, Base.OneTo(m[4]), Val(1)))
     i = _convert(Int, m[2])
-    local mi
-    while #=i < 2046+4=# true
-        mi = m[i]
+    mi = m[i]
+    @inbounds while i > 5
         x <= mi && break
         x -= mi
         i -= 1
+        mi = m[i]
     end
 
-    if x == mi # mi is the weight rounded down plus 1. If they are equal than we should refine further and possibly reject.
+    if x >= mi # mi is the weight rounded down plus 1. If they are equal than we should refine further and possibly reject.
         # Low-probability rejection to improve accuracy from very close to perfect.
         # This branch should typically be followed with probability < 2^-21. In cases where
         # the probability is higher (i.e. m[4] < 2^32), _rand_slow_path will mutate m by
         # modifying m[3] and recomputing approximate weights to increase m[4] above 2^32.
         # This branch is still O(1) but constant factors don't matter except for in the case
         # of repeated large swings in m[4] with calls to rand interspersed.
+        x > mi && error("This should be unreachable!")
         if @noinline _rand_slow_path(rng, m, i)
             @goto reject
         end
