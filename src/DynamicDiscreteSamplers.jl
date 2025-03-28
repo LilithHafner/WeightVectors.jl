@@ -173,15 +173,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
     i = _convert(Int, m[2])
     mi = m[i]
     if mi == 0
-        level_weights_nonzero_index = 10235 + i >> 6
-        chunk = m[level_weights_nonzero_index]
-        while chunk == 0 # Find the new m[2]
-            i -= 64
-            level_weights_nonzero_index -= 1
-            chunk = m[level_weights_nonzero_index]
-        end
-        i += 4 + 63 - trailing_zeros(chunk) - (i & 0x3f)
-        m[2] = i
+        i = set_last_nonzero_level_decrease!(m, i)
         mi = m[i]
     end
 
@@ -276,6 +268,19 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
         x < target && return false
         shift >= 0 && return false
     end
+end
+
+function set_last_nonzero_level_decrease!(m, m2)
+    level_weights_nonzero_index = 10235 + m2 >> 6
+    chunk = m[level_weights_nonzero_index]
+    while chunk == 0 # Find the new m[2]
+        m2 -= 64
+        level_weights_nonzero_index -= 1
+        chunk = m[level_weights_nonzero_index]
+    end
+    m2 += 4 + 63 - trailing_zeros(chunk) - (m2 & 0x3f)
+    m[2] = m2
+    return m2
 end
 
 function _getindex(m::Memory{UInt64}, i::Int)
@@ -540,15 +545,7 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
     i = _convert(Int, m[2])
     mi = m[i]
     if mi == 0
-        level_weights_nonzero_index = 10235 + i >> 6
-        chunk = m[level_weights_nonzero_index]
-        while chunk == 0 # Find the new m[2]
-            i -= 64
-            level_weights_nonzero_index -= 1
-            chunk = m[level_weights_nonzero_index]
-        end
-        i += 4 + 63 - trailing_zeros(chunk) - (i & 0x3f)
-        m[2] = i
+        set_last_nonzero_level_decrease!(m, i)
     end
 
     m3_old = m[3]
