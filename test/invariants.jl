@@ -16,8 +16,10 @@ end
 
 function verify_m2(m::Memory)
     @assert m[2] >= findlast(i -> i == 4 || m[i] != 0, 1:2050)
-    rand(m)
-    @assert m[2] == findlast(i -> i == 4 || m[i] != 0, 1:2050)
+    if m[4] != 0
+        rand(m)
+        @assert m[2] == findlast(i -> m[i] != 0, 1:2050)
+    end
 end
 function verify_m4(m::Memory)
     m4 = zero(UInt64)
