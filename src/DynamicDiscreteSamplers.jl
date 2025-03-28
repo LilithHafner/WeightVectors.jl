@@ -271,6 +271,7 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
 end
 
 function set_last_nonzero_level_decrease!(m, m2)
+    m[4] == 0 && return (m[2] = 4)
     level_weights_nonzero_index = 10235 + m2 >> 6
     chunk = m[level_weights_nonzero_index]
     while chunk == 0 # Find the new m[2]
@@ -279,8 +280,7 @@ function set_last_nonzero_level_decrease!(m, m2)
         chunk = m[level_weights_nonzero_index]
     end
     m2 += 4 + 63 - trailing_zeros(chunk) - (m2 & 0x3f)
-    m[2] = m2
-    return m2
+    return (m[2] = m2)
 end
 
 function _getindex(m::Memory{UInt64}, i::Int)
