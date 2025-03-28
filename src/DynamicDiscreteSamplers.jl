@@ -169,8 +169,20 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 
     # Select level
     x = @inline rand(rng, Random.Sampler(rng, Base.OneTo(m[4]), Val(1)))
+    
     i = _convert(Int, m[2])
     mi = m[i]
+    if mi == 0
+        for j in (10235 + i >> 6):-1:10235
+            if m[j] != 0
+                i = 4+63-trailing_zeros(m[j])+(j-10235)*64
+                m[2] = i
+                mi = m[i]
+                break
+            end
+        end
+    end
+
     @inbounds while i > 5
         x <= mi && break
         x -= mi
@@ -522,6 +534,19 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase sh
 end
 
 function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease shift, on insertion of elements
+
+    i = _convert(Int, m[2])
+    mi = m[i]
+    if mi == 0
+        for j in (10235 + i >> 6):-1:10235
+            if m[j] != 0
+                i = 4+63-trailing_zeros(m[j])+(j-10235)*64
+                m[2] = i
+                break
+            end
+        end
+    end
+
     m3_old = m[3]
     m[3] = m3
     @assert signed(m3) < signed(m3_old)
@@ -586,23 +611,9 @@ function _set_to_zero!(m::Memory, i::Int)
     m4 = m[4]
     m4 -= old_weight
     if significand_sum == 0 # We zeroed out a group
-        level_weights_nonzero_index,level_weights_nonzero_subindex = get_level_weights_nonzero_indices(exponent)
-        chunk = m[level_weights_nonzero_index] &= ~(0x8000000000000000 >> level_weights_nonzero_subindex)
         m[weight_index] = 0
-        if m4 == 0 # There are no groups left
-            m[2] = 4
-        else
-            m2 = m[2]
-            if weight_index == m2 # We zeroed out the first group
-                while chunk == 0 # Find the new m[2]
-                    level_weights_nonzero_index -= 1
-                    m2 -= 64
-                    chunk = m[level_weights_nonzero_index]
-                end
-                m2 += 63-trailing_zeros(chunk) - level_weights_nonzero_subindex
-                m[2] = m2
-            end
-        end
+        level_weights_nonzero_index,level_weights_nonzero_subindex = get_level_weights_nonzero_indices(exponent)
+        m[level_weights_nonzero_index] &= ~(0x8000000000000000 >> level_weights_nonzero_subindex)
     else # We did not zero out a group
         shift = signed(exponent + m[3])
         new_weight = _convert(UInt64, significand_sum << shift) + 1
