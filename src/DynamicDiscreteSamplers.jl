@@ -542,8 +542,10 @@ end
 
 function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease shift, on insertion of elements
     
-    i = _convert(Int, m[2])
-    m[i] == 0 && set_last_nonzero_level_decrease!(m, i)
+    m2 = _convert(Int, m[2])
+    if m[m2] == 0
+        m2 = set_last_nonzero_level_decrease!(m, m2)
+    end
 
     m3_old = m[3]
     m[3] = m3
@@ -553,7 +555,6 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
     # In any case, this only adjusts elements at or before m[2]
     # from the first index that previously could have had a weight > 1 to min(m[2], the first index that can't have a weight > 1) (never empty), set weights to 1 or 0
     # from the first index that could have a weight > 1 to m[2] (possibly empty), shift weights by delta.
-    m2 = signed(m[2])
     i1 = -signed(m3)-117 # see above, this is the first index that could have weight > 1 (anything after this will have weight 1 or 0)
     i1_old = -signed(m3_old)-117 # anything before this is already weight 1 or 0
     flatten_range = max(i1_old, 5):min(m2, i1-1)
