@@ -271,14 +271,14 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
 end
 
 function set_last_nonzero_level_decrease!(m, m2)
-    level_weights_nonzero_index = 10235 + m2 >> 6
+    level_weights_nonzero_index,level_weights_nonzero_subindex = get_level_weights_nonzero_indices(m2-4)
     chunk = m[level_weights_nonzero_index]
     while chunk == 0 # Find the new m[2]
         m2 -= 64
         level_weights_nonzero_index -= 1
         chunk = m[level_weights_nonzero_index]
     end
-    m2 += 4 + 63 - trailing_zeros(chunk) - (m2 & 0x3f)
+    m2 += 63 - trailing_zeros(chunk) - level_weights_nonzero_subindex
     m[2] = _convert(UInt64, m2)
     return m2
 end
@@ -590,7 +590,7 @@ Base.@propagate_inbounds function update_weight!(m::Memory{UInt64}, i, shifted_s
 end
 
 get_alloced_indices(exponent::UInt64) = _convert(Int, 10268 + exponent >> 3), exponent << 3 & 0x38
-get_level_weights_nonzero_indices(exponent::UInt64) = _convert(Int, 10235 + exponent >> 6), exponent & 0x3f
+get_level_weights_nonzero_indices(exponent) = _convert(Int, 10235 + exponent >> 6), exponent & 0x3f
 
 function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
