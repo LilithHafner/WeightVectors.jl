@@ -169,18 +169,20 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 
     # Select level
     x = @inline rand(rng, Random.Sampler(rng, Base.OneTo(m[4]), Val(1)))
-    
+
     i = _convert(Int, m[2])
     mi = m[i]
     if mi == 0
-        for j in (10235 + i >> 6):-1:10235
-            if m[j] != 0
-                i = 4+63-trailing_zeros(m[j])+(j-10235)*64
-                m[2] = i
-                mi = m[i]
-                break
-            end
+        level_weights_nonzero_index = 10235 + i >> 6
+        chunk = m[level_weights_nonzero_index]
+        while chunk == 0 # Find the new m[2]
+            i -= 64
+            level_weights_nonzero_index -= 1
+            chunk = m[level_weights_nonzero_index]
         end
+        i += 4 + 63 - trailing_zeros(chunk) - (i & 0x3f)
+        m[2] = i
+        mi = m[i]
     end
 
     @inbounds while i > 5
@@ -534,17 +536,19 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase sh
 end
 
 function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease shift, on insertion of elements
-
+    
     i = _convert(Int, m[2])
     mi = m[i]
     if mi == 0
-        for j in (10235 + i >> 6):-1:10235
-            if m[j] != 0
-                i = 4+63-trailing_zeros(m[j])+(j-10235)*64
-                m[2] = i
-                break
-            end
+        level_weights_nonzero_index = 10235 + i >> 6
+        chunk = m[level_weights_nonzero_index]
+        while chunk == 0 # Find the new m[2]
+            i -= 64
+            level_weights_nonzero_index -= 1
+            chunk = m[level_weights_nonzero_index]
         end
+        i += 4 + 63 - trailing_zeros(chunk) - (i & 0x3f)
+        m[2] = i
     end
 
     m3_old = m[3]
