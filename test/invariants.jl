@@ -17,7 +17,7 @@ end
 function verify_m2(m::Memory)
     @assert m[2] >= findlast(i -> i == 4 || m[i] != 0, 1:2050)
     if m[4] != 0
-        rand(m)
+        rand(w)
         @assert m[2] == findlast(i -> m[i] != 0, 1:2050)
     end
 end
@@ -43,9 +43,9 @@ function verify_edit_map_points_to_correct_target(m::Memory)
     end
 end
 
-function verify(m::Memory)
+function verify(w, m::Memory)
     verify_weights(m)
-    verify_m2(m)
+    verify_m2(w, m)
     verify_m4(m)
     verify_edit_map_points_to_correct_target(m)
 end
