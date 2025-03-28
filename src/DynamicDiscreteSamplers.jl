@@ -543,10 +543,7 @@ end
 function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease shift, on insertion of elements
     
     i = _convert(Int, m[2])
-    mi = m[i]
-    if mi == 0
-        set_last_nonzero_level_decrease!(m, i)
-    end
+    m[i] == 0 && set_last_nonzero_level_decrease!(m, i)
 
     m3_old = m[3]
     m[3] = m3
