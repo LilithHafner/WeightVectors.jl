@@ -205,7 +205,7 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
         ct += c
         ct == n && break
     end
-    return shuffle!(rng, samples)
+    return faster_shuffle!(rng, samples)
 end
 
 #=@inbounds=# function _rand(rng::AbstractRNG, m::Memory{UInt64})
