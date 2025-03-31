@@ -163,6 +163,8 @@ Base.rand(rng::AbstractRNG, w::Weights) = _rand(rng, w.m)
 Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 
+const max_significand = Ref(UInt64(0))
+
 #=@inbounds=# function _rand(rng::AbstractRNG, m::Memory{UInt64})
 
     @label reject
@@ -321,6 +323,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     significand = 0x8000000000000000 | uv << 11
     weight_index = _convert(Int, exponent + 4)
     significand_sum = update_significand_sum(m, weight_index, significand) # Temporarily break the "weights are accurately computed" invariant
+    max_significand[] = max(max_significand[], (significand_sum >>> 64) % UInt64)
 
     if m[4] == 0 # if we were empty, set global shift (m[3]) so that m[4] will become ~2^40.
         m[3] = -24 - exponent
@@ -487,16 +490,17 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase sh
     weight = UInt64(significand_sum<<shift) + 1
     when is that always 1? when
     UInt64(significand_sum<<shift) == 0
-    and because shift < 0 and significand_sum could be as much as 2^64*2^64/8/8-1 = 2^122-1,
-    shift <= -122
+    and because shift < 0 and significand_sum could be as much as (exponent(m1)+1)*2^64-1,
+    shift <= -(exponent(m1)+1)-64
     shift = signed(exponent+m3)
     shift = signed(i-4+m3)
-    signed(i-4+m3) <= -122
-    i <= -signed(m3)-122+4
-    So for -signed(m3)-118 < i, we could need to adjust the ith weight
+    signed(i-4+m3) <= -(exponent(m1)+1)-64
+    i <= -signed(m3)-(exponent(m1)+1)-64+4
+    So for -signed(m3)-61-exponent(m1) < i, we could need to adjust the ith weight
     =#
-    r0 = max(5, -signed(m3)-117)
-    r1 = m2 # TODO It would be possible to scale this range with length (m[1]) in which case testing could be stricter and performance could be (marginally) better, though not in large cases so possibly not worth doing at all)
+    expm1 = exponent(max_significand[])
+    r0 = max(5, -signed(m3)-61-expm1)
+    r1 = m2
 
     # shift = signed(i-4+m3)
     # weight = significand_sum == 0 ? 0 : UInt64(significand_sum << shift) + 1
@@ -531,13 +535,14 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
     # from the first index that previously could have had a weight > 1 to min(m[2], the first index that can't have a weight > 1) (never empty), set weights to 1 or 0
     # from the first index that could have a weight > 1 to m[2] (possibly empty), shift weights by delta.
     m2 = signed(m[2])
-    i1 = -signed(m3)-117 # see above, this is the first index that could have weight > 1 (anything after this will have weight 1 or 0)
-    i1_old = -signed(m3_old)-117 # anything before this is already weight 1 or 0
+    expm1 = exponent(max_significand[])
+    i1 = -signed(m3)-61-expm1 # see above, this is the first index that could have weight > 1 (anything after this will have weight 1 or 0)
+    i1_old = -signed(m3_old)-61-expm1 # anything before this is already weight 1 or 0
     flatten_range = max(i1_old, 5):min(m2, i1-1)
     recompute_range = max(i1, 5):m2
     # From the level where one element contributes 2^64 to the level where one element contributes 1 is 64, and from there to the level where 2^64 elements contributes 1 is another 2^64.
-    @assert length(flatten_range) <= 128
-    @assert length(recompute_range) <= 128
+    @assert length(flatten_range) <= 64+expm1+1+1
+    @assert length(recompute_range) <= 64+expm1+1+1
 
     checkbounds(m, flatten_range)
     @inbounds for i in flatten_range # set nonzeros to 1
