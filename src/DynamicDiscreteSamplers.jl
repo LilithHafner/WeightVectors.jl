@@ -173,7 +173,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
     i = _convert(Int, m[2])
     mi = m[i]
     if mi == 0
-        i = set_last_nonzero_level_decrease!(m, i)
+        i = set_last_nonzero_level_decrease!(m, i-1)
         mi = m[i]
     end
 
@@ -544,7 +544,7 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
     
     m2 = _convert(Int, m[2])
     if m[m2] == 0
-        m2 = set_last_nonzero_level_decrease!(m, m2)
+        m2 = set_last_nonzero_level_decrease!(m, m2-1)
     end
 
     m3_old = m[3]
