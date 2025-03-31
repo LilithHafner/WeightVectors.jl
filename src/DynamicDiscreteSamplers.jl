@@ -505,8 +505,8 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase sh
 
     checkbounds(m, r0:2r1+2042)
     @inbounds for i in r0:min(r1, -61-signed(m3))
-        significand_sum_lo = m[_convert(Int, 2i+2041)]
-        significand_sum_hi = m[_convert(Int, 2i+2042)]
+        significand_sum_lo = m[2i+2041]
+        significand_sum_hi = m[2i+2042]
         significand_sum_lo == significand_sum_hi == 0 && continue # in this case, the weight was and still is zero
         shift = signed(i-4+m3) + 64
         m4 += update_weight!(m, i, significand_sum_hi << shift)
