@@ -167,6 +167,21 @@ function pathological5b′_update(ds)
     rand(ds)
 end
 SUITE["pathological 5b′"] = @benchmarkable pathological5b_setup pathological5b′_update
+function pathological5b′′_setup()
+    ds = DynamicDiscreteSampler()
+    for j in 1:10^4
+        for i in 128:-1:1
+            push!(ds, 128*j+i, 2.0^-i)
+        end
+    end
+    ds
+end
+function pathological5b′′_update(ds)
+    push!(ds, 129, 2.0^48)
+    delete!(ds, 129)
+    rand(ds)
+end
+SUITE["pathological 5b′′"] = @benchmarkable pathological5b′′_setup pathological5b′′_update evals=10000 samples=1
 
 include("code_size.jl")
 _code_size = code_size(dirname(pathof(DynamicDiscreteSamplers)))
