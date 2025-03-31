@@ -113,6 +113,14 @@ function pathological2′_update(ds)
     rand(ds)
 end
 SUITE["pathological 2′"] = @benchmarkable pathological2_setup pathological2′_update
+function pathological2′′_setup()
+    ds = DynamicDiscreteSampler()
+    for i in 3:10^5
+        push!(ds, i, 1e-300)
+    end
+    ds
+end
+SUITE["pathological 2′′"] = @benchmarkable pathological2′′_setup pathological2′_update
 
 pathological3 = DynamicDiscreteSampler()
 push!(pathological3, 1, 1e300)
