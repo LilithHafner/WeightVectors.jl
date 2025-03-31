@@ -487,7 +487,7 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase sh
     weight = UInt64(significand_sum<<shift) + 1
     when is that always 1? when
     UInt64(significand_sum<<shift) == 0
-    and because shift < 0 and significand_sum could be as much as (exponent(m1)+1)*2^64-1,
+    and because shift < 0 and significand_sum could be as much as 2^(exponent(m1)+1)*2^64-1,
     shift <= -(exponent(m1)+1)-64
     shift = signed(exponent+m3)
     shift = signed(i-4+m3)
