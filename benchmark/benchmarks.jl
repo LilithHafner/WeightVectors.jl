@@ -176,7 +176,7 @@ function pathological5b′′_setup()
     end
     ds
 end
-SUITE["pathological 5b′′"] = @benchmarkable pathological5b′′_setup pathological5b′_update evals=10000 samples=1
+SUITE["pathological 5b′′"] = @benchmarkable pathological5b′′_setup pathological5b′_update
 
 include("code_size.jl")
 _code_size = code_size(dirname(pathof(DynamicDiscreteSamplers)))
