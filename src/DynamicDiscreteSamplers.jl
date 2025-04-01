@@ -229,10 +229,10 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
 
         m2 = signed(m[2])
         x = zero(UInt64)
-        checkbounds(m, 2m2-2Sys.WORD_SIZE+2043:2m2+2043)
+        checkbounds(m, 2m2-2Sys.WORD_SIZE+2041:2m2+2041)
         @inbounds for i in Sys.WORD_SIZE:-1:0 # This loop is backwards so that memory access is forwards. TODO for perf, we can get away with shaving 1 to 10 off of this loop.
             # This can underflow from significand sums into weights, but that underflow is safe because it can only happen if all the latter weights are zero. Be careful about this when re-arranging the memory layout!
-            x += m[2m2-2i+2043] >> (i - 1)
+            x += m[2m2-2i+2041] >> (i - 1)
         end
 
         # x is computed by rounding down at a certain level and then summing (and adding 1)
@@ -513,7 +513,7 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase sh
     # shift < -64; the low 64 bits are shifted off.
     # i < -60-signed(m3); the low 64 bits are shifted off.
 
-    checkbounds(m, r0:2r1+2043)
+    checkbounds(m, r0:2r1+2041)
     @inbounds for i in r0:min(r1, -60-signed(m3))
         significand_sum_lo = m[_convert(Int, 2i+2040)]
         significand_sum_hi = m[_convert(Int, 2i+2041)]
