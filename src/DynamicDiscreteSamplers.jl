@@ -489,20 +489,13 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase sh
     weight = UInt64(significand_sum<<shift) + 1
     when is that always 1? when
     UInt64(significand_sum<<shift) == 0
-    and because shift < 0 and significand_sum could be as much as (exponent(m1)+1)*2^64-1,
-    shift <= -(exponent(m1)+1)-64
-    shift = signed(exponent+m3)
-    shift = signed(i-4+m3)
-    signed(i-4+m3) <= -(exponent(m1)+1)-64
-    i <= -signed(m3)-(exponent(m1)+1)-64+4
-    So for -signed(m3)-61-exponent(m1) < i, we could need to adjust the ith weight
-    and because shift < 0 and significand_sum could be as much as 2^(Base.top_set_bit(m1))*2^64-1,
-    shift <= -Base.top_set_bit(m1)-64
-    shift = signed(exponent+m3)
-    shift = signed(i-4+m3)
-    signed(i-4+m3) <= -Base.top_set_bit(m1)-64
-    i <= -signed(m3)-Base.top_set_bit(m1)-64+4
-    So for -signed(m3)-60-Base.top_set_bit(m1) < i, we could need to adjust the ith weight
+    and because shift < 0 and significand_sum could be as much as 2^(Base.top_set_bit(m2))*2^64-1,
+    shift <= -Base.top_set_bit(m2)-64
+    shift = signed(exponent+m4)
+    shift = signed(i-4+m4)
+    signed(i-4+m4) <= -Base.top_set_bit(m2)-64
+    i <= -signed(m4)-Base.top_set_bit(m2)-64+4
+    So for -signed(m4)-60-Base.top_set_bit(m2) < i, we could need to adjust the i-th weight
     =#
     m1_next2pow = Base.top_set_bit(m[1])
     r0 = max(6, -signed(m3)-59-m1_next2pow)
