@@ -497,9 +497,16 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase sh
     signed(i-4+m3) <= -(exponent(m1)+1)-64
     i <= -signed(m3)-(exponent(m1)+1)-64+4
     So for -signed(m3)-61-exponent(m1) < i, we could need to adjust the ith weight
+    and because shift < 0 and significand_sum could be as much as 2^(Base.top_set_bit(m1))*2^64-1,
+    shift <= -Base.top_set_bit(m1)-64
+    shift = signed(exponent+m3)
+    shift = signed(i-4+m3)
+    signed(i-4+m3) <= -Base.top_set_bit(m1)-64
+    i <= -signed(m3)-Base.top_set_bit(m1)-64+4
+    So for -signed(m3)-60-Base.top_set_bit(m1) < i, we could need to adjust the ith weight
     =#
-    expm1 = Base.top_set_bit(max_significand[])
-    r0 = max(5, -signed(m3)-60-expm1)
+    m1_next2pow = Base.top_set_bit(max_significand[])
+    r0 = max(5, -signed(m3)-60-m1_next2pow)
     r1 = m2
 
     # shift = signed(i-4+m3)
@@ -535,14 +542,14 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[4]) # Decrease s
     # from the first index that previously could have had a weight > 1 to min(m[2], the first index that can't have a weight > 1) (never empty), set weights to 1 or 0
     # from the first index that could have a weight > 1 to m[2] (possibly empty), shift weights by delta.
     m2 = signed(m[2])
-    expm1 = Base.top_set_bit(max_significand[])
-    i1 = -signed(m3)-60-expm1 # see above, this is the first index that could have weight > 1 (anything after this will have weight 1 or 0)
-    i1_old = -signed(m3_old)-60-expm1 # anything before this is already weight 1 or 0
+    m1_next2pow = Base.top_set_bit(max_significand[])
+    i1 = -signed(m3)-60-m1_next2pow # see above, this is the first index that could have weight > 1 (anything after this will have weight 1 or 0)
+    i1_old = -signed(m3_old)-60-m1_next2pow # anything before this is already weight 1 or 0
     flatten_range = max(i1_old, 5):min(m2, i1-1)
     recompute_range = max(i1, 5):m2
     # From the level where one element contributes 2^64 to the level where one element contributes 1 is 64, and from there to the level where 2^64 elements contributes 1 is another 2^64.
-    @assert length(flatten_range) <= 64+expm1+1
-    @assert length(recompute_range) <= 64+expm1+1
+    @assert length(flatten_range) <= 64+m1_next2pow+1
+    @assert length(recompute_range) <= 64+m1_next2pow+1
 
     checkbounds(m, flatten_range)
     @inbounds for i in flatten_range # set nonzeros to 1
