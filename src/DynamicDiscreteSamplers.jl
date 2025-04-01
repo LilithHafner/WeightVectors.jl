@@ -170,7 +170,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 
     # Select level
     x = @inline rand(rng, Random.Sampler(rng, Base.OneTo(m[5]), Val(1)))
-    i = _convert(Int, m[2])
+    i = _convert(Int, m[3])
     mi = m[i]
     @inbounds while i > 6
         x <= mi && break
@@ -227,7 +227,7 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
         # Increase the shift to a reasonable level.
         # The fact that we are here past the isempty check in `rand` means that there are some nonzero weights.
 
-        m2 = signed(m[2])
+        m2 = signed(m[3])
         x = zero(UInt64)
         checkbounds(m, 2m2-2Sys.WORD_SIZE+2041:2m2+2041)
         @inbounds for i in Sys.WORD_SIZE:-1:0 # This loop is backwards so that memory access is forwards. TODO for perf, we can get away with shaving 1 to 10 off of this loop.
@@ -359,7 +359,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # If weights overflow (>2^64) then shift down by 16 bits
             m3 = m[4]-0x10
             set_global_shift_decrease!(m, m3, m4) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
-            if weight_index > m[2] # if the new weight was not adjusted by set_global_shift_decrease!, then adjust it manually
+            if weight_index > m[3] # if the new weight was not adjusted by set_global_shift_decrease!, then adjust it manually
                 shift = signed(exponent+m3)
                 new_weight = _convert(UInt64, significand_sum << shift) + 1
 
@@ -373,7 +373,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             m[5] = m4
         end
     end
-    m[2] = max(m[2], weight_index) # Set after insertion because update_weights! may need to update the global shift, in which case knowing the old m[2] will help it skip checking empty levels
+    m[3] = max(m[3], weight_index) # Set after insertion because update_weights! may need to update the global shift, in which case knowing the old m[3] will help it skip checking empty levels
     level_weights_nonzero_index,level_weights_nonzero_subindex = get_level_weights_nonzero_indices(exponent)
     m[level_weights_nonzero_index] |= 0x8000000000000000 >> level_weights_nonzero_subindex
 
@@ -530,10 +530,10 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[5]) # Decrease s
     @assert signed(m3) < signed(m3_old)
 
     # In the case of adding a giant element, call this first, then add the element.
-    # In any case, this only adjusts elements at or before m[2]
-    # from the first index that previously could have had a weight > 1 to min(m[2], the first index that can't have a weight > 1) (never empty), set weights to 1 or 0
-    # from the first index that could have a weight > 1 to m[2] (possibly empty), shift weights by delta.
-    m2 = signed(m[2])
+    # In any case, this only adjusts elements at or before m[3]
+    # from the first index that previously could have had a weight > 1 to min(m[3], the first index that can't have a weight > 1) (never empty), set weights to 1 or 0
+    # from the first index that could have a weight > 1 to m[3] (possibly empty), shift weights by delta.
+    m2 = signed(m[3])
     m1_next2pow = Base.top_set_bit(m[1])
     i1 = -signed(m3)-59-m1_next2pow # see above, this is the first index that could have weight > 1 (anything after this will have weight 1 or 0)
     i1_old = -signed(m3_old)-59-m1_next2pow # anything before this is already weight 1 or 0
@@ -594,17 +594,17 @@ function _set_to_zero!(m::Memory, i::Int)
         chunk = m[level_weights_nonzero_index] &= ~(0x8000000000000000 >> level_weights_nonzero_subindex)
         m[weight_index] = 0
         if m4 == 0 # There are no groups left
-            m[2] = 5
+            m[3] = 5
         else
-            m2 = m[2]
+            m2 = m[3]
             if weight_index == m2 # We zeroed out the first group
-                while chunk == 0 # Find the new m[2]
+                while chunk == 0 # Find the new m[3]
                     level_weights_nonzero_index -= 1
                     m2 -= 64
                     chunk = m[level_weights_nonzero_index]
                 end
                 m2 += 63-trailing_zeros(chunk) - level_weights_nonzero_subindex
-                m[2] = m2
+                m[3] = m2
             end
         end
     else # We did not zero out a group
@@ -650,8 +650,8 @@ function FixedSizeWeights(len::Integer)
     # m .= 0 # This is here so that a sparse rendering for debugging is easier TODO for tests: set this to 0xdeadbeefdeadbeed
     m[5:10524+len] .= 0 # metadata and edit map need to be zeroed but the bulk does not
     m[1] = len
-    m[2] = 5
-    m[3] = 0
+    m[3] = 5
+    m[2] = 0
     # no need to set m[4]
     m[10268] = 10525+len
     _FixedSizeWeights(m)
