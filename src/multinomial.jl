@@ -24,7 +24,7 @@ function binomial_int(rng, trials, px, py)
     count = 0
     while trials > 0
         c = binomial_int_12(rng, trials)
-        Base.GMP.MPZ.mul_2exp!(px, BIGTWO)
+        Base.GMP.MPZ.mul_2exp!(px, 1)
         if px > py
             count += c
             trials -= c
