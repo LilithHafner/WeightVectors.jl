@@ -57,14 +57,15 @@ end
 function multinomial_int(rng, trials, weights)
     sum_weights = sum(weights)
     counts = Vector{Int}(undef, length(weights))
-    weight = BigInt(0)
+    weight_copy = BigInt(0)
     @inbounds for i in 1:length(weights)-1
-        Base.GMP.MPZ.set!(weight, weights[i])
-        b = binomial_int(rng, trials, weight, sum_weights)
+        weight = weights[i]
+        Base.GMP.MPZ.set!(weight_copy, weight)
+        b = binomial_int(rng, trials, weight_copy, sum_weights)
         counts[i] = b
         trials -= b
         trials == 0 && return counts
-        Base.GMP.MPZ.sub!(sum_weights, weights[i])
+        Base.GMP.MPZ.sub!(sum_weights, weight)
     end
     counts[end] = trials
     return counts
