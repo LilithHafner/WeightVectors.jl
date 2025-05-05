@@ -1,6 +1,4 @@
 
-using MutableArithmetics
-
 using AliasTables
 
 const ALIASTABLES = [
@@ -26,11 +24,11 @@ function binomial_int(rng, trials, px, py)
     count = 0
     while trials > 0
         c = binomial_int_12(rng, trials)
-        mul!!(px, BIGTWO)
+        Base.GMP.MPZ.mul!(px, BIGTWO)
         if px > py
             count += c
             trials -= c
-            sub!!(px, py)
+            Base.GMP.MPZ.sub!(px, py)
         elseif px < py
             trials = c
         else
@@ -64,9 +62,8 @@ function multinomial_int(rng, trials, weights)
         counts[i] = b
         trials -= b
         trials == 0 && return counts
-        sub!!(sum_weights, weights[i])
+        Base.GMP.MPZ.sub!(sum_weights, weights[i])
     end
     counts[end] = trials
     return counts
 end
-
