@@ -1,7 +1,7 @@
 
 using AliasTables
 
-const ALIASTABLES = [
+const ALIASTABLES = (
     AliasTable{UInt128}(UInt128.([binomial(BigInt(1),i) for i in 0:1])), 
     AliasTable{UInt128}(UInt128.([binomial(BigInt(2),i) for i in 0:2])),
     AliasTable{UInt128}(UInt128.([binomial(BigInt(4),i) for i in 0:4])), 
@@ -10,9 +10,7 @@ const ALIASTABLES = [
     AliasTable{UInt128}(UInt128.([binomial(BigInt(32),i) for i in 0:32])),
     AliasTable{UInt128}(UInt128.([binomial(BigInt(64),i) for i in 0:64])), 
     AliasTable{UInt128}(UInt128.([binomial(BigInt(128),i) for i in 0:128]))
-]
-
-const BIGTWO = BigInt(2)
+)
 
 # implementation based on Farach-Colton, M. and Tsai, M.T., 2015. Exact sublinear binomial sampling
 # it uses some internals from Base.GMP.MPZ (as MutableArithmetics.jl) to speed-up some BigInt
@@ -26,7 +24,7 @@ function binomial_int(rng, trials, px, py)
     count = 0
     while trials > 0
         c = binomial_int_12(rng, trials)
-        Base.GMP.MPZ.mul!(px, BIGTWO)
+        Base.GMP.MPZ.mul_2exp!(px, BIGTWO)
         if px > py
             count += c
             trials -= c
@@ -59,8 +57,10 @@ end
 function multinomial_int(rng, trials, weights)
     sum_weights = sum(weights)
     counts = Vector{Int}(undef, length(weights))
+    weight = BigInt(0)
     @inbounds for i in 1:length(weights)-1
-        b = binomial_int(rng, trials, Base.GMP.MPZ.set(weights[i]), sum_weights)
+        Base.GMP.MPZ.set!(weight, weights[i])
+        b = binomial_int(rng, trials, weight, sum_weights)
         counts[i] = b
         trials -= b
         trials == 0 && return counts
