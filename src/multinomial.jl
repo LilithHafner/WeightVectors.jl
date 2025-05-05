@@ -15,6 +15,8 @@ const ALIASTABLES = [
 const BIGTWO = BigInt(2)
 
 # implementation based on Farach-Colton, M. and Tsai, M.T., 2015. Exact sublinear binomial sampling
+# it uses some internals from Base.GMP.MPZ (as MutableArithmetics.jl) to speed-up some BigInt
+# operations
 function binomial_int(rng, trials, px, py)
     if iszero(trials) || iszero(px)
         return 0
@@ -58,7 +60,7 @@ function multinomial_int(rng, trials, weights)
     sum_weights = sum(weights)
     counts = Vector{Int}(undef, length(weights))
     @inbounds for i in 1:length(weights)-1
-        b = binomial_int(rng, trials, mutable_copy(weights[i]), sum_weights)
+        b = binomial_int(rng, trials, Base.GMP.MPZ.set(weights[i]), sum_weights)
         counts[i] = b
         trials -= b
         trials == 0 && return counts
