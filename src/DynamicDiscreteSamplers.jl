@@ -2,6 +2,8 @@ module DynamicDiscreteSamplers
 
 export DynamicDiscreteSampler
 
+__init__() = sleep(1)
+
 using Random
 
 isdefined(@__MODULE__, :Memory) || const Memory = Vector # Compat for Julia < 1.11

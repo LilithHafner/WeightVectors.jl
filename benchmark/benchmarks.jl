@@ -76,7 +76,7 @@ for n in [100, 1000, 10000], σ in [.1, 1, 10, 100]
     SUITE["update ∘ rand n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand_update(_, $σ) evals=n
     SUITE["intermixed_h n=$n σ=$σ"] = @benchmarkable intermixed_h($n, $σ)
     SUITE["summarysize n=$n σ=$σ"] = ChairmarksForAirspeedVelocity.Runnable() do
-        vector_to_trial([3600Base.summarysize(gaussian_weights_sequential_push(n, σ)) for _ in 1:1_000_000÷n])
+        vector_to_trial([Base.summarysize(gaussian_weights_sequential_push(n, σ)) for _ in 1:1_000_000÷n])
     end
 end
 
@@ -171,6 +171,6 @@ SUITE["pathological 5b′"] = @benchmarkable pathological5b_setup pathological5b
 include("code_size.jl")
 _code_size = code_size(dirname(pathof(DynamicDiscreteSamplers)))
 
-SUITE["code size in lines"] = constant(3600_code_size.lines)
-SUITE["code size in bytes"] = constant(3600_code_size.bytes)
-SUITE["code size in syntax nodes"] = constant(3600_code_size.syntax_nodes)
+SUITE["code size in lines"] = constant(_code_size.lines)
+SUITE["code size in bytes"] = constant(_code_size.bytes)
+SUITE["code size in syntax nodes"] = constant(_code_size.syntax_nodes)
