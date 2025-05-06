@@ -178,16 +178,16 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
     end
     n < 100*(k^0.72) && return [_rand(rng, m) for _ in 1:n]
     inds = Vector{Int}(undef, k)
-    weights = Vector{BigInt}(undef, k)
+    weights_significands = Vector{UInt128}(undef, k)
     q = 0
     @inbounds for j in max_i:-1:min_i
         if m[j] != 0
             q += 1
             inds[q] = j
-            weights[q] = BigInt(get_significand_sum(m, j)) << (j-min_i)
+            weights_significands[q] = get_significand_sum(m, j)
         end
     end
-    counts = multinomial_int(rng, n, weights)
+    counts = multinomial_int(rng, n, weights_significands, inds)
     samples = Vector{Int}(undef, n)
     ct, s = 0, 1
     @inbounds for i in 1:k
