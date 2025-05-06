@@ -178,7 +178,7 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
     end
     n < 100*(k^0.72) && return [_rand(rng, m) for _ in 1:n]
     inds = Vector{Int}(undef, k)
-    weights_significands = Vector{UInt128}(undef, k)
+    weights = Vector{UInt128}(undef, k)
     q = 0
     @inbounds for j in max_i:-1:min_i
         if m[j] != 0
