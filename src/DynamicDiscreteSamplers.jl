@@ -184,7 +184,7 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
         if m[j] != 0
             q += 1
             inds[q] = j
-            weights[q] = BigInt(get_significand_sum(m, j)) << (j-min_i+1)
+            weights[q] = BigInt(get_significand_sum(m, j)) << (j-min_i)
         end
     end
     counts = multinomial_int(rng, n, weights)
