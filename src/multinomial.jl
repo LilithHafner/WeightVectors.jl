@@ -60,6 +60,7 @@ function multinomial_int(rng, trials, weights)
     weight_copy = BigInt(0)
     @inbounds for i in 1:length(weights)-1
         weight = weights[i]
+        iszero(weight) && continue
         Base.GMP.MPZ.set!(weight_copy, weight)
         b = binomial_int(rng, trials, weight_copy, sum_weights)
         counts[i] = b
