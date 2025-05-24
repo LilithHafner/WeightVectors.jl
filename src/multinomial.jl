@@ -15,6 +15,12 @@ const ALIASTABLES = (
 # implementation based on Farach-Colton, M. and Tsai, M.T., 2015. Exact sublinear binomial sampling
 # it uses some internals from Base.GMP.MPZ (as MutableArithmetics.jl) to speed-up some BigInt
 # operations
+    binomial_int(rng, trials, px, py)
+    
+Flip a coin with probability of `px//py` of coming up heads `trials` times and return the number of heads.
+
+Has `O(trials)` expected runtime with a very low constant factor.
+"""
 function binomial_int(rng, trials, px, py)
     if iszero(trials) || iszero(px)
         return 0
