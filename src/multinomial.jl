@@ -14,7 +14,7 @@ const ALIASTABLES = (
 
 # it uses some internals from Base.GMP.MPZ (as MutableArithmetics.jl) to speed-up some BigInt operations
 """
-    binomial_int(rng, trials, px, py)
+    binomial_sample(rng, trials, px, py)
     
 Flip a coin with probability of `px//py` of coming up heads `trials` times and return the number of heads.
 
@@ -22,7 +22,7 @@ Has `O(trials)` expected runtime with a very low constant factor.
 
 Implementation based on Farach-Colton, M. and Tsai, M.T., 2015. Exact sublinear binomial sampling.
 """
-function binomial(rng, trials, px, py)
+function binomial_sample(rng, trials, px, py)
     if iszero(trials) || iszero(px)
         return 0
     elseif px == py
@@ -30,7 +30,7 @@ function binomial(rng, trials, px, py)
     end
     count = 0
     while trials > 0
-        c = binomial_fair_coin(rng, trials)
+        c = binomial_sample_fair_coin(rng, trials)
         Base.GMP.MPZ.mul_2exp!(px, 1) # px *= 2
         if px > py
             count += c
@@ -47,13 +47,13 @@ function binomial(rng, trials, px, py)
 end
 
 """
-    binomial_int_fair_coin(rng, trials)
+    binomial_sample_fair_coin(rng, trials)
     
 Flips `trials` fair coins and reports the number of heads.
 
 Flips up to 64 coins at a time.
 """
-function binomial_fair_coin(rng, trials)
+function binomial_sample_fair_coin(rng, trials)
     count = 0
     @inbounds while trials != 0
         p = min(6, exponent(trials))
@@ -69,20 +69,20 @@ function binomial_fair_coin(rng, trials)
 end
 
 """
-    multinomial(rng, trials, weights)
+    multinomial_sample(rng, trials, weights)
     
 Draw `trials` elements from the probability distribution specified by `weights` (need not sum to 1) and return the number of times each element was drawn.
 
 Runs in `O(trials * weights)`, but can be as fast as `O(trials)` if the weights are skewed toward big weights at the beginning.
 """
-function multinomial(rng, trials, weights::AbstractVector{<:Integer})
+function multinomial_sample(rng, trials, weights::AbstractVector{<:Integer})
     sum_weights = sum(weights)
     counts = Vector{Int}(undef, length(weights))
     weight_copy = BigInt(0)
     @inbounds for i in 1:length(weights)-1
         weight = weights[i]
         Base.GMP.MPZ.set!(weight_copy, weight)
-        b = binomial(rng, trials, weight_copy, sum_weights)
+        b = binomial_sample(rng, trials, weight_copy, sum_weights)
         counts[i] = b
         trials -= b
         trials == 0 && return counts
