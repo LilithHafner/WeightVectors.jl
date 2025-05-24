@@ -61,6 +61,13 @@ function binomial_int_12(rng, trials)
     return count
 end
 
+"""
+    multinomial_int(rng, trials, weights)
+    
+Draw `trials` elements from the probability distribution specified by `weights` (need not sum to 1) and return the number of times each element was drawn.
+
+Runs in `O(trials * weights)`, but can be as fast as `O(trials)` if the weights are skewed toward big weights at the beginning.
+
 function multinomial_int(rng, trials, weights)
     sum_weights = sum(weights)
     counts = Vector{Int}(undef, length(weights))
