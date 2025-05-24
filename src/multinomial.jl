@@ -3,14 +3,13 @@ using AliasTables
 
 # These are exact because their weights sum to powers of 2.
 const ALIASTABLES = (
-    AliasTable{UInt128}(UInt128.([binomial(BigInt(1),i) for i in 0:1])), 
-    AliasTable{UInt128}(UInt128.([binomial(BigInt(2),i) for i in 0:2])),
-    AliasTable{UInt128}(UInt128.([binomial(BigInt(4),i) for i in 0:4])), 
-    AliasTable{UInt128}(UInt128.([binomial(BigInt(8),i) for i in 0:8])),
-    AliasTable{UInt128}(UInt128.([binomial(BigInt(16),i) for i in 0:16])), 
-    AliasTable{UInt128}(UInt128.([binomial(BigInt(32),i) for i in 0:32])),
-    AliasTable{UInt128}(UInt128.([binomial(BigInt(64),i) for i in 0:64])), 
-    AliasTable{UInt128}(UInt128.([binomial(BigInt(128),i) for i in 0:128]))
+    AliasTable{UInt64}(UInt64.([binomial(BigInt(1),i) for i in 0:1])), 
+    AliasTable{UInt64}(UInt64.([binomial(BigInt(2),i) for i in 0:2])),
+    AliasTable{UInt64}(UInt64.([binomial(BigInt(4),i) for i in 0:4])), 
+    AliasTable{UInt64}(UInt64.([binomial(BigInt(8),i) for i in 0:8])),
+    AliasTable{UInt64}(UInt64.([binomial(BigInt(16),i) for i in 0:16])), 
+    AliasTable{UInt64}(UInt64.([binomial(BigInt(32),i) for i in 0:32])),
+    AliasTable{UInt64}(UInt64.([binomial(BigInt(64),i) for i in 0:64])))
 )
 
 # it uses some internals from Base.GMP.MPZ (as MutableArithmetics.jl) to speed-up some BigInt operations
@@ -76,7 +75,7 @@ Draw `trials` elements from the probability distribution specified by `weights` 
 
 Runs in `O(trials * weights)`, but can be as fast as `O(trials)` if the weights are skewed toward big weights at the beginning.
 """
-function multinomial_int(rng, trials, weights)
+function multinomial_int(rng, trials, weights::AbstractVector{<:Integer})
     sum_weights = sum(weights)
     counts = Vector{Int}(undef, length(weights))
     weight_copy = BigInt(0)
