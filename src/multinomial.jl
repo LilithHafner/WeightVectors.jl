@@ -9,7 +9,7 @@ const ALIASTABLES = (
     AliasTable{UInt64}(UInt64.([binomial(BigInt(8),i) for i in 0:8])),
     AliasTable{UInt64}(UInt64.([binomial(BigInt(16),i) for i in 0:16])), 
     AliasTable{UInt64}(UInt64.([binomial(BigInt(32),i) for i in 0:32])),
-    AliasTable{UInt64}(UInt64.([binomial(BigInt(64),i) for i in 0:64])))
+    AliasTable{UInt64}(UInt64.([binomial(BigInt(64),i) for i in 0:64]))
 )
 
 # it uses some internals from Base.GMP.MPZ (as MutableArithmetics.jl) to speed-up some BigInt operations
@@ -51,7 +51,7 @@ end
     
 Flips `trials` fair coins and reports the number of heads.
 
-Flips up to 128 coins at a time.
+Flips up to 64 coins at a time.
 """
 function binomial_int_fair_coin(rng, trials)
     count = 0
