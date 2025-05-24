@@ -187,7 +187,7 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
             weights[q] = BigInt(get_significand_sum(m, j)) << (j-min_i)
         end
     end
-    counts = multinomial(rng, n, weights)
+    counts = multinomial_sample(rng, n, weights)
     samples = Vector{Int}(undef, n)
     ct, s = 0, 1
     @inbounds for i in 1:k
