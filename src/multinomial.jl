@@ -28,7 +28,7 @@ function binomial_int(rng, trials, px, py)
         if px > py
             count += c
             trials -= c
-            Base.GMP.MPZ.sub!(px, py)
+            Base.GMP.MPZ.sub!(px, py) # px = px - py
         elseif px < py
             trials = c
         else
