@@ -31,7 +31,7 @@ function binomial_int(rng, trials, px, py)
     end
     count = 0
     while trials > 0
-        c = binomial_int_fair(rng, trials)
+        c = binomial_int_fair_coin(rng, trials)
         Base.GMP.MPZ.mul_2exp!(px, 1) # px *= 2
         if px > py
             count += c
@@ -48,13 +48,13 @@ function binomial_int(rng, trials, px, py)
 end
 
 """
-    binomial_int_fair(rng, trials)
+    binomial_int_fair_coin(rng, trials)
     
 Flips `trials` fair coins and reports the number of heads.
 
 Flips up to 128 coins at a time.
 """
-function binomial_int_fair(rng, trials)
+function binomial_int_fair_coin(rng, trials)
     count = 0
     @inbounds while trials != 0
         p = min(7, exponent(trials))
