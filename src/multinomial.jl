@@ -39,6 +39,13 @@ function binomial_int(rng, trials, px, py)
     return count
 end
 
+"""
+    binomial_int_12(rng, trials)
+    
+Flips `trials` fair coins and reports the number of heads.
+
+Flips up to 128 coins at a time.
+"""
 function binomial_int_12(rng, trials)
     count = 0
     @inbounds while trials != 0
