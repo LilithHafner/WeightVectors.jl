@@ -22,7 +22,7 @@ Has `O(trials)` expected runtime with a very low constant factor.
 
 Implementation based on Farach-Colton, M. and Tsai, M.T., 2015. Exact sublinear binomial sampling.
 """
-function binomial_int(rng, trials, px, py)
+function binomial(rng, trials, px, py)
     if iszero(trials) || iszero(px)
         return 0
     elseif px == py
@@ -30,7 +30,7 @@ function binomial_int(rng, trials, px, py)
     end
     count = 0
     while trials > 0
-        c = binomial_int_fair_coin(rng, trials)
+        c = binomial_fair_coin(rng, trials)
         Base.GMP.MPZ.mul_2exp!(px, 1) # px *= 2
         if px > py
             count += c
@@ -53,7 +53,7 @@ Flips `trials` fair coins and reports the number of heads.
 
 Flips up to 64 coins at a time.
 """
-function binomial_int_fair_coin(rng, trials)
+function binomial_fair_coin(rng, trials)
     count = 0
     @inbounds while trials != 0
         p = min(6, exponent(trials))
@@ -69,20 +69,20 @@ function binomial_int_fair_coin(rng, trials)
 end
 
 """
-    multinomial_int(rng, trials, weights)
+    multinomial(rng, trials, weights)
     
 Draw `trials` elements from the probability distribution specified by `weights` (need not sum to 1) and return the number of times each element was drawn.
 
 Runs in `O(trials * weights)`, but can be as fast as `O(trials)` if the weights are skewed toward big weights at the beginning.
 """
-function multinomial_int(rng, trials, weights::AbstractVector{<:Integer})
+function multinomial(rng, trials, weights::AbstractVector{<:Integer})
     sum_weights = sum(weights)
     counts = Vector{Int}(undef, length(weights))
     weight_copy = BigInt(0)
     @inbounds for i in 1:length(weights)-1
         weight = weights[i]
         Base.GMP.MPZ.set!(weight_copy, weight)
-        b = binomial_int(rng, trials, weight_copy, sum_weights)
+        b = binomial(rng, trials, weight_copy, sum_weights)
         counts[i] = b
         trials -= b
         trials == 0 && return counts
