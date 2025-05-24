@@ -56,7 +56,7 @@ Flips up to 128 coins at a time.
 function binomial_int_fair_coin(rng, trials)
     count = 0
     @inbounds while trials != 0
-        p = min(7, exponent(trials))
+        p = min(6, exponent(trials))
         n = trials >> p
         table = ALIASTABLES[p+1]
         for _ in 1:n
