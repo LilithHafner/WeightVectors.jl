@@ -13,14 +13,15 @@ const ALIASTABLES = (
     AliasTable{UInt128}(UInt128.([binomial(BigInt(128),i) for i in 0:128]))
 )
 
-# implementation based on Farach-Colton, M. and Tsai, M.T., 2015. Exact sublinear binomial sampling
-# it uses some internals from Base.GMP.MPZ (as MutableArithmetics.jl) to speed-up some BigInt
-# operations
+# it uses some internals from Base.GMP.MPZ (as MutableArithmetics.jl) to speed-up some BigInt operations
+"""
     binomial_int(rng, trials, px, py)
     
 Flip a coin with probability of `px//py` of coming up heads `trials` times and return the number of heads.
 
 Has `O(trials)` expected runtime with a very low constant factor.
+
+Implementation based on Farach-Colton, M. and Tsai, M.T., 2015. Exact sublinear binomial sampling.
 """
 function binomial_int(rng, trials, px, py)
     if iszero(trials) || iszero(px)
@@ -74,7 +75,7 @@ end
 Draw `trials` elements from the probability distribution specified by `weights` (need not sum to 1) and return the number of times each element was drawn.
 
 Runs in `O(trials * weights)`, but can be as fast as `O(trials)` if the weights are skewed toward big weights at the beginning.
-
+"""
 function multinomial_int(rng, trials, weights)
     sum_weights = sum(weights)
     counts = Vector{Int}(undef, length(weights))
