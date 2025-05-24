@@ -1,6 +1,7 @@
 
 using AliasTables
 
+# These are exact because their weights sum to powers of 2.
 const ALIASTABLES = (
     AliasTable{UInt128}(UInt128.([binomial(BigInt(1),i) for i in 0:1])), 
     AliasTable{UInt128}(UInt128.([binomial(BigInt(2),i) for i in 0:2])),
