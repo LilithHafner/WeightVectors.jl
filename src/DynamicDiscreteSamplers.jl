@@ -16,18 +16,35 @@ An abstract vector capable of storing normal, non-negative floating point number
 `rand` samples an index according to values rather than sampling a value uniformly.
 """
 abstract type Weights <: AbstractVector{Float64} end
+"""
+    FixedSizeWeights <: Weights
+
+An object that confomrs the the `Weights` interface and cannot be resized.
+"""
 struct FixedSizeWeights <: Weights
     m::Memory{UInt64}
     global _FixedSizeWeights
     _FixedSizeWeights(m::Memory{UInt64}) = new(m)
+    FixedSizeWeights(len::Integer) = new(initialize_empty(len))
 end
-struct SemiResizableWeights <: Weights
-    m::Memory{UInt64}
-    SemiResizableWeights(w::FixedSizeWeights) = new(w.m)
-end
+"""
+    ResizableWeights <: Weights
+
+An object that confomrs the the `Weights` interface and can be resized.
+"""
 mutable struct ResizableWeights <: Weights
     m::Memory{UInt64}
-    ResizableWeights(w::FixedSizeWeights) = new(w.m)
+    ResizableWeights(len::Integer) = new(initialize_empty(len))
+end
+"""
+    SemiResizableWeights <: Weights
+
+An object that confomrs the the `Weights` interface and can be resized, but only to sizes
+at most as large as it's original size.
+"""
+struct SemiResizableWeights <: Weights
+    m::Memory{UInt64}
+    SemiResizableWeights(len::Integer) = new(initialize_empty(len))
 end
 
 #===== Overview  ======
@@ -638,10 +655,12 @@ function _set_to_zero!(m::Memory, i::Int)
     nothing
 end
 
+"""
+    initialize_empty(len::Integer)::Memory{UInt64}
 
-ResizableWeights(len::Integer) = ResizableWeights(FixedSizeWeights(len))
-SemiResizableWeights(len::Integer) = SemiResizableWeights(FixedSizeWeights(len))
-function FixedSizeWeights(len::Integer)
+Initialize a `Memory` that, when underlaying a `Weights` object, represents `len` zeros.
+"""
+function initialize_empty(len::Integer)
     m = Memory{UInt64}(undef, allocated_memory(len))
     # m .= 0 # This is here so that a sparse rendering for debugging is easier TODO for tests: set this to 0xdeadbeefdeadbeed
     m[4:10523+len] .= 0 # metadata and edit map need to be zeroed but the bulk does not
@@ -649,7 +668,7 @@ function FixedSizeWeights(len::Integer)
     m[2] = 4
     # no need to set m[3]
     m[10267] = 10524+len
-    _FixedSizeWeights(m)
+    m
 end
 allocated_memory(length::Integer) = 10523 + 7*length # TODO for perf: consider giving some extra constant factor allocation to avoid repeated compaction at small sizes
 length_from_memory(allocated_memory::Integer) = Int((allocated_memory-10523)/7)
