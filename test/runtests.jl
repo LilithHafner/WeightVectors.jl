@@ -7,13 +7,7 @@ using Random
 using StableRNGs
 using StatsBase
 
-@testset "unit tests" begin
-    lls = DynamicDiscreteSamplers.LinkedListSet()
-    push!(lls, 2)
-    push!(lls, 3)
-    delete!(lls, 2)
-    @test 3 in lls
-end
+@test DynamicDiscreteSamplers.DEBUG === true
 
 @testset "basic end to end tests" begin
     ds = DynamicDiscreteSampler()
@@ -84,21 +78,14 @@ end
 end
 
 @testset "Targeted statistical tests" begin
-    #Issue 8
-    for N in [1, 2, 4, 64, 128]
-        ds = DynamicDiscreteSampler{N}()
-        for i in 1:3
-            push!(ds, i, float(i))
-        end
-        delete!(ds, 2)
-        if N > 1
-            @test 0 < count(rand(ds) == 1 for _ in 1:4000) < 1200 # False positivity rate < 4e-13
-        else
-            @test count(rand(ds) == 1 for _ in 1:4000) == 0
-        end
+    ds = DynamicDiscreteSampler()
+    for i in 1:3
+        push!(ds, i, float(i))
     end
+    delete!(ds, 2)
+    @test 0 < count(rand(ds) == 1 for _ in 1:4000) < 1200 # False positivity rate < 4e-13
 end
-  
+
 @testset "Randomized statistical tests" begin
     rng = StableRNG(42)
     b = 100
@@ -136,7 +123,7 @@ end
     @test pvalue(chisq_test) > 0.002
 
     ds2 = DynamicDiscreteSampler()
-    
+
     append!(ds2, range, weights)
 
     delete!(ds2, 1)
@@ -195,3 +182,44 @@ if "CI" in keys(ENV)
         Aqua.test_deps_compat(DynamicDiscreteSamplers, check_extras=false)
     end
 end
+
+@testset "stress test huge probability swings" begin
+    ds = DynamicDiscreteSampler()
+    push!(ds, 1, 1e-300)
+    @test rand(ds) == 1
+    push!(ds, 2, 1e300)
+    @test rand(ds) == 2
+    delete!(ds, 2)
+    @test rand(ds) == 1
+end
+
+include("weights.jl")
+
+function error_d03fb()
+    ds = DynamicDiscreteSampler()
+    for i in 1:1_500
+        push!(ds, i, 0.1)
+    end
+    for i in 1:25_000
+        push!(ds, rand(ds), exp(8randn()))
+    end
+end
+error_d03fb() # This threw AssertionError: 48 <= Base.top_set_bit(m[4]) <= 50 90% of the time on d03fb84d1b62272c5d6ab54c49e643af9b87201b
+
+function error_d03fb_2(n)
+    w = DynamicDiscreteSamplers.FixedSizeWeights(2^n+1);
+    for i in 1:2^n-1
+        w[i] = .99*.5^Base.top_set_bit(i)
+    end
+    w[2^n] = .99
+    w[2^n+1] = 1e100
+    w[2^n+1] = 0
+    @test UInt64(2)^32 < w.m[3]
+end
+error_d03fb_2.(1:15)
+
+ds = DynamicDiscreteSampler()
+push!(ds, 2, 1e308)
+delete!(ds, 2)
+push!(ds, 2, 1e308) # This previously threw
+@test rand(ds) == 2

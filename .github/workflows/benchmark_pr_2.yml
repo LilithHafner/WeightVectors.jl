@@ -1,4 +1,4 @@
-name: Benchmark a pull request
+name: Benchmark a pull request (2)
 # Keep this in sync with benchmark_push.yml
 
 on:
@@ -61,6 +61,9 @@ jobs:
                 echo 'A plot of the benchmark results have been uploaded as an artifact to the workflow run for this PR.' >> body.md
                 echo 'Go to "Actions"->"Benchmark a pull request"->[the most recent run]->"Artifacts" (at the bottom).' >> body.md
 
+            - name: wait
+              run: sleep 45
+
             - name: Find Comment
               uses: peter-evans/find-comment@v3
               id: fcbenchmark
@@ -69,10 +72,15 @@ jobs:
                 comment-author: 'github-actions[bot]'
                 body-includes: Benchmark Results
 
+            - name: Join Tables
+              run: |
+                echo '${{ steps.fcbenchmark.outputs.comment-body }}' >> old_body.md
+                julia .github/workflows/join_table.jl body.md old_body.md merged_body.md
+
             - name: Comment on PR
               uses: peter-evans/create-or-update-comment@v4
               with:
                 comment-id: ${{ steps.fcbenchmark.outputs.comment-id }}
                 issue-number: ${{ github.event.pull_request.number }}
-                body-path: body.md
+                body-path: merged_body.md
                 edit-mode: replace
