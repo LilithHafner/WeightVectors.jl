@@ -71,7 +71,7 @@ end
 for n in [100, 1000, 10000], σ in [.1, 1, 10, 100]
     # TODO: try to use min over noise, average over rng, and max over treatment in analysis
     SUITE["constructor n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push($n, $σ)
-    SUITE["sample (single) n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand
+    SUITE["sample n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand
     SUITE["delete ∘ rand n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand_delete(_, $n) evals=1
     SUITE["update ∘ rand n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand_update(_, $σ) evals=n
     SUITE["intermixed_h n=$n σ=$σ"] = @benchmarkable intermixed_h($n, $σ)
