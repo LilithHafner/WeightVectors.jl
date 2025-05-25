@@ -809,6 +809,7 @@ Base.rand(wbs::WeightBasedSampler, n::Integer) = rand(Random.default_rng(), wbs.
 
 const DynamicDiscreteSampler = WeightBasedSampler
 
+include("bulk_sampling.jl")
 include("multinomial.jl")
 include("utils.jl")
 
