@@ -337,7 +337,68 @@ function _setindex!(m::Memory, v::Float64, i::Int)
     else
         _set_nonzero!(m, v, i)
     end
-end
+    m[2] = max(m[2], weight_index) # Set after insertion because update_weights! may need to update the global shift, in which case knowing the old m[2] will help it skip checking empty levels
+    level_weights_nonzero_index,level_weights_nonzero_subindex = get_level_weights_nonzero_indices(exponent)
+    m[level_weights_nonzero_index] |= 0x8000000000000000 >> level_weights_nonzero_subindex
+
+    # lookup the group by exponent and bump length
+    group_length_index = _convert(Int, 4 + 3*2046 + 2exponent)
+    group_pos = m[group_length_index-1]
+    group_length = m[group_length_index]+1
+    m[group_length_index] = group_length # setting this before compaction means that compaction will ensure there is enough space for this expanded group, but will also copy one index (16 bytes) of junk which could access past the end of m. The junk isn't an issue once coppied because we immediately overwrite it. The former (copying past the end of m) only happens if the group to be expanded is already kissing the end. In this case, it will end up at the end after compaction and be easily expanded afterwords. Consequently, we treat that case specially and bump group length and manually expand after compaction
+    allocs_index,allocs_subindex = get_alloced_indices(exponent)
+    allocs_chunk = m[allocs_index]
+    log2_allocated_size = allocs_chunk >> allocs_subindex % UInt8 - 1
+    allocated_size = 1<<log2_allocated_size
+
+    # if there is not room in the group, shift and expand
+    if group_length > allocated_size
+        next_free_space = m[10267]
+        # if at end already, simply extend the allocation # TODO see if removing this optimization is problematic; TODO verify the optimization is triggering
+        if next_free_space == (group_pos-2)+2group_length # note that this is valid even if group_length is 1 (previously zero).
+            new_allocation_length = max(2, 2allocated_size)
+            new_next_free_space = next_free_space+new_allocation_length
+            if new_next_free_space > length(m)+1 # There isn't room; we need to compact
+                m[group_length_index] = group_length-1 # See comment above; we don't want to copy past the end of m
+                next_free_space = compact!(m, m)
+                group_pos = next_free_space-new_allocation_length # The group will move but remian the last group
+                new_next_free_space = next_free_space+new_allocation_length
+                @assert new_next_free_space < length(m)+1 # TODO for perf, delete this
+                m[group_length_index] = group_length
+
+                # Re-lookup allocated chunk because compaction could have changed other
+                # chunk elements. However, the allocated size of this group could not have
+                # changed because it was previously maxed out.
+                allocs_chunk = m[allocs_index]
+                @assert log2_allocated_size == allocs_chunk >> allocs_subindex % UInt8 - 1
+                @assert allocated_size == 1<<log2_allocated_size
+            end
+            # expand the allocated size and bump next_free_space
+            new_chunk = allocs_chunk + UInt64(1) << allocs_subindex
+            m[allocs_index] = new_chunk
+            m[10267] = new_next_free_space
+        else # move and reallocate (this branch also handles creating new groups: TODO expirment with perf and clarity by splicing that branch out)
+            twice_new_allocated_size = max(0x2,allocated_size<<2)
+            new_next_free_space = next_free_space+twice_new_allocated_size
+            if new_next_free_space > length(m)+1 # out of space; compact. TODO for perf, consider resizing at this time slightly eagerly?
+                m[group_length_index] = group_length-1 # incrementing the group length before compaction is spotty because if the group was previously empty then this new group length will be ignored (compact! loops over sub_weights, not levels)
+                next_free_space = compact!(m, m)
+                m[group_length_index] = group_length
+                new_next_free_space = next_free_space+twice_new_allocated_size
+                @assert new_next_free_space < length(m)+1 # After compaction there should be room TODO for perf, delete this
+
+                group_pos = m[group_length_index-1] # The group likely moved during compaction
+
+                # Re-lookup allocated chunk because compaction could have changed other
+                # chunk elements. However, the allocated size of this group could not have
+                # changed because it was previously maxed out.
+                allocs_chunk = m[allocs_index]
+                @assert log2_allocated_size == allocs_chunk >> allocs_subindex % UInt8 - 1
+                @assert allocated_size == 1<<log2_allocated_size
+            end
+            # TODO for perf: make compact! re-allocate the expanded group larger so there's no need to double the allocated size here if the compact branch is taken
+            # TODO for perf, try removing the moveie before compaction (tricky: where to store that info?)
+            # TODO make this whole alg dry, but only after setting up robust benchmarks in CI
 
 function _set_nonzero!(m, v, i)
     # TODO for performance: join these two operations

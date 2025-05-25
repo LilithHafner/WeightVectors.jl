@@ -105,6 +105,7 @@ function pathological1′_update(ds)
     delete!(ds, 2)
     rand(ds)
 end
+
 SUITE["pathological 1′"] = @benchmarkable pathological1_setup pathological1′_update
 
 function pathological2_setup()
