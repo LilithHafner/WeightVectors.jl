@@ -159,7 +159,9 @@ TODO
 # Trivial extensions:
 # push!, delete!
 
-Base.rand(rng::AbstractRNG, w::Weights) = _rand(rng, w.m)
+Random.rand(rng::AbstractRNG, st::Random.SamplerTrivial{<:Weights}) = _rand(rng, st[].m)
+Random.Sampler(::Type{<:Random.AbstractRNG}, w::Weights, ::Random.Repetition) = Random.SamplerTrivial(w)
+Random.gentype(::Type{<:Weights}) = Int
 Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 
@@ -798,8 +800,8 @@ function Base.delete!(wbs::WeightBasedSampler, index)
     wbs.w[index] = 0
     wbs
 end
-Base.rand(rng::AbstractRNG, wbs::WeightBasedSampler) = rand(rng, wbs.w)
-Base.rand(rng::AbstractRNG, wbs::WeightBasedSampler, n::Integer) = [rand(rng, wbs.w) for _ in 1:n]
+Random.rand(rng::AbstractRNG, st::Random.SamplerTrivial{<:WeightBasedSampler}) = rand(rng, st[].w)
+Random.gentype(::Type{WeightBasedSampler}) = Int
 
 const DynamicDiscreteSampler = WeightBasedSampler
 
