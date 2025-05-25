@@ -80,14 +80,9 @@ for n in [100, 1000, 10000], σ in [.1, 1, 10, 100]
     end
 end
 
-using Random
-
 for n in [10^3, 10^6], k in [10^4, 10^6], σ in [1, 100]
-    if k == 10^6 || n == 10^6
-        SUITE["sample (bulk) n=$n k=$k σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand(Random.default_rng(), _, $k) seconds=1
-    else
-        SUITE["sample (bulk) n=$n k=$k σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand(Random.default_rng(), _, $k)
-    end
+    seconds = k == 10^6 || n == 10^6 ? 1 : nothing
+    SUITE["sample (bulk) n=$n k=$k σ=$σ"] = @benchmarkable gaussian_weights_sequential_push(n, σ) rand(_, $k) seconds=seconds
 end
 
 function pathological1_setup()
