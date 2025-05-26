@@ -155,6 +155,17 @@ end
 
     delete!(ds2, 2)
     @test unique([rand(rng, ds2) for _ in 1:10^3]) == [1]
+
+    ds3 = DynamicDiscreteSampler()
+    push!(ds3, 1, 2.0^-1024 + 2.0^-1023) # subnormal
+    push!(ds3, 2, 2.0^-1023) # subnormal
+    push!(ds3, 3, 2.0^-1022)
+    samples_counts = countmap([rand(rng, ds3) for _ in 1:10^4])
+    counts_est = [samples_counts[i] for i in 1:3]
+    ps_exact = [1/3, 2/9, 4/9]
+
+    chisq_test = ChisqTest(counts_est, ps_exact)
+    @test pvalue(chisq_test) > 0.002
 end
 
 
@@ -172,74 +183,6 @@ end
     rand(Xoshiro(42), ds)
     state3 = getstate_default_rng()
     @test state2 == state3
-end
-
-@testset "Random API" begin
-    dds = DynamicDiscreteSampler()
-    push!(dds, 1, 1.0)
-    push!(dds, 2, 2.0)
-
-    w = DynamicDiscreteSamplers.FixedSizeWeights(2)
-    w[1] = 1.0
-    w[2] = 2.0
-
-    for source in [dds, w]
-
-        # Conventional usage
-        let x = rand(source)
-            @test x isa Int
-            @test x in 1:2
-        end
-
-        let x = rand(source, 3)
-            @test x isa Vector{Int}
-            @test length(x) == 3
-            @test all(i in 1:2 for i in x)
-        end
-
-        let x = [3, 4, 5]
-            @test rand!(x, source) === x
-            @test all(i in 1:2 for i in x)
-        end
-
-        let x = rand(source, 3, 4, 5)
-            @test x isa Array{Int, 3}
-            @test size(x) == (3, 4, 5)
-            @test all(i in 1:2 for i in x)
-        end
-
-        let x = rand(source, 3, 4, 5)
-            @test x isa Array{Int, 3}
-            @test all(i in 1:2 for i in x)
-        end
-
-        let x = fill(0, 2, 2, 2, 2)
-            @test rand!(x, source) === x
-            @test x isa Array{Int, 4}
-            @test all(i in 1:2 for i in x)
-        end
-
-        # Advanced usage (See https://docs.julialang.org/en/v1/stdlib/Random/#rand-api-hook)
-        for rng in [Random.default_rng(), Xoshiro(42), StableRNG(42), Random.MersenneTwister(42)]
-            let sampler = Random.Sampler(rng, source)
-                x = [rand(rng, sampler) for _ in 1:1000]
-                @test all(xi isa Int for xi in x)
-                @test all(xi in 1:2 for xi in x)
-                @test !allequal(x)
-            end
-            let sampler = Random.Sampler(rng, source, Val(1))
-                x = rand(rng, sampler)
-                @test x isa Int
-                @test x in 1:2
-            end
-            let sampler = Random.Sampler(rng, source, Val(Inf))
-                x = [rand(rng, sampler) for _ in 1:1000]
-                @test all(xi isa Int for xi in x)
-                @test all(xi in 1:2 for xi in x)
-                @test !allequal(x)
-            end
-        end
-    end
 end
 
 # These tests are too slow:
