@@ -247,10 +247,10 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
 
         m2 = signed(m[2])
         x = zero(UInt64)
-        checkbounds(m, 2m2-2Sys.WORD_SIZE+2096:2m2+2096)
+        checkbounds(m, 2m2-2Sys.WORD_SIZE+2094:2m2+2094)
         @inbounds for i in Sys.WORD_SIZE:-1:0 # This loop is backwards so that memory access is forwards. TODO for perf, we can get away with shaving 1 to 10 off of this loop.
             # This can underflow from significand sums into weights, but that underflow is safe because it can only happen if all the latter weights are zero. Be careful about this when re-arranging the memory layout!
-            x += m[2m2-2i+2096] >> (i - 1)
+            x += m[2m2-2i+2094] >> (i - 1)
         end
 
         # x is computed by rounding down at a certain level and then summing (and adding 1)
@@ -318,11 +318,11 @@ function _set_nonzero!(m, v, i)
 end
 
 Base.@propagate_inbounds function get_significand_sum(m, i)
-    i = _convert(Int, 2i+2095)
+    i = _convert(Int, 2i+2093)
     significand_sum = UInt128(m[i]) | (UInt128(m[i+1]) << 64)
 end
 function update_significand_sum(m, i, delta)
-    j = _convert(Int, 2i+2095)
+    j = _convert(Int, 2i+2093)
     significand_sum = get_significand_sum(m, i) + delta
     m[j] = significand_sum % UInt64
     m[j+1] = (significand_sum >>> 64) % UInt64
@@ -521,10 +521,10 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase sh
     # shift < -64; the low 64 bits are shifted off.
     # i < -60-signed(m3); the low 64 bits are shifted off.
 
-    checkbounds(m, r0:2r1+2096)
+    checkbounds(m, r0:2r1+2094)
     @inbounds for i in r0:min(r1, -61-signed(m3))
-        significand_sum_lo = m[_convert(Int, 2i+2095)]
-        significand_sum_hi = m[_convert(Int, 2i+2096)]
+        significand_sum_lo = m[_convert(Int, 2i+2093)]
+        significand_sum_hi = m[_convert(Int, 2i+2094)]
         significand_sum_lo == significand_sum_hi == 0 && continue # in this case, the weight was and still is zero
         shift = signed(i-4+m3) + 64
         m4 += update_weight!(m, i, significand_sum_hi << shift)
