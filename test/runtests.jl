@@ -168,6 +168,22 @@ end
     @test pvalue(chisq_test) > 0.002
 end
 
+@testset "rng usage tests" begin
+    function getstate_default_rng()
+        t = current_task()
+        (t.rngState0, t.rngState1, t.rngState2, t.rngState3, t.rngState4)
+    end
+    ds = DynamicDiscreteSampler()
+    push!(ds, 1, 1.0)
+    state1 = getstate_default_rng()
+    rand(ds)
+    state2 = getstate_default_rng()
+    @test state1 != state2
+    rand(Xoshiro(42), ds)
+    state3 = getstate_default_rng()
+    @test state2 == state3
+end
+
 @testset "Random API" begin
     dds = DynamicDiscreteSampler()
     push!(dds, 1, 1.0)
