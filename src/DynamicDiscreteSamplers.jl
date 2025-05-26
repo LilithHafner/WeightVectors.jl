@@ -98,11 +98,12 @@ weight
 
 # Implementation and data structure overview
 
-Weights are normal, non-negative Float64s. They are divided into levels according to their
-exponents. Each level has a weight which is the exact sum of the weights in that level. We
-can't represent this sum exactly as a Float64 so we represent it as significand_sum::UInt128
-which is the sum of the significands of the weights in that level. To get the level's weight,
-compute big(significand_sum)<<exponent.
+Weights are non-negative Float64s. They are divided into levels according to their
+exponents, apart from subnormals which are first normalized by the sampler. The normal exponents
+needs then to be shifted by 52 to make space for the subnormals. Each level has a weight which is
+the exact sum of the weights in that level. We can't represent this sum exactly as a Float64 so we
+represent it as significand_sum::UInt128 which is the sum of the significands of the weights in that
+level. To get the level's weight, compute big(significand_sum)<<exponent.
 
 ## Sampling
 Sampling with BigInt weights is not efficient so each level also has an approximate weight
@@ -134,9 +135,9 @@ TODO
 # 2                      max_level::Int # absolute pointer to the last element of level weights that is nonzero
 # 3                      shift::Int level weights are equal to significand_sums<<(exponent+shift), plus one if significand_sum is not zero
 # 4                      sum(level weights)::UInt64
-# 5..2102                level weights::[UInt64 2098] # earlier is lower. first is exponent 0x001, last is exponent 0x7fe. Subnormal are not supported (TODO).
+# 5..2102                level weights::[UInt64 2098] # earlier is lower. first is exponent 0x001, last is exponent 0x832.
 # 2103..6246             significand_sums::[UInt128 2098] # sum of significands (the maximum significand contributes 0xfffffffffffff800)
-# 6247..10442            level location info::[NamedTuple{pos::Int, length::Int} 2046] indexes into sub_weights, pos is absolute into m.
+# 6247..10442            level location info::[NamedTuple{pos::Int, length::Int} 2098] indexes into sub_weights, pos is absolute into m.
 # 10443..10475           level_weights_nonzero::[Bool 2098] # map of which levels have nonzero weight (used to bump m2 efficiently when a level is zeroed out)
 # 2 unused bits
 
@@ -150,7 +151,8 @@ TODO
 # 10742+2len..10741+7len sub_weights (woven with targets)::[[significand::UInt64, target::Int}]]. allocated_len == length_from_memory(length(m)) (len refers to allocated length, not m[1])
 
 # significands are stored in sub_weights with their implicit leading 1 added
-#     element_from_sub_weights = 0x8000000000000000 | (reinterpret(UInt64, weight::Float64) << 11)
+#     normals: element_from_sub_weights = 0x8000000000000000 | (reinterpret(UInt64, weight::Float64) << 11)
+#     subnormals: element_from_sub_weights = reinterpret(UInt64, weight::Float64) << (64 - exponent)
 # And sampled with
 #     rand(UInt64) < element_from_sub_weights
 # this means that for the lowest normal significand (52 zeros with an implicit leading one),
@@ -167,7 +169,7 @@ TODO
 
 # target can also store metadata useful for compaction.
 # the range 0x0000000000000001 to 0x7fffffffffffffff (1:typemax(Int)) represents literal targets
-# the range 0x8000000000000001 to 0x80000000000007fe indicates that this is an empty but non-abandoned group with exponent target-0x8000000000000000
+# the range 0x8000000000000001 to 0x8000000000000832 indicates that this is an empty but non-abandoned group with exponent target-0x8000000000000000
 # the range 0xc000000000000000 to 0xffffffffffffffff indicates that the group is abandoned and has length -target.
 
 ## Initial API:
