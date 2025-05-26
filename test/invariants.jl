@@ -2,7 +2,7 @@ isdefined(@__MODULE__, :Memory) || const Memory = Vector # Compat for Julia < 1.
 _get_UInt128(m::Memory, i::Integer) = UInt128(m[i]) | (UInt128(m[i+1]) << 64)
 _length_from_memory(allocated_memory::Integer) = Int((allocated_memory-10524)/7)
 function verify_weights(m::Memory)
-    m3 = m[3]
+    m3 = m[4]
     for i in 6:2051
         shift = signed(i - 5 + m3)
         weight = m[i]
@@ -15,14 +15,14 @@ function verify_weights(m::Memory)
 end
 
 function verify_m2(m::Memory)
-    @assert m[3] == findlast(i -> i == 4 || m[i] != 0, 1:2050)
+    @assert m[3] == findlast(i -> i == 4 || m[i] != 0, 1:2051)
 end
 function verify_m4(m::Memory)
     m4 = zero(UInt64)
     for i in 6:2051
         m4 = Base.checked_add(m4, m[i])
     end
-    @assert m[4] == m4
+    @assert m[5] == m4
     # @assert m4 == 0 || UInt64(2)^32 <= m4 # This invariant is now maintained loosely and lazily
 end
 
