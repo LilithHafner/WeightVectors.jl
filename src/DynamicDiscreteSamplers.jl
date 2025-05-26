@@ -167,7 +167,7 @@ TODO
 
 # target can also store metadata useful for compaction.
 # the range 0x0000000000000001 to 0x7fffffffffffffff (1:typemax(Int)) represents literal targets
-# the range 0x8000000000000001 to 0x80000000000007ff indicates that this is an empty but non-abandoned group with exponent target-0x8000000000000000
+# the range 0x8000000000000001 to 0x80000000000007fe indicates that this is an empty but non-abandoned group with exponent target-0x8000000000000000
 # the range 0xc000000000000000 to 0xffffffffffffffff indicates that the group is abandoned and has length -target.
 
 ## Initial API:
@@ -211,7 +211,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
     end
 
     # Lookup level info
-    j = 2i + 6135
+    j = 2i + 6237
     pos = m[j]
     len = m[j+1]
 
@@ -247,10 +247,10 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
 
         m2 = signed(m[2])
         x = zero(UInt64)
-        checkbounds(m, 2m2-2Sys.WORD_SIZE+2043:2m2+2043)
+        checkbounds(m, 2m2-2Sys.WORD_SIZE+2096:2m2+2096)
         @inbounds for i in Sys.WORD_SIZE:-1:0 # This loop is backwards so that memory access is forwards. TODO for perf, we can get away with shaving 1 to 10 off of this loop.
             # This can underflow from significand sums into weights, but that underflow is safe because it can only happen if all the latter weights are zero. Be careful about this when re-arranging the memory layout!
-            x += m[2m2-2i+2043] >> (i - 1)
+            x += m[2m2-2i+2096] >> (i - 1)
         end
 
         # x is computed by rounding down at a certain level and then summing (and adding 1)
@@ -285,11 +285,11 @@ end
 
 function _getindex(m::Memory{UInt64}, i::Int)
     @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeights(m), i))
-    j = i + 10529
+    j = i + 10735
     mj = m[j]
     mj == 0 && return 0.0
-    pos = _convert(Int, mj >> 11)
-    exponent = mj & 2047 - 1
+    pos = _convert(Int, mj >> 12)
+    exponent = mj & 4095 - 52
     weight = m[pos]
     reinterpret(Float64, (exponent<<52) | (weight - 0x8000000000000000) >> 11)
 end
@@ -303,7 +303,7 @@ function _setindex!(m::Memory, v::Float64, i::Int)
     end
 
     # Find the entry's pos in the edit map table
-    j = i + 10529
+    j = i + 10735
     if m[j] == 0
         _set_from_zero!(m, v, i)
     else
@@ -318,11 +318,11 @@ function _set_nonzero!(m, v, i)
 end
 
 Base.@propagate_inbounds function get_significand_sum(m, i)
-    i = _convert(Int, 2i+2042)
+    i = _convert(Int, 2i+2095)
     significand_sum = UInt128(m[i]) | (UInt128(m[i+1]) << 64)
 end
 function update_significand_sum(m, i, delta)
-    j = _convert(Int, 2i+2042)
+    j = _convert(Int, 2i+2095)
     significand_sum = get_significand_sum(m, i) + delta
     m[j] = significand_sum % UInt64
     m[j+1] = (significand_sum >>> 64) % UInt64
@@ -331,11 +331,10 @@ end
 
 function _set_from_zero!(m::Memory, v::Float64, i::Int)
     uv = reinterpret(UInt64, v)
-    j = i + 10529
+    j = i + 10735
     @assert m[j] == 0
 
-    exponent = uv >> 52 + 1
-
+    exponent = 52 + uv >> 52
     # update group total weight and total weight
     significand = 0x8000000000000000 | uv << 11
     weight_index = _convert(Int, exponent + 4)
@@ -347,7 +346,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         shift = -24
         weight = _convert(UInt64, significand_sum << shift) + 1
 
-        exponent != 1 && @assert Base.top_set_bit(weight-1) == 40 # TODO for perf: delete
+        @assert Base.top_set_bit(weight-1) == 40 # TODO for perf: delete
         m[weight_index] = weight
         m[4] = weight
     else
@@ -395,7 +394,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     m[level_weights_nonzero_index] |= 0x8000000000000000 >> level_weights_nonzero_subindex
 
     # lookup the group by exponent and bump length
-    group_length_index = _convert(Int, 3 + 3*2047 + 2exponent)
+    group_length_index = _convert(Int, 6246 + 2exponent)
     group_pos = m[group_length_index-1]
     group_length = m[group_length_index]+1
     m[group_length_index] = group_length # setting this before compaction means that compaction will ensure there is enough space for this expanded group, but will also copy one index (16 bytes) of junk which could access past the end of m. The junk isn't an issue once coppied because we immediately overwrite it. The former (copying past the end of m) only happens if the group to be expanded is already kissing the end. In this case, it will end up at the end after compaction and be easily expanded afterwords. Consequently, we treat that case specially and bump group length and manually expand after compaction
@@ -406,7 +405,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
 
     # if there is not room in the group, shift and expand
     if group_length > allocated_size
-        next_free_space = m[10273]
+        next_free_space = m[10478]
         # if at end already, simply extend the allocation # TODO see if removing this optimization is problematic; TODO verify the optimization is triggering
         if next_free_space == (group_pos-2)+2group_length # note that this is valid even if group_length is 1 (previously zero).
             new_allocation_length = max(2, 2allocated_size)
@@ -429,7 +428,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # expand the allocated size and bump next_free_space
             new_chunk = allocs_chunk + UInt64(1) << allocs_subindex
             m[allocs_index] = new_chunk
-            m[10273] = new_next_free_space
+            m[10478] = new_next_free_space
         else # move and reallocate (this branch also handles creating new groups: TODO expirment with perf and clarity by splicing that branch out)
             twice_new_allocated_size = max(0x2,allocated_size<<2)
             new_next_free_space = next_free_space+twice_new_allocated_size
@@ -457,16 +456,16 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             new_chunk = allocs_chunk + UInt64(1) << allocs_subindex
             m[allocs_index] = new_chunk
 
-            m[10273] = new_next_free_space
+            m[10478] = new_next_free_space
 
             # Copy the group to new location
             (v"1.11" <= VERSION || 2group_length-2 != 0) && unsafe_copyto!(m, next_free_space, m, group_pos, 2group_length-2) # TODO for clarity and maybe perf: remove this version check
 
             # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
-            delta = (next_free_space-group_pos) << 11
+            delta = (next_free_space-group_pos) << 12
             for k in 1:group_length-1
                 target = m[_convert(Int, next_free_space)+2k-1]
-                l = _convert(Int, target + 10529)
+                l = _convert(Int, target + 10735)
                 m[l] += delta
             end
 
@@ -488,7 +487,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     m[group_lastpos+1] = i
 
     # log the insertion location in the edit map
-    m[j] = _convert(UInt64, group_lastpos) << 11 + exponent
+    m[j] = _convert(UInt64, group_lastpos) << 12 + exponent
 
     nothing
 end
@@ -522,10 +521,10 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase sh
     # shift < -64; the low 64 bits are shifted off.
     # i < -60-signed(m3); the low 64 bits are shifted off.
 
-    checkbounds(m, r0:2r1+2043)
+    checkbounds(m, r0:2r1+2096)
     @inbounds for i in r0:min(r1, -61-signed(m3))
-        significand_sum_lo = m[_convert(Int, 2i+2042)]
-        significand_sum_hi = m[_convert(Int, 2i+2043)]
+        significand_sum_lo = m[_convert(Int, 2i+2095)]
+        significand_sum_hi = m[_convert(Int, 2i+2096)]
         significand_sum_lo == significand_sum_hi == 0 && continue # in this case, the weight was and still is zero
         shift = signed(i-4+m3) + 64
         m4 += update_weight!(m, i, significand_sum_hi << shift)
@@ -584,16 +583,16 @@ Base.@propagate_inbounds function update_weight!(m::Memory{UInt64}, i, shifted_s
     weight-old_weight
 end
 
-get_alloced_indices(exponent::UInt64) = _convert(Int, 10274 + exponent >> 3), exponent << 3 & 0x38
-get_level_weights_nonzero_indices(exponent::UInt64) = _convert(Int, 10239 + exponent >> 6), exponent & 0x3f
+get_alloced_indices(exponent::UInt64) = _convert(Int, 10479 + exponent >> 3), exponent << 3 & 0x38
+get_level_weights_nonzero_indices(exponent::UInt64) = _convert(Int, 10443 + exponent >> 6), exponent & 0x3f
 
 function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
-    j = i + 10529
+    j = i + 10735
     mj = m[j]
     mj == 0 && return # if the entry is already zero, return
-    pos = _convert(Int, mj >> 11)
-    exponent = mj & 2047
+    pos = _convert(Int, mj >> 12)
+    exponent = mj & 4095
     # set the entry to zero (no need to zero the exponent)
     # m[j] = 0 is moved to after we adjust the edit_map entry for the shifted element, in case there is no shifted element
 
@@ -632,7 +631,7 @@ function _set_to_zero!(m::Memory, i::Int)
     m[4] = m4 # This might be less than 2^32, but that's okay. If it is, and that's relevant, it will be corrected in _rand_slow_path
 
     # lookup the group by exponent
-    group_length_index = _convert(Int, 3 + 3*2047 + 2exponent)
+    group_length_index = _convert(Int, 6246 + 2exponent)
     group_pos = m[group_length_index-1]
     group_length = m[group_length_index]
     group_lastpos = _convert(Int, (group_pos-2)+2group_length)
@@ -643,7 +642,7 @@ function _set_to_zero!(m::Memory, i::Int)
     shifted_element = m[pos+1] = m[group_lastpos+1]
 
     # adjust the edit map entry of the shifted element
-    m[_convert(Int, shifted_element) + 10529] = _convert(UInt64, pos) << 11 + exponent
+    m[_convert(Int, shifted_element) + 10735] = _convert(UInt64, pos) << 12 + exponent
     m[j] = 0
 
     # When zeroing out a group, mark the group as empty so that compaction will update the group metadata and then skip over it.
@@ -665,15 +664,15 @@ Initialize a `Memory` that, when underlaying a `Weights` object, represents `len
 function initialize_empty(len::Integer)
     m = Memory{UInt64}(undef, allocated_memory(len))
     # m .= 0 # This is here so that a sparse rendering for debugging is easier TODO for tests: set this to 0xdeadbeefdeadbeed
-    m[4:10529+len] .= 0 # metadata and edit map need to be zeroed but the bulk does not
+    m[4:10735+len] .= 0 # metadata and edit map need to be zeroed but the bulk does not
     m[1] = len
     m[2] = 4
     # no need to set m[3]
-    m[10273] = 10530+len
+    m[10478] = 10736+len
     m
 end
-allocated_memory(length::Integer) = 10529 + 7*length # TODO for perf: consider giving some extra constant factor allocation to avoid repeated compaction at small sizes
-length_from_memory(allocated_memory::Integer) = Int((allocated_memory-10529)/7)
+allocated_memory(length::Integer) = 10735 + 7*length # TODO for perf: consider giving some extra constant factor allocation to avoid repeated compaction at small sizes
+length_from_memory(allocated_memory::Integer) = Int((allocated_memory-10735)/7)
 
 Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Integer) = resize!(w, Int(len))
 function Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Int)
@@ -705,10 +704,10 @@ function _resize!(w::ResizableWeights, len::Integer)
     # m2 .= 0 # For debugging; TODO: set to 0xdeadbeefdeadbeef to test
     m2[1] = len
     if len > old_len # grow
-        unsafe_copyto!(m2, 2, m, 2, old_len + 10529)
-        m2[old_len + 10530:len + 10529] .= 0
+        unsafe_copyto!(m2, 2, m, 2, old_len + 10735)
+        m2[old_len + 10736:len + 10735] .= 0
     else # shrink
-        unsafe_copyto!(m2, 2, m, 2, len + 10529)
+        unsafe_copyto!(m2, 2, m, 2, len + 10735)
     end
 
     compact!(m2, m)
@@ -717,9 +716,9 @@ function _resize!(w::ResizableWeights, len::Integer)
 end
 
 function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
-    dst_i = length_from_memory(length(dst)) + 10530
-    src_i = length_from_memory(length(src)) + 10530
-    next_free_space = src[10273]
+    dst_i = length_from_memory(length(dst)) + 10736
+    src_i = length_from_memory(length(src)) + 10736
+    next_free_space = src[10478]
 
     while src_i < next_free_space
 
@@ -727,7 +726,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         target = signed(src[src_i+1])
         while target < 0
             if unsigned(target) < 0xc000000000000000 # empty non-abandoned group; let's clean it up
-                @assert 0x8000000000000001 <= unsigned(target) <= 0x80000000000007ff
+                @assert 0x8000000000000001 <= unsigned(target) <= 0x8000000000000832
                 exponent = unsigned(target) - 0x8000000000000000 # TODO for clarity: dry this
                 allocs_index, allocs_subindex = get_alloced_indices(exponent)
                 allocs_chunk = dst[allocs_index] # TODO for perf: consider not copying metadata on out of place compaction (and consider the impact here)
@@ -744,13 +743,13 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         end
 
         # Trace an element of the group back to the edit info table to find the group id
-        j = target + 10529
-        exponent = src[j] & 2047
+        j = target + 10735
+        exponent = src[j] & 4095
 
         # Lookup the group in the group location table to find its length (performance optimization for copying, necessary to decide new allocated size and update pos)
         # exponent of 0x00000000000007fe is index 6+3*2046
         # exponent of 0x0000000000000001 is index 4+5*2046
-        group_length_index = _convert(Int, 3 + 3*2047 + 2exponent)
+        group_length_index = _convert(Int, 6246 + 2exponent)
         group_length = src[group_length_index]
 
         # Update group pos in level_location_info
@@ -771,11 +770,11 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         dst[allocs_index] = new_chunk
 
         # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
-        delta = unsigned(Int64(dst_i-src_i)) << 11
+        delta = unsigned(Int64(dst_i-src_i)) << 12
         dst[j] += delta
         for k in 1:signed(group_length)-1 # TODO: add a benchmark that stresses compaction and try hoisting this bounds checking
             target = src[src_i+2k+1]
-            j = _convert(Int, target + 10529)
+            j = _convert(Int, target + 10735)
             dst[j] += delta
         end
 
@@ -787,7 +786,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         dst_i += 2*1<<log2_new_allocated_size
     end
     @label break_outer
-    dst[10273] = dst_i
+    dst[10478] = dst_i
 end
 
 # Conform to the AbstractArray API
