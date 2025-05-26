@@ -1,4 +1,6 @@
 using DynamicDiscreteSamplers
+using DynamicDiscreteSamplers: FixedSizeWeights, ResizableWeights, SemiResizableWeights # compat with older versions of DynamicDiscreteSamplers.jl
+using Random
 include("../test/DynamicDiscreteSampler.jl")
 
 t0 = time()
