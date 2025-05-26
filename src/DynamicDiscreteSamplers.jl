@@ -495,8 +495,7 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase sh
     i <= -signed(m3)-Base.top_set_bit(m1)-64+4
     So for -signed(m3)-60-Base.top_set_bit(m1) < i, we could need to adjust the ith weight
     =#
-    m1_next2pow = Base.top_set_bit(m[1])
-    r0 = max(5, -signed(m3)-60-m1_next2pow)
+    r0 = max(5, -signed(m3)-60-Base.top_set_bit(m[1]))
     r1 = m2
 
     # shift = signed(i-4+m3)
