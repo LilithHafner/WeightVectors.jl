@@ -135,7 +135,7 @@ TODO
 # 2                      max_level::Int # absolute pointer to the last element of level weights that is nonzero
 # 3                      shift::Int level weights are equal to significand_sums<<(exponent+shift), plus one if significand_sum is not zero
 # 4                      sum(level weights)::UInt64
-# 5..2102                level weights::[UInt64 2098] # earlier is lower. first is exponent 0x001, last is exponent 0x7fe. Subnormal are not supported (TODO).
+# 5..2102                level weights::[UInt64 2098] # earlier is lower. first is exponent 0x001, last is exponent 0x832.
 # 2103..6298             significand_sums::[UInt128 2098] # sum of significands (the maximum significand contributes 0xfffffffffffff800)
 # 6299..10494           level location info::[NamedTuple{pos::Int, length::Int} 2046] indexes into sub_weights, pos is absolute into m.
 # 10495..10527           level_weights_nonzero::[Bool 2098] # map of which levels have nonzero weight (used to bump m2 efficiently when a level is zeroed out)
