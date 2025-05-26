@@ -322,7 +322,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     significand = 0x8000000000000000 | uv << 11
     weight_index = _convert(Int, exponent + 5)
     significand_sum = update_significand_sum(m, weight_index, significand) # Temporarily break the "weights are accurately computed" invariant
-    #m[3] = max(m[3], m[2weight_index+2041])
+    m[2] = max(m[2], m[2weight_index+2041])
 
     if m[5] == 0 # if we were empty, set global shift (m[4]) so that m[5] will become ~2^40.
         m[4] = -24 - exponent
@@ -497,7 +497,7 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m4) # Increase sh
     i <= -signed(m4)-Base.top_set_bit(m2)-64+4
     So for -signed(m4)-60-Base.top_set_bit(m2) < i, we could need to adjust the i-th weight
     =#
-    m1_next2pow = Base.top_set_bit(m[1])
+    m1_next2pow = Base.top_set_bit(m[2])
     r0 = max(6, -signed(m3)-59-m1_next2pow)
     r1 = m2
 
@@ -534,7 +534,7 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m4=m[5]) # Decrease s
     # from the first index that previously could have had a weight > 1 to min(m[3], the first index that can't have a weight > 1) (never empty), set weights to 1 or 0
     # from the first index that could have a weight > 1 to m[3] (possibly empty), shift weights by delta.
     m2 = signed(m[3])
-    m1_next2pow = Base.top_set_bit(m[1])
+    m1_next2pow = Base.top_set_bit(m[2])
     i1 = -signed(m3)-59-m1_next2pow # see above, this is the first index that could have weight > 1 (anything after this will have weight 1 or 0)
     i1_old = -signed(m3_old)-59-m1_next2pow # anything before this is already weight 1 or 0
     flatten_range = max(i1_old, 6):min(m2, i1-1)
