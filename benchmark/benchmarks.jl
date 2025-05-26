@@ -1,4 +1,5 @@
 using DynamicDiscreteSamplers
+include("../test/DynamicDiscreteSampler.jl")
 
 t0 = time()
 ds = DynamicDiscreteSampler()

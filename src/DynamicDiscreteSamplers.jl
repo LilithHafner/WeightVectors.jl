@@ -1,6 +1,7 @@
 module DynamicDiscreteSamplers
 
-export DynamicDiscreteSampler
+VERSION >= v"1.11.0-DEV.469" && eval(Meta.parse("public Weights"))
+export FixedSizeWeights, ResizableWeights, SemiResizableWeights
 
 using Random
 
@@ -794,10 +795,12 @@ end
 Base.size(w::Weights) = (w.m[1],)
 
 # Precompile
-precompile(WeightBasedSampler, ())
-precompile(push!, (WeightBasedSampler, Int, Float64))
-precompile(delete!, (WeightBasedSampler, Int))
-precompile(rand, (typeof(Random.default_rng()), WeightBasedSampler))
-precompile(rand, (WeightBasedSampler,))
+precompile(ResizableWeights, (Int,))
+precompile(length, (ResizableWeights,))
+precompile(resize!, (ResizableWeights, Int))
+precompile(setindex!, (ResizableWeights, Float64, Int))
+precompile(getindex, (ResizableWeights, Int))
+precompile(rand, (typeof(Random.default_rng()), ResizableWeights))
+precompile(rand, (ResizableWeights,))
 
 end

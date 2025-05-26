@@ -1,4 +1,4 @@
-# Shoe-horn into the legacy DynamicDiscreteSampler API so that we can leverage existing tests
+# Shoe-horn into the legacy DynamicDiscreteSampler API so that we can leverage legacy tests and benchmarks
 struct WeightBasedSampler
     w::ResizableWeights
 end
