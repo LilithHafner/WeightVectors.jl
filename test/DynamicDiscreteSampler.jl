@@ -24,6 +24,7 @@ function Base.delete!(wbs::WeightBasedSampler, index)
     wbs.w[index] = 0
     wbs
 end
+Random.rand(rng::AbstractRNG, st::Random.SamplerTrivial{<:WeightBasedSampler}, n::Integer) = rand(rng, st[].w, n)
 Random.rand(rng::AbstractRNG, st::Random.SamplerTrivial{<:WeightBasedSampler}) = rand(rng, st[].w)
 Random.gentype(::Type{WeightBasedSampler}) = Int
 
