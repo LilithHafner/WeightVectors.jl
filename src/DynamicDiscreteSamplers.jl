@@ -367,6 +367,8 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
                 m[weight_index] = new_weight
                 m[4] += new_weight-weight
             end
+        else
+            m[4] = m4
         end
     end
     m[2] = max(m[2], weight_index) # Set after insertion because update_weights! may need to update the global shift, in which case knowing the old m[2] will help it skip checking empty levels
