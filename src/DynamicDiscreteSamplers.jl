@@ -177,7 +177,6 @@ TODO
 # Trivial extensions:
 # push!, delete!
 
-Random.rand!(rng::AbstractRNG, A::AbstractArray, st::Random.SamplerTrivial{<:Weights}) = _rand!(rng, A, st[].m)
 Random.rand(rng::AbstractRNG, st::Random.SamplerTrivial{<:Weights}) = _rand(rng, st[].m)
 Random.Sampler(::Type{<:Random.AbstractRNG}, w::Weights, ::Random.Repetition) = Random.SamplerTrivial(w)
 Random.gentype(::Type{<:Weights}) = Int
@@ -217,7 +216,7 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
     pos = m[j]
     len = m[j+1]
 
-    return sample_within_level(rng, m, pos, len)
+    sample_within_level(rng, m, pos, len)
 end
 
 @inline function sample_within_level(rng, m, pos, len)

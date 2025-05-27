@@ -2,43 +2,40 @@
 using AliasTables
 
 # These are exact because their weights sum to powers of 2.
-const ALIASTABLES = (
-    AliasTable{UInt64}(UInt64.([binomial(BigInt(1),i) for i in 0:1])), 
-    AliasTable{UInt64}(UInt64.([binomial(BigInt(2),i) for i in 0:2])),
-    AliasTable{UInt64}(UInt64.([binomial(BigInt(4),i) for i in 0:4])), 
-    AliasTable{UInt64}(UInt64.([binomial(BigInt(8),i) for i in 0:8])),
-    AliasTable{UInt64}(UInt64.([binomial(BigInt(16),i) for i in 0:16])), 
-    AliasTable{UInt64}(UInt64.([binomial(BigInt(32),i) for i in 0:32])),
-    AliasTable{UInt64}(UInt64.([binomial(BigInt(64),i) for i in 0:64]))
-)
+const FLIP_64_COINS = AliasTable(binomial.(BigInt(64),0:64))
+const FLIP_16_COINS= AliasTable(binomial.(BigInt(16),0:16))
+
+Random.rand!(rng::AbstractRNG, A::AbstractArray, st::Random.SamplerTrivial{<:Weights}) = _rand!(rng, A, st[].m)
 
 function _rand!(rng::AbstractRNG, samples::AbstractArray, m::Memory{UInt64})
     n = length(samples)
     n < 100 && return fill_samples!(rng, m, samples)
     max_i = _convert(Int, m[2])
     min_i = 5
-    k = 0
-    @inbounds for j in 10235:10266
+    min_j = 10235
+    for j in 10235:10266
         chunk = m[j]
-        if k == 0 && chunk != 0
+        if chunk != 0
+            min_j = j
             min_i = (j-10235) << 6 + leading_zeros(chunk) + 4
+            break
         end
-        k += count_ones(chunk)
     end
+    k = sum(count_ones(m[j]) for j in min_j:10266)
     n < 100*(k^0.72) && return fill_samples!(rng, m, samples)
     inds = Vector{Int}(undef, k)
     weights = Vector{BigInt}(undef, k)
-    q = 0
-    @inbounds for j in max_i:-1:min_i
+    l = 0
+    for j in max_i:-1:min_i
         if m[j] != 0
-            q += 1
-            inds[q] = j
-            weights[q] = BigInt(get_significand_sum(m, j)) << (j-min_i)
+            l += 1
+            inds[l] = j
+            weights[l] = BigInt(get_significand_sum(m, j)) << (j-min_i)
         end
     end
     counts = multinomial_sample(rng, n, weights)
     ct, s = 0, 1
-    @inbounds for i in 1:k
+    for i in 1:k
         c = counts[i]
         c == 0 && continue
         j = 2*inds[i] + 6133
@@ -51,7 +48,7 @@ function _rand!(rng::AbstractRNG, samples::AbstractArray, m::Memory{UInt64})
         ct += c
         ct == n && break
     end
-    return faster_shuffle!(rng, samples)
+    faster_shuffle!(rng, samples)
 end
 
 # it uses some internals from Base.GMP.MPZ (as MutableArithmetics.jl) to speed-up some BigInt operations
@@ -85,7 +82,7 @@ function binomial_sample(rng, trials, px, py)
             break
         end
     end
-    return count
+    count
 end
 
 """
@@ -96,18 +93,9 @@ Flips `trials` fair coins and reports the number of heads.
 Flips up to 64 coins at a time.
 """
 function binomial_sample_fair_coin(rng, trials)
-    count = 0
-    @inbounds while trials != 0
-        p = min(6, exponent(trials))
-        n = trials >> p
-        table = ALIASTABLES[p+1]
-        for _ in 1:n
-            count += rand(rng, table)
-        end
-        count -= n
-        trials -= n * (1 << p)
-    end
-    return count
+    sum((rand(rng, FLIP_64_COINS)-1 for _ in 1:trials >> 6), init=0) + 
+    sum((rand(rng, FLIP_16_COINS)-1 for _ in 1:(trials >> 4) % 4), init=0) + 
+    count(rand(Bool) for _ in 1:trials%16)
 end
 
 """
@@ -131,19 +119,19 @@ function multinomial_sample(rng, trials, weights::AbstractVector{<:Integer})
         Base.GMP.MPZ.sub!(sum_weights, weight)
     end
     counts[end] = trials
-    return counts
+    counts
 end
 
 function fill_samples!(rng, m, samples)
     for i in eachindex(samples)
         samples[i] = _rand(rng, m)
     end
-    return samples
+    samples
 end
 
 function faster_shuffle!(rng::AbstractRNG, vec::AbstractArray)
-    for i in 2:length(vec)
-        endi = (i-1) % UInt
+    @inbounds for i in 2:length(vec)
+        endi = _convert(UInt, i-1)
         j = @inline rand(rng, Random.Sampler(rng, UInt(0):endi, Val(1))) % Int + 1
         vec[i], vec[j] = vec[j], vec[i]
     end
