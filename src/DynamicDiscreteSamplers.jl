@@ -830,8 +830,6 @@ Random.gentype(::Type{WeightBasedSampler}) = Int
 const DynamicDiscreteSampler = WeightBasedSampler
 
 include("bulk_sampling.jl")
-include("multinomial.jl")
-include("utils.jl")
 
 # Precompile
 precompile(WeightBasedSampler, ())
