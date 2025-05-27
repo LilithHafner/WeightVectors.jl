@@ -372,7 +372,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         m[weight_index] = weight # The "weights are accurately computed" invariant is now restored
         m4 = m[4] # The "sum(weights) == m[4]" invariant is broken
         m4 -= old_weight
-        # m4 can overflow only if the previous branch preventing single level overflow wasn't taken
+        # m4 can overflow only if the previous branch preventing single level overflow isn't taken
         m4, o = Base.add_with_overflow(m4, weight) # The "sum(weights) == m4" invariant now holds, though the computation overflows
         if o
             # If weights overflow (>2^64) then shift down by 16 bits
