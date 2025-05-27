@@ -26,6 +26,7 @@ function Base.delete!(wbs::WeightBasedSampler, index)
 end
 Random.rand!(rng::AbstractRNG, A::AbstractArray, st::Random.SamplerTrivial{<:WeightBasedSampler}) = DynamicDiscreteSamplers._rand!(rng, A, st[].w.m)
 Random.rand(rng::AbstractRNG, st::Random.SamplerTrivial{<:WeightBasedSampler}) = rand(rng, st[].w)
+Random.Sampler(::Type{<:Random.AbstractRNG}, w::WeightBasedSampler, ::Random.Repetition) = Random.SamplerTrivial(w)
 Random.gentype(::Type{WeightBasedSampler}) = Int
 
 const DynamicDiscreteSampler = WeightBasedSampler
