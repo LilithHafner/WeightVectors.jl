@@ -213,6 +213,17 @@ w[2] = floatmax(Float64)
 w[2] = 0 # This previously threw an assertion error due to overflow when estimating sum of level weights
 verify(w.m)
 
+# Confirm that FixedSizeWeights cannot be resized:
+w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+@test_throws MethodError resize!(w, 20)
+@test_throws MethodError resize!(w, 5)
+function mutate_immutable(w)
+    w2 = DynamicDiscreteSamplers.SemiResizableWeights(w) # This previously worked
+    resize!(w2, 5)
+end
+@test_throws Exception mutate_immutable(w)
+@test length(w) == 10 # This fails if the above line worked
+
 w = DynamicDiscreteSamplers.FixedSizeWeights(9)
 v = zeros(9)
 v[4] = w[4] = 2.44
