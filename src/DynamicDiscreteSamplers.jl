@@ -345,31 +345,27 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # set_global_shift_decrease! will do something wrong to weight_index, but preserve the "sum(weights) == m[4]" invariant.
             set_global_shift_decrease!(m, m3) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
             shift = signed(exponent + m3)
-            old_weight = m[weight_index]
-            new_weight = _convert(UInt64, significand_sum << shift) + 1
-            m[weight_index] = new_weight # The "weights are accurately computed" invariant is now restored
-            m[4] += new_weight-old_weight
-        else
-            old_weight = m[weight_index]
-            weight = _convert(UInt64, significand_sum << shift) + 1
-            m[weight_index] = weight # The "sum(weights) == m[4]" invariant is broken
-            m4, o = Base.add_with_overflow(m[4], weight-old_weight) # The "sum(weights) == m4" invariant now holds, though the computation overflows
-            if o
-                # If weights overflow (>2^64) then shift down by 16 bits
-                m3 = m[3]-0x10
-                set_global_shift_decrease!(m, m3, m4) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
-                if weight_index > m[2] # if the new weight was not adjusted by set_global_shift_decrease!, then adjust it manually
-                    shift = signed(exponent+m3)
-                    new_weight = _convert(UInt64, significand_sum << shift) + 1
+       end
+        weight = _convert(UInt64, significand_sum << shift) + 1
 
-                    @assert significand_sum != 0
-                    @assert m[weight_index] == weight
+        old_weight = m[weight_index]
+        m[weight_index] = weight # The "weights are accurately computed" invariant is now restored
+        m4 = m[4] # The "sum(weights) == m[4]" invariant is broken
+        m4 -= old_weight
+        m4, o = Base.add_with_overflow(m4, weight) # The "sum(weights) == m4" invariant now holds, though the computation overflows
+        if o
+            # If weights overflow (>2^64) then shift down by 16 bits
+            m3 = m[3]-0x10
+            set_global_shift_decrease!(m, m3, m4) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+            if weight_index > m[2] # if the new weight was not adjusted by set_global_shift_decrease!, then adjust it manually
+                shift = signed(exponent+m3)
+                new_weight = _convert(UInt64, significand_sum << shift) + 1
 
-                    m[weight_index] = new_weight
-                    m[4] += new_weight-weight
-                end
-            else
-                m[4] = m4
+                @assert significand_sum != 0
+                @assert m[weight_index] == weight
+
+                m[weight_index] = new_weight
+                m[4] += new_weight-weight
             end
         end
     end
