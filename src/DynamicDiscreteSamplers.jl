@@ -177,7 +177,7 @@ TODO
 # Trivial extensions:
 # push!, delete!
 
-Random.rand(rng::AbstractRNG, st::Random.SamplerTrivial{<:Weights}, n::Integer) = _rand(rng, st[].m, n)
+Random.rand!(rng::AbstractRNG, A::AbstractArray, st::Random.SamplerTrivial{<:Weights}) = _rand!(rng, A, st[].m)
 Random.rand(rng::AbstractRNG, st::Random.SamplerTrivial{<:Weights}) = _rand(rng, st[].m)
 Random.Sampler(::Type{<:Random.AbstractRNG}, w::Weights, ::Random.Repetition) = Random.SamplerTrivial(w)
 Random.gentype(::Type{<:Weights}) = Int

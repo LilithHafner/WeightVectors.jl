@@ -12,8 +12,9 @@ const ALIASTABLES = (
     AliasTable{UInt64}(UInt64.([binomial(BigInt(64),i) for i in 0:64]))
 )
 
-function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
-    n < 100 && return [_rand(rng, m) for _ in 1:n]
+function _rand!(rng::AbstractRNG, samples::AbstractArray, m::Memory{UInt64})
+    n = length(samples)
+    n < 100 && return fill_samples!(rng, m, samples)
     max_i = _convert(Int, m[2])
     min_i = 5
     k = 0
@@ -24,7 +25,7 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
         end
         k += count_ones(chunk)
     end
-    n < 100*(k^0.72) && return [_rand(rng, m) for _ in 1:n]
+    n < 100*(k^0.72) && return fill_samples!(rng, m, samples)
     inds = Vector{Int}(undef, k)
     weights = Vector{BigInt}(undef, k)
     q = 0
@@ -36,7 +37,6 @@ function _rand(rng::AbstractRNG, m::Memory{UInt64}, n::Integer)
         end
     end
     counts = multinomial_sample(rng, n, weights)
-    samples = Vector{Int}(undef, n)
     ct, s = 0, 1
     @inbounds for i in 1:k
         c = counts[i]
@@ -134,7 +134,14 @@ function multinomial_sample(rng, trials, weights::AbstractVector{<:Integer})
     return counts
 end
 
-function faster_shuffle!(rng::AbstractRNG, vec::AbstractVector)
+function fill_samples!(rng, m, samples)
+    for i in eachindex(samples)
+        samples[i] = _rand(rng, m)
+    end
+    return samples
+end
+
+function faster_shuffle!(rng::AbstractRNG, vec::AbstractArray)
     for i in 2:length(vec)
         endi = (i-1) % UInt
         j = @inline rand(rng, Random.Sampler(rng, UInt(0):endi, Val(1))) % Int + 1
