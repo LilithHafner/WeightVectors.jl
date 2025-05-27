@@ -1,10 +1,6 @@
 
 using AliasTables
 
-# These are exact because their weights sum to powers of 2.
-const FLIP_64_COINS = AliasTable(binomial.(BigInt(64),0:64))
-const FLIP_16_COINS= AliasTable(binomial.(BigInt(16),0:16))
-
 Random.rand!(rng::AbstractRNG, A::AbstractArray, st::Random.SamplerTrivial{<:Weights}) = _rand!(rng, A, st[].m)
 
 function _rand!(rng::AbstractRNG, samples::AbstractArray, m::Memory{UInt64})
@@ -84,6 +80,10 @@ function binomial_sample(rng, trials, px, py)
     end
     count
 end
+
+# These are exact because their weights sum to powers of 2.
+const FLIP_64_COINS = AliasTable(binomial.(BigInt(64),0:64))
+const FLIP_16_COINS= AliasTable(binomial.(BigInt(16),0:16))
 
 """
     binomial_sample_fair_coin(rng, trials)
