@@ -1,4 +1,5 @@
 using DynamicDiscreteSamplers, BenchmarkTools, Random, Statistics
+include("../test/DynamicDiscreteSampler.jl")
 
 function setup(rng, indices)
     ds = DynamicDiscreteSampler()
