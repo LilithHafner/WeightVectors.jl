@@ -109,7 +109,7 @@ function multinomial_sample(rng, trials, weights::AbstractVector{<:Integer})
     sum_weights = sum(weights)
     counts = Vector{Int}(undef, length(weights))
     weight_copy = BigInt(0)
-    @inbounds for i in 1:length(weights)-1
+    for i in 1:length(weights)-1
         weight = weights[i]
         Base.GMP.MPZ.set!(weight_copy, weight)
         b = binomial_sample(rng, trials, weight_copy, sum_weights)
@@ -130,7 +130,7 @@ function fill_samples!(rng, m, samples)
 end
 
 function faster_shuffle!(rng::AbstractRNG, vec::AbstractArray)
-    @inbounds for i in 2:length(vec)
+    for i in 2:length(vec)
         endi = _convert(UInt, i-1)
         j = @inline rand(rng, Random.Sampler(rng, UInt(0):endi, Val(1))) % Int + 1
         vec[i], vec[j] = vec[j], vec[i]
