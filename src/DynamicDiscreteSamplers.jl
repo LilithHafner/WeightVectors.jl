@@ -26,7 +26,7 @@ struct FixedSizeWeights <: Weights
     m::Memory{UInt64}
     global _FixedSizeWeights
     _FixedSizeWeights(m::Memory{UInt64}) = new(m)
-    FixedSizeWeights(len::Integer) = new(initialize_empty(len))
+    FixedSizeWeights(len::Integer) = new(initialize_empty(Int(len)))
 end
 """
     ResizableWeights <: Weights
@@ -35,7 +35,7 @@ An object that confomrs the the `Weights` interface and can be resized.
 """
 mutable struct ResizableWeights <: Weights
     m::Memory{UInt64}
-    ResizableWeights(len::Integer) = new(initialize_empty(len))
+    ResizableWeights(len::Integer) = new(initialize_empty(Int(len)))
 end
 """
     SemiResizableWeights <: Weights
@@ -45,7 +45,7 @@ at most as large as it's original size.
 """
 struct SemiResizableWeights <: Weights
     m::Memory{UInt64}
-    SemiResizableWeights(len::Integer) = new(initialize_empty(len))
+    SemiResizableWeights(len::Integer) = new(initialize_empty(Int(len)))
 end
 
 #===== Overview  ======
@@ -673,11 +673,11 @@ function _set_to_zero!(m::Memory, i::Int)
 end
 
 """
-    initialize_empty(len::Integer)::Memory{UInt64}
+    initialize_empty(len::Int)::Memory{UInt64}
 
 Initialize a `Memory` that, when underlaying a `Weights` object, represents `len` zeros.
 """
-function initialize_empty(len::Integer)
+function initialize_empty(len::Int)
     m = Memory{UInt64}(undef, allocated_memory(len))
     # m .= 0 # This is here so that a sparse rendering for debugging is easier TODO for tests: set this to 0xdeadbeefdeadbeed
     m[4:10793+len] .= 0 # metadata and edit map need to be zeroed but the bulk does not
@@ -687,8 +687,9 @@ function initialize_empty(len::Integer)
     m[10530] = 10794+len
     m
 end
+
 allocated_memory(length::Integer) = 10793 + 7*length # TODO for perf: consider giving some extra constant factor allocation to avoid repeated compaction at small sizes
-length_from_memory(allocated_memory::Integer) = Int((allocated_memory-10793)/7)
+length_from_memory(allocated_memory::Int) = Int((allocated_memory-10793)/7)
 
 Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Integer) = resize!(w, Int(len))
 function Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Int)
