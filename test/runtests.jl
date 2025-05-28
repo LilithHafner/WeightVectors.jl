@@ -69,6 +69,10 @@ w[1] = 1.0
 w[2] = 2.0
 ensure_sampler_conforms_to_rng_api(w, 1:2)
 
+@testset "unsigned int construction" begin
+    @test length(FixedSizeWeights(UInt(10))) == 10
+end
+
 include("DynamicDiscreteSampler_tests.jl") # Indirect tests for an upstream usage/legacy API
 
 # These tests are too slow:
