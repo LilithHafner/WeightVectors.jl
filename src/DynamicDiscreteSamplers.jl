@@ -797,6 +797,15 @@ end
 # Conform to the AbstractArray API
 Base.size(w::Weights) = (w.m[1],)
 
+# Define convinience constructors TODO: these can be significantly optimized, especially when `x isa Weights`
+function (::Type{T})(x::AbstractVector{<:Real}) where {T <: Weights}
+    w = T(length(x))
+    for (i, v) in enumerate(x)
+        w[i] = v
+    end
+    w
+end
+
 # Precompile
 precompile(ResizableWeights, (Int,))
 precompile(length, (ResizableWeights,))
