@@ -8,6 +8,12 @@ using StatsBase
 
 @test DynamicDiscreteSamplers.DEBUG === true
 
+@testset "Constructor from array" begin
+    w = FixedSizeWeights([1.7,2.9])
+    @test w isa FixedSizeWeights
+    @test w == [1.7, 2.9]
+end
+
 function ensure_sampler_conforms_to_rng_api(source, domain)
     # Conventional usage
     let x = rand(source)
@@ -68,6 +74,10 @@ w = DynamicDiscreteSamplers.FixedSizeWeights(2)
 w[1] = 1.0
 w[2] = 2.0
 ensure_sampler_conforms_to_rng_api(w, 1:2)
+
+@testset "unsigned int construction" begin
+    @test length(FixedSizeWeights(UInt(10))) == 10
+end
 
 include("DynamicDiscreteSampler_tests.jl") # Indirect tests for an upstream usage/legacy API
 
