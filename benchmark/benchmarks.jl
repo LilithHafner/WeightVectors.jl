@@ -209,10 +209,10 @@ function pathological_compaction_setup()
     w = FixedSizeWeights(2^20+1)
     w[1:2^19] .= 1
     w[2^19+1:2^20] .= 2
-    w[end] = 1
+    pathological_compaction_update!(w)
     w
 end
-function pathological_compaction_update(w)
+function pathological_compaction_update!(w)
     w[end] = 2
     w[end] = 1
 end
