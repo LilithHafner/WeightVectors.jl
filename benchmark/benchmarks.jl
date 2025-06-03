@@ -205,6 +205,19 @@ function pathological5b′′_setup()
 end
 SUITE["pathological 5b′′"] = @benchmarkable pathological5b′′_setup pathological5b′′_update
 
+function pathalogical_compaction_setup()
+    w = FixedSizeWeights(2^20+1)
+    w[1:2^19] .= 1
+    w[2^19+1:2^20] .= 2
+    w[end] = 1
+    w
+end
+function pathalogical_compaction_update(w)
+    w[end] = 2
+    w[end] = 1
+end
+SUITE["pathological compaction"] = @benchmarkable pathalogical_compaction_setup pathalogical_compaction_update
+
 include("code_size.jl")
 _code_size = code_size(dirname(pathof(DynamicDiscreteSamplers)))
 
