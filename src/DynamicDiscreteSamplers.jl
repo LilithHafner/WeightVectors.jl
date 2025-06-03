@@ -436,7 +436,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             m[allocs_index] = new_chunk
             m[10267] = new_next_free_space
         else # move and reallocate (this branch also handles creating new groups: TODO expirment with perf and clarity by splicing that branch out)
-            twice_new_allocated_size = max(0x2,allocated_size<<2)
+            twice_new_allocated_size = max(0x2,allocated_size<<1)
             new_next_free_space = next_free_space+twice_new_allocated_size
             if new_next_free_space > length(m)+1 # out of space; compact. TODO for perf, consider resizing at this time slightly eagerly?
                 m[group_length_index] = group_length-1 # incrementing the group length before compaction is spotty because if the group was previously empty then this new group length will be ignored (compact! loops over sub_weights, not levels)
