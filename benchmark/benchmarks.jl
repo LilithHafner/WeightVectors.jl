@@ -213,7 +213,7 @@ function pathological_compaction_setup()
     w
 end
 function pathological_compaction_update!(w)
-    for i in 1:5
+    for i in 0:5
         w[end] = 2^i
     end
 end
