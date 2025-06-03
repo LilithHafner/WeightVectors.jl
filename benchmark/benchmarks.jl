@@ -217,7 +217,7 @@ function pathological_compaction_update!(w)
         w[end] = 2^i
     end
 end
-SUITE["pathological compaction"] = @benchmarkable pathological_compaction_setup pathological_compaction_update
+SUITE["pathological compaction"] = @benchmarkable pathological_compaction_setup pathological_compaction_update!
 
 include("code_size.jl")
 _code_size = code_size(dirname(pathof(DynamicDiscreteSamplers)))
