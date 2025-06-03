@@ -213,8 +213,9 @@ function pathological_compaction_setup()
     w
 end
 function pathological_compaction_update!(w)
-    w[end] = 2
-    w[end] = 1
+    for i in 1:5
+        w[end] = 2^i
+    end
 end
 SUITE["pathological compaction"] = @benchmarkable pathological_compaction_setup pathological_compaction_update
 
