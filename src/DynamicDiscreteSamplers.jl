@@ -218,7 +218,10 @@ Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
     pos = m[j]
     len = m[j+1]
 
-    # Sample within level
+    sample_within_level(rng, m, pos, len)
+end
+
+@inline function sample_within_level(rng, m, pos, len)
     while true
         r = rand(rng, UInt64)
         k1 = (r>>leading_zeros(len-1))
@@ -799,6 +802,17 @@ end
 
 # Conform to the AbstractArray API
 Base.size(w::Weights) = (w.m[1],)
+
+# Define convinience constructors TODO: these can be significantly optimized, especially when `x isa Weights`
+function (::Type{T})(x::AbstractVector{<:Real}) where {T <: Weights}
+    w = T(length(x))
+    for (i, v) in enumerate(x)
+        w[i] = v
+    end
+    w
+end
+
+include("bulk_sampling.jl")
 
 # Precompile
 precompile(ResizableWeights, (Int,))

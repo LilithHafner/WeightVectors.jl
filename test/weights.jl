@@ -220,12 +220,10 @@ verify(w.m)
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)
 @test_throws MethodError resize!(w, 20)
 @test_throws MethodError resize!(w, 5)
-function mutate_immutable(w)
-    w2 = DynamicDiscreteSamplers.SemiResizableWeights(w) # This previously worked
-    resize!(w2, 5)
-end
-@test_throws Exception mutate_immutable(w)
-@test length(w) == 10 # This fails if the above line worked
+w2 = DynamicDiscreteSamplers.SemiResizableWeights(w)
+resize!(w2, 5)
+@test length(w2) == 5
+@test length(w) == 10 # The fixed size has not changed
 
 w = DynamicDiscreteSamplers.FixedSizeWeights(9)
 v = zeros(9)
