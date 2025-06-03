@@ -679,8 +679,8 @@ function initialize_empty(len::Int)
     m[10267] = 10524+len
     m
 end
-allocated_memory(length::Int) = 10523 + 4*length # TODO for perf: consider giving some extra constant factor allocation to avoid repeated compaction at small sizes
-length_from_memory(allocated_memory::Int) = Int((allocated_memory-10523)/4)
+allocated_memory(length::Int) = 10523 + 5*length # TODO for perf: consider giving some extra constant factor allocation to avoid repeated compaction at small sizes
+length_from_memory(allocated_memory::Int) = Int((allocated_memory-10523)/5)
 
 Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Integer) = resize!(w, Int(len))
 function Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Int)
