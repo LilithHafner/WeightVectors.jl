@@ -13,7 +13,7 @@ function _rand!(rng::AbstractRNG, samples::AbstractArray, m::Memory{UInt64})
         chunk = m[j]
         if chunk != 0
             min_j = j
-            min_i = (j-10236) << 6 + leading_zeros(chunk) + 4
+            min_i = (j-10236) << 6 + leading_zeros(chunk) + 5
             break
         end
     end
