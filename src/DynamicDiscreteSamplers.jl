@@ -517,18 +517,18 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m5) # Increase sh
     significand_sum<<shift will be zero.
     shift = signed(exponent+m3)
     shift = signed(i-4+m3)
-    signed(i-4+m3) <= -Base.top_set_bit(m[4] * 0xfffffffffffff800)
-    i <= -signed(m3)-Base.top_set_bit(m[4] * 0xfffffffffffff800)+4
-    So for i <= signed(m3)-Base.top_set_bit(m[4] * 0xfffffffffffff800)+4 we will not need to adjust the ith weight
-    A slightly stricter and simpler condition is i <= -signed(m3)-60-Base.top_set_bit(m[4])
+    signed(i-5+m3) <= -Base.top_set_bit(m[4] * 0xfffffffffffff800)
+    i <= -signed(m3)-Base.top_set_bit(m[4] * 0xfffffffffffff800)+5
+    So for i <= signed(m3)-Base.top_set_bit(m[4] * 0xfffffffffffff800)+5 we will not need to adjust the ith weight
+    A slightly stricter and simpler condition is i <= -signed(m3)-59-Base.top_set_bit(m[4])
     =#
     r0 = max(6, -signed(m3)-59-Base.top_set_bit(m[4]))
     r1 = m2
 
-    # shift = signed(i-4+m3)
+    # shift = signed(i-5+m3)
     # weight = significand_sum == 0 ? 0 : UInt64(significand_sum << shift) + 1
     # shift < -64; the low 64 bits are shifted off.
-    # i < -60-signed(m3); the low 64 bits are shifted off.
+    # i < -59-signed(m3); the low 64 bits are shifted off.
 
     checkbounds(m, r0:2r1+2041)
     @inbounds for i in r0:min(r1, -60-signed(m3))
