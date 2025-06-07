@@ -307,7 +307,7 @@ function _setindex!(m::Memory, v::Float64, i::Int)
     uvprev = m[j]
     if uv == 0
         if uvprev != 0
-            _set_to_zero!(m, i)
+            _set_to_zero!(m, i, uvprev)
             m[4] -= 1
         end
         return
@@ -316,17 +316,17 @@ function _setindex!(m::Memory, v::Float64, i::Int)
 
     # Find the entry's pos in the edit map table
     if uvprev == 0
-        _set_from_zero!(m, v, i)
+        _set_from_zero!(m, uv, i)
         m[4] += 1
     else
-        _set_nonzero!(m, v, i)
+        _set_nonzero!(m, uv, i, uvprev)
     end
 end
 
-function _set_nonzero!(m, v, i)
+function _set_nonzero!(m, uv, i, uvprev)
     # TODO for performance: join these two operations
-    _set_to_zero!(m, i)
-    _set_from_zero!(m, v, i)
+    _set_to_zero!(m, i, uvprev)
+    _set_from_zero!(m, uv, i)
 end
 
 Base.@propagate_inbounds function get_significand_sum(m, i)
@@ -341,8 +341,7 @@ function update_significand_sum(m, i, delta)
     significand_sum
 end
 
-function _set_from_zero!(m::Memory, v::Float64, i::Int)
-    uv = reinterpret(UInt64, v)
+function _set_from_zero!(m::Memory, uv::UInt64, i::Int)
     j = i + 10524
     @assert m[j] == 0
     exponent = uv >> 52
@@ -600,10 +599,8 @@ end
 get_alloced_indices(exponent::UInt64) = _convert(Int, 10269 + exponent >> 3), exponent << 3 & 0x38
 get_level_weights_nonzero_indices(exponent::UInt64) = _convert(Int, 10236 + exponent >> 6), exponent & 0x3f
 
-function _set_to_zero!(m::Memory, i::Int)
+function _set_to_zero!(m::Memory, i::Int, mj::UInt64)
     # Find the entry's pos in the edit map table
-    j = i + 10524
-    mj = m[j]
     pos = _convert(Int, mj >> 11)
     exponent = mj & 2047
     # set the entry to zero (no need to zero the exponent)
@@ -656,7 +653,7 @@ function _set_to_zero!(m::Memory, i::Int)
 
     # adjust the edit map entry of the shifted element
     m[_convert(Int, shifted_element) + 10524] = _convert(UInt64, pos) << 11 + exponent
-    m[j] = 0
+    m[i + 10524] = 0
 
     # When zeroing out a group, mark the group as empty so that compaction will update the group metadata and then skip over it.
     if significand_sum == 0
