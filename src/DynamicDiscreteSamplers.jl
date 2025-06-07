@@ -183,6 +183,7 @@ Random.Sampler(::Type{<:Random.AbstractRNG}, w::Weights, ::Random.Repetition) = 
 Random.gentype(::Type{<:Weights}) = Int
 Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
+Base.iszero(w::Weights) = m[4] == 0
 
 #=@inbounds=# function _rand(rng::AbstractRNG, m::Memory{UInt64})
 
