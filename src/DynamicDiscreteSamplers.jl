@@ -303,16 +303,19 @@ end
 function _setindex!(m::Memory, v::Float64, i::Int)
     @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeights(m), i))
     uv = reinterpret(UInt64, v)
-    if uv == 0
+    j = i + 10524
+    uvprev = m[j]
+    if uv == 0 && uvprev != 0
         _set_to_zero!(m, i)
+        m[4] -= 1
         return
     end
     0x0010000000000000 <= uv <= 0x7fefffffffffffff || throw(DomainError(v, "Invalid weight")) # Excludes subnormals
 
     # Find the entry's pos in the edit map table
-    j = i + 10524
-    if m[j] == 0
+    if uvprev == 0
         _set_from_zero!(m, v, i)
+        m[4] += 1
     else
         _set_nonzero!(m, v, i)
     end
@@ -340,7 +343,6 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     uv = reinterpret(UInt64, v)
     j = i + 10524
     @assert m[j] == 0
-    m[4] += 1
     exponent = uv >> 52
     # update group total weight and total weight
     significand = 0x8000000000000000 | uv << 11
@@ -600,8 +602,6 @@ function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
     j = i + 10524
     mj = m[j]
-    mj == 0 && return # if the entry is already zero, return
-    m[4] -= 1
     pos = _convert(Int, mj >> 11)
     exponent = mj & 2047
     # set the entry to zero (no need to zero the exponent)
