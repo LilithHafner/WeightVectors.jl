@@ -307,7 +307,7 @@ function _setindex!(m::Memory, v::Float64, i::Int)
     uvprev = m[j]
     if uv == 0
         if uvprev != 0
-            _set_to_zero!(m, i, uvprev)
+            _set_to_zero!(m, j, uvprev)
             m[4] -= 1
         end
         return
@@ -316,17 +316,17 @@ function _setindex!(m::Memory, v::Float64, i::Int)
 
     # Find the entry's pos in the edit map table
     if uvprev == 0
-        _set_from_zero!(m, uv, i)
+        _set_from_zero!(m, uv, j)
         m[4] += 1
     else
-        _set_nonzero!(m, uv, i, uvprev)
+        _set_nonzero!(m, uv, j, uvprev)
     end
 end
 
-function _set_nonzero!(m, uv, i, uvprev)
+function _set_nonzero!(m, uv, j, uvprev)
     # TODO for performance: join these two operations
-    _set_to_zero!(m, i, uvprev)
-    _set_from_zero!(m, uv, i)
+    _set_to_zero!(m, j, uvprev)
+    _set_from_zero!(m, uv, j)
 end
 
 Base.@propagate_inbounds function get_significand_sum(m, i)
@@ -341,8 +341,7 @@ function update_significand_sum(m, i, delta)
     significand_sum
 end
 
-function _set_from_zero!(m::Memory, uv::UInt64, i::Int)
-    j = i + 10524
+function _set_from_zero!(m::Memory, uv::UInt64, j::Int)
     @assert m[j] == 0
     exponent = uv >> 52
     # update group total weight and total weight
@@ -599,7 +598,7 @@ end
 get_alloced_indices(exponent::UInt64) = _convert(Int, 10269 + exponent >> 3), exponent << 3 & 0x38
 get_level_weights_nonzero_indices(exponent::UInt64) = _convert(Int, 10236 + exponent >> 6), exponent & 0x3f
 
-function _set_to_zero!(m::Memory, i::Int, mj::UInt64)
+function _set_to_zero!(m::Memory, j::Int, mj::UInt64)
     # Find the entry's pos in the edit map table
     pos = _convert(Int, mj >> 11)
     exponent = mj & 2047
@@ -653,7 +652,7 @@ function _set_to_zero!(m::Memory, i::Int, mj::UInt64)
 
     # adjust the edit map entry of the shifted element
     m[_convert(Int, shifted_element) + 10524] = _convert(UInt64, pos) << 11 + exponent
-    m[i + 10524] = 0
+    m[j] = 0
 
     # When zeroing out a group, mark the group as empty so that compaction will update the group metadata and then skip over it.
     if significand_sum == 0
