@@ -305,9 +305,11 @@ function _setindex!(m::Memory, v::Float64, i::Int)
     uv = reinterpret(UInt64, v)
     j = i + 10524
     uvprev = m[j]
-    if uv == 0 && uvprev != 0
-        _set_to_zero!(m, i)
-        m[4] -= 1
+    if uv == 0
+        if uvprev != 0
+            _set_to_zero!(m, i)
+            m[4] -= 1
+        end
         return
     end
     0x0010000000000000 <= uv <= 0x7fefffffffffffff || throw(DomainError(v, "Invalid weight")) # Excludes subnormals
