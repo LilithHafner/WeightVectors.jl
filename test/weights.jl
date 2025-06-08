@@ -30,6 +30,12 @@ w[1] = 1.5
 w[1] = 2
 @test w[1] === 2.0
 
+@test iszero(w) == false
+for i in 1:10
+    w[i] = 0
+end
+@test iszero(w) == true
+
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)
 w[1] = 3
 w[2] = 2
