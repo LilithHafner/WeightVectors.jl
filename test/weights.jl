@@ -32,7 +32,7 @@ w[1] = 2
 
 @test iszero(w) == false
 for i in 1:10
-    @test w[i] = 0
+    w[i] = 0
 end
 @test iszero(w) == true
 
