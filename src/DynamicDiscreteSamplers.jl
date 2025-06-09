@@ -133,7 +133,7 @@ TODO
 
 # <memory_length::Int>
 # 1                      length::Int
-# 2                      max_level::Int # absolute pointer to the last element of level weights that is nonzero
+# 2                      max_level::Int # absolute pointer to the last element of level weights that is nonzero or 4 if all are zero.
 # 3                      shift::Int level weights are equal to significand_sums<<(exponent+shift), plus one if significand_sum is not zero
 # 4                      sum(level weights)::UInt64
 # 5..2102                level weights::[UInt64 2098] # earlier is lower. first is exponent 0x001, last is exponent 0x832.
@@ -184,6 +184,7 @@ Random.Sampler(::Type{<:Random.AbstractRNG}, w::Weights, ::Random.Repetition) = 
 Random.gentype(::Type{<:Weights}) = Int
 Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
+Base.iszero(w::Weights) = w.m[2] == 4
 
 #=@inbounds=# function _rand(rng::AbstractRNG, m::Memory{UInt64})
 
