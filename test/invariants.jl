@@ -15,7 +15,7 @@ function verify_weights(m::Memory)
 end
 
 function verify_m2(m::Memory)
-    @assert m[2] == findlast(i -> i == 5 || m[i] != 0, 1:2105)
+    @assert m[2] == findlast(i -> i == 5 || m[i] != 0, 1:2103)
 end
 function verify_m5(m::Memory)
     m5 = zero(UInt64)
