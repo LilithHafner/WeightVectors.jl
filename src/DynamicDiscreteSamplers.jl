@@ -216,7 +216,7 @@ Base.iszero(w::Weights) = w.m[2] == 5
     end
 
     # Lookup level info
-    j = 2i + 6290
+    j = 2i + 6288
     pos = m[j]
     len = m[j+1]
 
