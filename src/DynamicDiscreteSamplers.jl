@@ -691,7 +691,7 @@ function initialize_empty(len::Int)
     m[1] = len
     m[2] = 5
     # no need to set m[3]
-    m[10531] = 10794+len
+    m[10531] = 10795+len
     m
 end
 allocated_memory(length::Int) = 10794 + 7*length # TODO for perf: consider giving some extra constant factor allocation to avoid repeated compaction at small sizes
