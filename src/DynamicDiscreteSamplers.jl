@@ -612,6 +612,7 @@ function _set_to_zero!(m::Memory, i::Int)
     j = i + 10794
     mj = m[j]
     mj == 0 && return # if the entry is already zero, return
+    m[4] -= 1
     pos = _convert(Int, mj >> 12)
     exponent = mj & 4095
 
