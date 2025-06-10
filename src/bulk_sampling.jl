@@ -34,7 +34,7 @@ function _rand!(rng::AbstractRNG, samples::AbstractArray, m::Memory{UInt64})
     for i in 1:k
         c = counts[i]
         c == 0 && continue
-        j = 2*inds[i] + 6290
+        j = 2*inds[i] + 6288
         pos = m[j]
         len = m[j+1]
         for _ in 1:c
