@@ -543,7 +543,7 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m5) # Increase sh
     # i < -59-signed(m3); the low 64 bits are shifted off.
 
     checkbounds(m, r0:2r1+2093)
-    @inbounds for i in r0:min(r1, -61-signed(m3))
+    @inbounds for i in r0:min(r1, -60-signed(m3))
         significand_sum_lo = m[_convert(Int, 2i+2092)]
         significand_sum_hi = m[_convert(Int, 2i+2093)]
         significand_sum_lo == significand_sum_hi == 0 && continue # in this case, the weight was and still is zero
