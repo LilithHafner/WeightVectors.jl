@@ -702,8 +702,9 @@ function Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Int
         am = allocated_memory(len)
         if w isa ResizableWeights && am < length(m)
             _resize!(w, len)
+        else
+            m[1] = len
         end
-        m[1] = len
     end
     w
 end
