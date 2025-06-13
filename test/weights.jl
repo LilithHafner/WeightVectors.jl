@@ -324,8 +324,8 @@ try
                 @test v == w
                 verify(w.m)
                 if rand() < .01
-                    sm = sum(v)
-                    sm == 0 || statistical_test(w, v ./ sm)
+                    sm = sum(big, v)
+                    sm == 0 || statistical_test(w, Float64.(v ./ sm))
                 end
                 x = rand()
                 if x < .2 && !all(iszero, v)
