@@ -218,6 +218,9 @@ w[1] = floatmin(Float64)
 w[2] = floatmax(Float64)
 w[2] = 0 # This previously threw an assertion error due to overflow when estimating sum of level weights
 verify(w.m)
+w[1] = eps(0.0)
+@test w[1] == eps(0.0)
+verify(w.m)
 
 # Confirm that FixedSizeWeights cannot be resized:
 w = DynamicDiscreteSamplers.FixedSizeWeights(10)
@@ -321,8 +324,8 @@ try
                 @test v == w
                 verify(w.m)
                 if rand() < .01
-                    sm = sum(v)
-                    sm == 0 || statistical_test(w, v ./ sm)
+                    sm = sum(big, v)
+                    sm == 0 || statistical_test(w, Float64.(v ./ sm))
                 end
                 x = rand()
                 if x < .2 && !all(iszero, v)
@@ -337,7 +340,11 @@ try
                     w[i] = 0
                 elseif x < .9 || !resize
                     i = rand(eachindex(v))
-                    x = exp(rand((.1, 7, 100))*randn())
+                    x = if x < .41
+                        reinterpret(Float64, rand(0:reinterpret(UInt64, floatmin(Float64))))
+                    else
+                        min(exp(rand((.1, 7, 300))*randn()), floatmax(Float64))
+                    end
                     push!(LOG, i => x)
                     v[i] = x
                     w[i] = x
