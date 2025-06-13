@@ -1,4 +1,4 @@
-# DynamicDiscreteSamplers
+# DynamicDiscreteSamplers 
 
 <!-- [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://LilithHafner.github.io/DynamicDiscreteSamplers.jl/stable/) -->
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://LilithHafner.github.io/DynamicDiscreteSamplers.jl/dev/)
