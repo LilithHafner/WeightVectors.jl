@@ -1,5 +1,7 @@
 module DynamicDiscreteSamplers
 
+const A = 0
+
 VERSION >= v"1.11.0-DEV.469" && eval(Meta.parse("public Weights"))
 export FixedSizeWeights, ResizableWeights, SemiResizableWeights
 

@@ -225,3 +225,5 @@ _code_size = code_size(dirname(pathof(DynamicDiscreteSamplers)))
 SUITE["code size in lines"] = constant(3600_code_size.lines)
 SUITE["code size in bytes"] = constant(3600_code_size.bytes)
 SUITE["code size in syntax nodes"] = constant(3600_code_size.syntax_nodes)
+
+SUITE["test"] = constant(isdefined(DynamicDiscreteSamplers, :A) ? 1 : 1_000_000)
