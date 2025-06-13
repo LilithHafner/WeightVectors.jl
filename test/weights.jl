@@ -340,7 +340,11 @@ try
                     w[i] = 0
                 elseif x < .9 || !resize
                     i = rand(eachindex(v))
-                    x = exp(rand((.1, 7, 100))*randn())
+                    x = if x < .41
+                        reinterpret(Float64, rand(0:reinterpret(UInt, floatmin(Float64))))
+                    else
+                        min(exp(rand((.1, 7, 100, 300))*randn()), floatmax(Float64))
+                    end
                     push!(LOG, i => x)
                     v[i] = x
                     w[i] = x
