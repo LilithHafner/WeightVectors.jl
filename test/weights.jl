@@ -343,7 +343,7 @@ try
                     x = if x < .41
                         reinterpret(Float64, rand(0:reinterpret(UInt, floatmin(Float64))))
                     else
-                        min(exp(rand((.1, 7, 100, 300))*randn()), floatmax(Float64))
+                        min(exp(rand((.1, 7, 300))*randn()), floatmax(Float64))
                     end
                     push!(LOG, i => x)
                     v[i] = x
