@@ -811,7 +811,7 @@ for T in [:FixedSizeWeights, :SemiResizableWeights, :ResizableWeights]
             unsafe_copyto!(m, 1, x.m, 1, length(x.m))
             $T(m)
         end
-        TODO: this can be significantly optimized
+        # TODO: this can be significantly optimized
         function $T(x::AbstractVector{<:Real})
             w = $T(length(x))
             for (i, v) in enumerate(x)
