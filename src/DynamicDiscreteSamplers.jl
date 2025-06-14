@@ -802,6 +802,7 @@ end
 # Conform to the AbstractArray API
 Base.size(w::Weights) = (w.m[1],)
 
+# Define convinience constructors
 for T in [:FixedSizeWeights, :SemiResizableWeights, :ResizableWeights]
     @eval begin
         $T(len::Integer) = $T(initialize_empty(Int(len)))
@@ -810,7 +811,7 @@ for T in [:FixedSizeWeights, :SemiResizableWeights, :ResizableWeights]
             unsafe_copyto!(m, 1, x.m, 1, length(x.m))
             $T(m)
         end
-        # Define convinience constructors TODO: these can be significantly optimized
+        TODO: this can be significantly optimized
         function $T(x::AbstractVector{<:Real})
             w = $T(length(x))
             for (i, v) in enumerate(x)
