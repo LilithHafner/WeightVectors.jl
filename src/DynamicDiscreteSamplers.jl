@@ -24,9 +24,6 @@ An object that confomrs the the `Weights` interface and cannot be resized.
 """
 struct FixedSizeWeights <: Weights
     m::Memory{UInt64}
-    global _FixedSizeWeights
-    _FixedSizeWeights(m::Memory{UInt64}) = new(m)
-    FixedSizeWeights(len::Integer) = new(initialize_empty(Int(len)))
 end
 """
     ResizableWeights <: Weights
@@ -35,7 +32,6 @@ An object that confomrs the the `Weights` interface and can be resized.
 """
 mutable struct ResizableWeights <: Weights
     m::Memory{UInt64}
-    ResizableWeights(len::Integer) = new(initialize_empty(Int(len)))
 end
 """
     SemiResizableWeights <: Weights
@@ -45,7 +41,6 @@ at most as large as it's original size.
 """
 struct SemiResizableWeights <: Weights
     m::Memory{UInt64}
-    SemiResizableWeights(len::Integer) = new(initialize_empty(Int(len)))
 end
 
 #===== Overview  ======
@@ -807,13 +802,23 @@ end
 # Conform to the AbstractArray API
 Base.size(w::Weights) = (w.m[1],)
 
-# Define convinience constructors TODO: these can be significantly optimized, especially when `x isa Weights`
-function (::Type{T})(x::AbstractVector{<:Real}) where {T <: Weights}
-    w = T(length(x))
-    for (i, v) in enumerate(x)
-        w[i] = v
+for T in [:FixedSizeWeights, :SemiResizableWeights, :ResizableWeights]
+    @eval begin
+        $T(len::Integer) = $T(initialize_empty(Int(len)))
+        function $T(x::Weights)
+            m = Memory{UInt64}(undef, length(x.m))
+            unsafe_copyto!(m, 1, x.m, 1, length(x.m))
+            $T(m)
+        end
+        # Define convinience constructors TODO: these can be significantly optimized
+        function $T(x::AbstractVector{<:Real})
+            w = $T(length(x))
+            for (i, v) in enumerate(x)
+                w[i] = v
+            end
+            w
+        end
     end
-    w
 end
 
 include("bulk_sampling.jl")
