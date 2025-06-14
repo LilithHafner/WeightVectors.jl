@@ -49,6 +49,7 @@ w = DynamicDiscreteSamplers.FixedSizeWeights(10)
 w[9] = 3
 w[7] = 3
 w[1] = 3
+w = copy(w)
 @test w[9] == 3
 @test w[7] == 3
 @test w[1] == 3
