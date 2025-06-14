@@ -181,6 +181,7 @@ Random.gentype(::Type{<:Weights}) = Int
 Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 Base.iszero(w::Weights) = w.m[2] == 5
+Base.copy(w::T) where {T<:Weights} = T(w)
 
 #=@inbounds=# function _rand(rng::AbstractRNG, m::Memory{UInt64})
 
