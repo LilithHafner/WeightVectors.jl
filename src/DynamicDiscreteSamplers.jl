@@ -287,7 +287,7 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
 end
 
 function _getindex(m::Memory{UInt64}, i::Int)
-    @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeights(m), i))
+    @boundscheck 1 <= i <= m[1] || throw(BoundsError(FixedSizeWeights(m), i))
     j = i + 10794
     mj = m[j]
     mj == 0 && return 0.0
@@ -302,7 +302,7 @@ function _getindex(m::Memory{UInt64}, i::Int)
 end
 
 function _setindex!(m::Memory, v::Float64, i::Int)
-    @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeights(m), i))
+    @boundscheck 1 <= i <= m[1] || throw(BoundsError(FixedSizeWeights(m), i))
     uv = reinterpret(UInt64, v)
     if uv == 0
         _set_to_zero!(m, i)
