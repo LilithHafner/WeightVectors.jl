@@ -24,7 +24,7 @@ An object that confomrs the the `Weights` interface and cannot be resized.
 """
 struct FixedSizeWeights <: Weights
     m::Memory{UInt64}
-    global _FixedSizeWeights
+    const global _FixedSizeWeights
     _FixedSizeWeights(m::Memory{UInt64}) = new(m)
     FixedSizeWeights(len::Integer) = new(initialize_empty(Int(len)))
 end
@@ -35,7 +35,7 @@ An object that confomrs the the `Weights` interface and can be resized.
 """
 mutable struct ResizableWeights <: Weights
     m::Memory{UInt64}
-    global _ResizableWeights
+    const global _ResizableWeights
     _ResizableWeights(m::Memory{UInt64}) = new(m)
     ResizableWeights(len::Integer) = new(initialize_empty(Int(len)))
 end
@@ -47,7 +47,7 @@ at most as large as it's original size.
 """
 struct SemiResizableWeights <: Weights
     m::Memory{UInt64}
-    global _SemiResizableWeights
+    const global _SemiResizableWeights
     _SemiResizableWeights(m::Memory{UInt64}) = new(m)
     SemiResizableWeights(len::Integer) = new(initialize_empty(Int(len)))
 end
