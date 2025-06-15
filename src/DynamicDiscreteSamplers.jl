@@ -24,6 +24,9 @@ An object that confomrs the the `Weights` interface and cannot be resized.
 """
 struct FixedSizeWeights <: Weights
     m::Memory{UInt64}
+    global _FixedSizeWeights
+    _FixedSizeWeights(m::Memory{UInt64}) = new(m)
+    FixedSizeWeights(len::Integer) = new(initialize_empty(Int(len)))
 end
 """
     ResizableWeights <: Weights
@@ -32,6 +35,9 @@ An object that confomrs the the `Weights` interface and can be resized.
 """
 mutable struct ResizableWeights <: Weights
     m::Memory{UInt64}
+    global _ResizableWeights
+    _ResizableWeights(m::Memory{UInt64}) = new(m)
+    ResizableWeights(len::Integer) = new(initialize_empty(Int(len)))
 end
 """
     SemiResizableWeights <: Weights
@@ -41,6 +47,9 @@ at most as large as it's original size.
 """
 struct SemiResizableWeights <: Weights
     m::Memory{UInt64}
+    global _SemiResizableWeights
+    _SemiResizableWeights(m::Memory{UInt64}) = new(m)
+    SemiResizableWeights(len::Integer) = new(initialize_empty(Int(len)))
 end
 
 #===== Overview  ======
@@ -288,7 +297,7 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
 end
 
 function _getindex(m::Memory{UInt64}, i::Int)
-    @boundscheck 1 <= i <= m[1] || throw(BoundsError(FixedSizeWeights(m), i))
+    @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeights(m), i))
     j = i + 10794
     mj = m[j]
     mj == 0 && return 0.0
@@ -303,7 +312,7 @@ function _getindex(m::Memory{UInt64}, i::Int)
 end
 
 function _setindex!(m::Memory, v::Float64, i::Int)
-    @boundscheck 1 <= i <= m[1] || throw(BoundsError(FixedSizeWeights(m), i))
+    @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeights(m), i))
     uv = reinterpret(UInt64, v)
     if uv == 0
         _set_to_zero!(m, i)
@@ -803,24 +812,21 @@ end
 # Conform to the AbstractArray API
 Base.size(w::Weights) = (w.m[1],)
 
-# Define convinience constructors
 for T in [:FixedSizeWeights, :SemiResizableWeights, :ResizableWeights]
-    @eval begin
-        $T(len::Integer) = $T(initialize_empty(Int(len)))
-        function $T(x::Weights)
-            m = Memory{UInt64}(undef, length(x.m))
-            unsafe_copyto!(m, 1, x.m, 1, length(x.m))
-            $T(m)
-        end
-        # TODO: this can be significantly optimized
-        function $T(x::AbstractVector{<:Real})
-            w = $T(length(x))
-            for (i, v) in enumerate(x)
-                w[i] = v
-            end
-            w
-        end
+    @eval function $T(x::Weights)
+        m = Memory{UInt64}(undef, length(x.m))
+        unsafe_copyto!(m, 1, x.m, 1, length(x.m))
+        $(Symbol(:_, T))(m)
     end
+end
+
+# TODO: this can be significantly optimized
+function (::Type{T})(x::AbstractVector{<:Real}) where {T <: Weights}
+    w = T(length(x))
+    for (i, v) in enumerate(x)
+        w[i] = v
+    end
+    w
 end
 
 include("bulk_sampling.jl")
