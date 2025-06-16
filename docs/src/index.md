@@ -1,14 +1,14 @@
 ```@meta
-CurrentModule = DynamicDiscreteSamplers
+CurrentModule = WeightVectors
 ```
 
-# DynamicDiscreteSamplers
+# WeightVectors
 
-Documentation for [DynamicDiscreteSamplers](https://github.com/LilithHafner/DynamicDiscreteSamplers.jl).
+Documentation for [WeightVectors](https://github.com/LilithHafner/WeightVectors.jl).
 
 ```@index
 ```
 
 ```@autodocs
-Modules = [DynamicDiscreteSamplers]
+Modules = [WeightVectors]
 ```

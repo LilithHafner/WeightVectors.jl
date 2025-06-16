@@ -1,7 +1,7 @@
-module DynamicDiscreteSamplers
+module WeightVectors
 
 VERSION >= v"1.11.0-DEV.469" && eval(Meta.parse("public Weights"))
-export FixedSizeWeights, ResizableWeights, SemiResizableWeights
+export FixedSizeWeightVector, WeightVector, SemiResizableWeightVector
 
 using Random
 
@@ -18,34 +18,34 @@ An abstract vector capable of storing normal, non-negative floating point number
 """
 abstract type Weights <: AbstractVector{Float64} end
 """
-    FixedSizeWeights <: Weights
+    FixedSizeWeightVector <: Weights
 
 An object that confomrs the the `Weights` interface and cannot be resized.
 """
-struct FixedSizeWeights <: Weights
+struct FixedSizeWeightVector <: Weights
     m::Memory{UInt64}
-    global _FixedSizeWeights
-    _FixedSizeWeights(m::Memory{UInt64}) = new(m)
-    FixedSizeWeights(len::Integer) = new(initialize_empty(Int(len)))
+    global _FixedSizeWeightVector
+    _FixedSizeWeightVector(m::Memory{UInt64}) = new(m)
+    FixedSizeWeightVector(len::Integer) = new(initialize_empty(Int(len)))
 end
 """
-    ResizableWeights <: Weights
+    WeightVector <: Weights
 
 An object that confomrs the the `Weights` interface and can be resized.
 """
-mutable struct ResizableWeights <: Weights
+mutable struct WeightVector <: Weights
     m::Memory{UInt64}
-    ResizableWeights(len::Integer) = new(initialize_empty(Int(len)))
+    WeightVector(len::Integer) = new(initialize_empty(Int(len)))
 end
 """
-    SemiResizableWeights <: Weights
+    SemiResizableWeightVector <: Weights
 
 An object that confomrs the the `Weights` interface and can be resized, but only to sizes
 at most as large as it's original size.
 """
-struct SemiResizableWeights <: Weights
+struct SemiResizableWeightVector <: Weights
     m::Memory{UInt64}
-    SemiResizableWeights(len::Integer) = new(initialize_empty(Int(len)))
+    SemiResizableWeightVector(len::Integer) = new(initialize_empty(Int(len)))
 end
 
 #===== Overview  ======
@@ -292,7 +292,7 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
 end
 
 function _getindex(m::Memory{UInt64}, i::Int)
-    @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeights(m), i))
+    @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeightVector(m), i))
     j = i + 10794
     mj = m[j]
     mj == 0 && return 0.0
@@ -307,7 +307,7 @@ function _getindex(m::Memory{UInt64}, i::Int)
 end
 
 function _setindex!(m::Memory, v::Float64, i::Int)
-    @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeights(m), i))
+    @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeightVector(m), i))
     uv = reinterpret(UInt64, v)
     if uv == 0
         _set_to_zero!(m, i)
@@ -697,14 +697,14 @@ end
 allocated_memory(length::Int) = 10794 + 7*length # TODO for perf: consider giving some extra constant factor allocation to avoid repeated compaction at small sizes
 length_from_memory(allocated_memory::Int) = Int((allocated_memory-10794)/7)
 
-Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Integer) = resize!(w, Int(len))
-function Base.resize!(w::Union{SemiResizableWeights, ResizableWeights}, len::Int)
+Base.resize!(w::Union{SemiResizableWeightVector, WeightVector}, len::Integer) = resize!(w, Int(len))
+function Base.resize!(w::Union{SemiResizableWeightVector, WeightVector}, len::Int)
     m = w.m
     old_len = m[1]
     if len > old_len
         am = allocated_memory(len)
         if am > length(m)
-            w isa SemiResizableWeights && throw(ArgumentError("Cannot increase the size of a SemiResizableWeights above its original allocated size. Try using a ResizableWeights instead."))
+            w isa SemiResizableWeightVector && throw(ArgumentError("Cannot increase the size of a SemiResizableWeightVector above its original allocated size. Try using a WeightVector instead."))
             _resize!(w, len)
         else
             m[1] = len
@@ -720,7 +720,7 @@ Reallocate w with the size len, compacting w into that new memory.
 Any elements if w past len must be set to zero already (that's a general invariant for
 Weights, though, not just this function).
 """
-function _resize!(w::ResizableWeights, len::Integer)
+function _resize!(w::WeightVector, len::Integer)
     m = w.m
     old_len = m[1]
     m2 = Memory{UInt64}(undef, allocated_memory(len))
@@ -819,12 +819,12 @@ end
 include("bulk_sampling.jl")
 
 # Precompile
-precompile(ResizableWeights, (Int,))
-precompile(length, (ResizableWeights,))
-precompile(resize!, (ResizableWeights, Int))
-precompile(setindex!, (ResizableWeights, Float64, Int))
-precompile(getindex, (ResizableWeights, Int))
-precompile(rand, (typeof(Random.default_rng()), ResizableWeights))
-precompile(rand, (ResizableWeights,))
+precompile(WeightVector, (Int,))
+precompile(length, (WeightVector,))
+precompile(resize!, (WeightVector, Int))
+precompile(setindex!, (WeightVector, Float64, Int))
+precompile(getindex, (WeightVector, Int))
+precompile(rand, (typeof(Random.default_rng()), WeightVector))
+precompile(rand, (WeightVector,))
 
 end

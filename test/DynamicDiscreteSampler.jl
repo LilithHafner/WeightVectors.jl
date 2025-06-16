@@ -1,8 +1,8 @@
 # Shoe-horn into the legacy DynamicDiscreteSampler API so that we can leverage legacy tests and benchmarks
 struct WeightBasedSampler
-    w::ResizableWeights
+    w::WeightVector
 end
-WeightBasedSampler() = WeightBasedSampler(ResizableWeights(512))
+WeightBasedSampler() = WeightBasedSampler(WeightVector(512))
 
 function Base.push!(wbs::WeightBasedSampler, index, weight)
     index > length(wbs.w) && resize!(wbs.w, max(index, 2length(wbs.w)))

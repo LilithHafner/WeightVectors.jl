@@ -1,10 +1,10 @@
-using DynamicDiscreteSamplers, Test
+using WeightVectors, Test
 
-@test DynamicDiscreteSamplers.FixedSizeWeights(10) isa DynamicDiscreteSamplers.FixedSizeWeights
-@test DynamicDiscreteSamplers.ResizableWeights(10) isa DynamicDiscreteSamplers.ResizableWeights
-@test DynamicDiscreteSamplers.SemiResizableWeights(10) isa DynamicDiscreteSamplers.SemiResizableWeights
+@test WeightVectors.FixedSizeWeightVector(10) isa WeightVectors.FixedSizeWeightVector
+@test WeightVectors.WeightVector(10) isa WeightVectors.WeightVector
+@test WeightVectors.SemiResizableWeightVector(10) isa WeightVectors.SemiResizableWeightVector
 
-w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+w = WeightVectors.FixedSizeWeightVector(10)
 
 @test_throws ArgumentError("collection must be non-empty") rand(w)
 
@@ -36,7 +36,7 @@ for i in 1:10
 end
 @test iszero(w) == true
 
-w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+w = WeightVectors.FixedSizeWeightVector(10)
 w[1] = 3
 w[2] = 2
 w[3] = 3
@@ -44,7 +44,7 @@ w[3] = 3
 @test w[2] == 2
 @test w[3] == 3
 
-w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+w = WeightVectors.FixedSizeWeightVector(10)
 w[9] = 3
 w[7] = 3
 w[1] = 3
@@ -52,7 +52,7 @@ w[1] = 3
 @test w[7] == 3
 @test w[1] == 3
 
-w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+w = WeightVectors.FixedSizeWeightVector(10)
 w[8] = 0.549326222415666
 w[6] = 1.0149666786255531
 w[3] = 0.8210275222825218
@@ -60,7 +60,7 @@ w[3] = 0.8210275222825218
 @test w[6] === 1.0149666786255531
 @test w[3] === 0.8210275222825218
 
-w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+w = WeightVectors.FixedSizeWeightVector(10)
 w[8] = 3.2999782300326728
 w[9] = 0.7329714939310719
 w[3] = 2.397108987310203
@@ -68,20 +68,20 @@ w[3] = 2.397108987310203
 @test w[9] === 0.7329714939310719
 @test w[3] === 2.397108987310203
 
-w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+w = WeightVectors.FixedSizeWeightVector(10)
 w[1] = 1.5
 w[2] = 1.6
 w[1] = 1.7
 @test w[1] === 1.7
 @test w[2] === 1.6
 
-w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+w = WeightVectors.FixedSizeWeightVector(10)
 w[1] = 1
 w[2] = 1e8
 @test w[1] == 1
 @test w[2] === 1e8
 
-let w = DynamicDiscreteSamplers.FixedSizeWeights(2)
+let w = WeightVectors.FixedSizeWeightVector(2)
     w[1] = 1.1
     w[2] = 1.9
     twos = 0
@@ -99,18 +99,18 @@ let w = DynamicDiscreteSamplers.FixedSizeWeights(2)
     @test abs(twos-expected) < 4stdev
 end
 
-let w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+let w = WeightVectors.FixedSizeWeightVector(10)
     for i in 1:40
         w[1] = 1.5*2.0^i
         @test w[1] === 1.5*2.0^i
     end
 end
 
-w = DynamicDiscreteSamplers.ResizableWeights(10)
+w = WeightVectors.WeightVector(10)
 resize!(w, 20)
 resize!(w, unsigned(30))
 
-w = DynamicDiscreteSamplers.ResizableWeights(10)
+w = WeightVectors.WeightVector(10)
 w[5] = 3
 resize!(w, 20)
 v = fill(0.0, 20)
@@ -121,20 +121,20 @@ v[5] = 3
 w[11] = v[11] = 3.5
 @test w == v
 
-w = DynamicDiscreteSamplers.ResizableWeights(10)
+w = WeightVectors.WeightVector(10)
 w[1] = 1.2
 w[1] = 0
 resize!(w, 20)
 w[15] = 1.3
 @test w[11] == 0
 
-w = DynamicDiscreteSamplers.ResizableWeights(10)
+w = WeightVectors.WeightVector(10)
 w[1] = 1.2
 w[2] = 1.3
 w[2] = 0
 resize!(w, 20)
 
-w = DynamicDiscreteSamplers.ResizableWeights(10)
+w = WeightVectors.WeightVector(10)
 w[5] = 1.2
 w[6] = 1.3
 w[6] = 0
@@ -144,13 +144,13 @@ resize!(w, 40)
 w[30] = 4.1
 w[22] = 2.2 # This previously threw
 
-w = DynamicDiscreteSamplers.ResizableWeights(10);
+w = WeightVectors.WeightVector(10);
 w[5] = 1.5
 resize!(w, 3)
 resize!(w, 20) # This previously threw
 @test w == fill(0.0, 20)
 
-w = DynamicDiscreteSamplers.ResizableWeights(2)
+w = WeightVectors.WeightVector(2)
 w[1] = .3
 w[2] = 1.1
 w[2] = .4
@@ -159,7 +159,7 @@ w[1] = .6
 w[2] = .7 # This used to throw
 @test w == [.6, .7]
 
-w = DynamicDiscreteSamplers.ResizableWeights(1)
+w = WeightVectors.WeightVector(1)
 w[1] = 18
 w[1] = .9
 w[1] = 1.3
@@ -169,7 +169,7 @@ w[1] = .9
 resize!(w, 2)
 @test w == [.9, 0]
 
-w = DynamicDiscreteSamplers.ResizableWeights(2)
+w = WeightVectors.WeightVector(2)
 w[2] = 19
 w[2] = 10
 w[2] = .9
@@ -178,7 +178,7 @@ w[1] = 1.1
 w[1] = 0.7
 @test w == [.7, .9]
 
-w = DynamicDiscreteSamplers.ResizableWeights(6)
+w = WeightVectors.WeightVector(6)
 resize!(w, 2108)
 w[296] = 3.686559798150465e39
 w[296] = 0
@@ -199,7 +199,7 @@ w[1939] = 7.075668919342077e18
 w[979] = 0.8922993294513122
 resize!(w, 1612) # This previously threw an AssertionError: 48 <= Base.top_set_bit(m[4]) <= 49
 
-w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+w = WeightVectors.FixedSizeWeightVector(10)
 for x in (floatmin(Float64), prevfloat(1.0, 2), prevfloat(1.0), 1.0, nextfloat(1.0), nextfloat(1.0, 2), floatmax(Float64))
     w[1] = x # This previously threw on prevfloat(1.0) and floatmax(Float64)
     @test w[1] === x
@@ -207,13 +207,13 @@ end
 
 include("invariants.jl")
 
-w = DynamicDiscreteSamplers.ResizableWeights(31)
+w = WeightVectors.WeightVector(31)
 w[11] = 9.923269000574892e-8
 w[23] = 0.9876032886161744
 w[31] = 1.1160998022859043
 verify(w.m)
 
-w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+w = WeightVectors.FixedSizeWeightVector(10)
 w[1] = floatmin(Float64)
 w[2] = floatmax(Float64)
 w[2] = 0 # This previously threw an assertion error due to overflow when estimating sum of level weights
@@ -222,16 +222,16 @@ w[1] = eps(0.0)
 @test w[1] == eps(0.0)
 verify(w.m)
 
-# Confirm that FixedSizeWeights cannot be resized:
-w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+# Confirm that FixedSizeWeightVector cannot be resized:
+w = WeightVectors.FixedSizeWeightVector(10)
 @test_throws MethodError resize!(w, 20)
 @test_throws MethodError resize!(w, 5)
-w2 = DynamicDiscreteSamplers.SemiResizableWeights(w)
+w2 = WeightVectors.SemiResizableWeightVector(w)
 resize!(w2, 5)
 @test length(w2) == 5
 @test length(w) == 10 # The fixed size has not changed
 
-w = DynamicDiscreteSamplers.FixedSizeWeights(9)
+w = WeightVectors.FixedSizeWeightVector(9)
 v = zeros(9)
 v[4] = w[4] = 2.44
 v[5] = w[5] = 0.76
@@ -253,13 +253,13 @@ v[3] = w[3] = 0.92
 verify(w.m)
 @test v == w
 
-w = DynamicDiscreteSamplers.ResizableWeights(2)
+w = WeightVectors.WeightVector(2)
 w[1] = 0.95
 w[2] = 6.41e14
 verify(w.m)
 
 # This test catches a bug that was not revealed by the RNG tests below
-w = DynamicDiscreteSamplers.FixedSizeWeights(3);
+w = WeightVectors.FixedSizeWeightVector(3);
 w[1] = 1.5
 w[2] = prevfloat(1.5)
 w[3] = 2^25
@@ -268,7 +268,7 @@ verify(w.m)
 # This test catches a bug that was not revealed by the RNG tests below.
 # The final line is calibrated to have about a 50% fail rate on that bug
 # and run in about 3 seconds:
-w = DynamicDiscreteSamplers.FixedSizeWeights(2046*2048)
+w = WeightVectors.FixedSizeWeightVector(2046*2048)
 w .= repeat(ldexp.(1.0, -1022:1023), inner=2048)
 w[(2046-16)*2048+1:2046*2048] .= 0
 @test w.m[4] < 2.0^32*1.1 # Confirm that we created an interesting condition
@@ -277,7 +277,7 @@ verify(w.m)
 @test f(w, 2^27) ≈ 4.1543685e6*2^27 rtol=1e-6 # This should fail less than 1e-40 of the time
 
 # These tests have never revealed a bug that was not revealed by one of the above tests:
-w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+w = WeightVectors.FixedSizeWeightVector(10)
 w[1] = 1
 w[2] = 1e100
 @test rand(w) === 2
@@ -292,7 +292,7 @@ w[3] = 0
 
 let
     for _ in 1:10000
-        w = DynamicDiscreteSamplers.FixedSizeWeights(10)
+        w = WeightVectors.FixedSizeWeightVector(10)
         v = [w[i] for i in 1:10]
         for _ in 1:10
             i = rand(1:10)
@@ -317,7 +317,7 @@ try
             global LOG = []
             len = rand(1:100)
             push!(LOG, len)
-            w = DynamicDiscreteSamplers.ResizableWeights(len)
+            w = WeightVectors.WeightVector(len)
             v = fill(0.0, len)
             resize = rand(Bool) # Some behavior emerges when not resizing for a long period
             for _ in 1:rand((10,100,3000))
@@ -367,7 +367,7 @@ catch
     println("Reproducer:\n```julia")
     for L in LOG
         if L isa Int
-            println("w = DynamicDiscreteSamplers.ResizableWeights($L)")
+            println("w = WeightVectors.WeightVector($L)")
         elseif first(L) === resize!
             println("resize!(w, $(last(L)))")
         else

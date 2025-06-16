@@ -1,13 +1,13 @@
-# DynamicDiscreteSamplers
+# WeightVectors
 
-<!-- [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://LilithHafner.github.io/DynamicDiscreteSamplers.jl/stable/) -->
-[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://LilithHafner.github.io/DynamicDiscreteSamplers.jl/dev/)
-[![Build Status](https://github.com/LilithHafner/DynamicDiscreteSamplers.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/LilithHafner/DynamicDiscreteSamplers.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![Coverage](https://codecov.io/gh/LilithHafner/DynamicDiscreteSamplers.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/LilithHafner/DynamicDiscreteSamplers.jl) <!--
-[![PkgEval](https://JuliaCI.github.io/NanosoldierReports/pkgeval_badges/D/DynamicDiscreteSamplers.svg)](https://JuliaCI.github.io/NanosoldierReports/pkgeval_badges/D/DynamicDiscreteSamplers.html) -->
+<!-- [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://LilithHafner.github.io/WeightVectors.jl/stable/) -->
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://LilithHafner.github.io/WeightVectors.jl/dev/)
+[![Build Status](https://github.com/LilithHafner/WeightVectors.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/LilithHafner/WeightVectors.jl/actions/workflows/CI.yml?query=branch%3Amain)
+[![Coverage](https://codecov.io/gh/LilithHafner/WeightVectors.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/LilithHafner/WeightVectors.jl) <!--
+[![PkgEval](https://JuliaCI.github.io/NanosoldierReports/pkgeval_badges/W/WeightVectors.svg)](https://JuliaCI.github.io/NanosoldierReports/pkgeval_badges/W/WeightVectors.html) -->
 [![Aqua](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
-`DynamicDiscreteSamplers.jl` implements efficient samplers which can be used to sample from a dynamic discrete distribution, supporting removal, addition and sampling of elements in constant time. 
+`WeightVectors.jl` implements efficient samplers which can be used to sample from a dynamic discrete distribution, supporting removal, addition and sampling of elements in constant time.
 
 The key features of this package are
 
@@ -20,16 +20,16 @@ The key features of this package are
 
 The package exports two main types which conform to the `AbstractArray` API:
 
-- `FixedSizeWeights`: For a static collection of weights which can be updated but not resized;
-- `ResizableWeights`: For a collection of weights which can grow or shrink.
+- `FixedSizeWeightVector`: For a static collection of weights which can be updated but not resized;
+- `WeightVector`: For a collection of weights which can grow or shrink.
 
 ```julia
-julia> using Random, DynamicDiscreteSamplers
+julia> using Random, WeightVectors
 
 julia> rng = Xoshiro(42);
 
-julia> w = ResizableWeights([10.0, 50.0, 5.0, 35.0])
-4-element ResizableWeights:
+julia> w = WeightVector([10.0, 50.0, 5.0, 35.0])
+4-element WeightVector:
  10.0
  50.0
   5.0
