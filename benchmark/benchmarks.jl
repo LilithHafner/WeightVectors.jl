@@ -1,5 +1,5 @@
-using DynamicDiscreteSamplers
-using DynamicDiscreteSamplers: FixedSizeWeights, ResizableWeights, SemiResizableWeights # compat with older versions of DynamicDiscreteSamplers.jl
+using WeightVectors
+using WeightVectors: FixedSizeWeightVector, WeightVector, SemiResizableWeightVector # compat with older versions of WeightVectors.jl
 using Random
 include("../test/DynamicDiscreteSampler.jl")
 
@@ -206,7 +206,7 @@ end
 SUITE["pathological 5b′′"] = @benchmarkable pathological5b′′_setup pathological5b′′_update
 
 function pathological_compaction_setup()
-    w = FixedSizeWeights(2^20+1)
+    w = FixedSizeWeightVector(2^20+1)
     w[1:2^19] .= 1
     w[2^19+1:2^20] .= 2
     pathological_compaction_update!(w)
@@ -220,7 +220,7 @@ end
 SUITE["pathological compaction"] = @benchmarkable pathological_compaction_setup pathological_compaction_update!
 
 include("code_size.jl")
-_code_size = code_size(dirname(pathof(DynamicDiscreteSamplers)))
+_code_size = code_size(dirname(pathof(WeightVectors)))
 
 SUITE["code size in lines"] = constant(3600_code_size.lines)
 SUITE["code size in bytes"] = constant(3600_code_size.bytes)
