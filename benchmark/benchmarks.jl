@@ -220,7 +220,7 @@ end
 SUITE["pathological old compaction (6-op)"] = @benchmarkable pathological_compaction_setup pathological_compaction_update!
 
 function pathological_tiny_compaction_setup()
-    w = FixedSizeWeights(1)
+    w = FixedSizeWeightVector(1)
     pathological_compaction_update!(w)
     w
 end
@@ -232,7 +232,7 @@ end
 SUITE["pathological tiny compaction (6-op)"] = @benchmarkable pathological_tiny_compaction_setup pathological_tiny_compaction_update!
 
 function pathological_small_compaction_setup()
-    FixedSizeWeights([1,1,1,1,2,2,2,2,4,4,8,8,8])
+    FixedSizeWeightVector([1,1,1,1,2,2,2,2,4,4,8,8,8])
 end
 function pathological_small_compaction_update!(w)
     w[9] = 1
@@ -257,7 +257,7 @@ end
 SUITE["pathological small compaction (18-op)"] = @benchmarkable pathological_small_compaction_setup pathological_small_compaction_update!
 
 function pathological_medium_compaction_setup()
-    FixedSizeWeights(vcat(fill(1, 66), repeat(2.0 .^ (1:66), inner=128)))
+    FixedSizeWeightVector(vcat(fill(1, 66), repeat(2.0 .^ (1:66), inner=128)))
 end
 function pathological_medium_compaction_update!(w)
     for i in 1:66
@@ -274,7 +274,7 @@ SUITE["pathological medium compaction (1254-op)"] = @benchmarkable pathological_
 
 
 function pathological_large_compaction_setup()
-    FixedSizeWeights(vcat(fill(1, 2^10+2), repeat(2.0 .^ (-2:2^10-1), inner=2^10)))
+    FixedSizeWeightVector(vcat(fill(1, 2^10+2), repeat(2.0 .^ (-2:2^10-1), inner=2^10)))
 end
 function pathological_large_compaction_update!(w)
     for i in 1:2^10+2
