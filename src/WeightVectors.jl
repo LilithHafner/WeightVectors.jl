@@ -16,7 +16,7 @@ _convert(T, x) = DEBUG ? T(x) : x%T
 An abstract vector capable of storing normal, non-negative floating point numbers on which
 `rand` samples an index according to values rather than sampling a value uniformly.
 """
-abstract type Weights <: AbstractVector{Float64} end
+abstract type AbstractWeightVector <: AbstractVector{Float64} end
 """
     FixedSizeWeightVector <: AbstractWeightVector
 
