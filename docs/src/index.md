@@ -1,7 +1,7 @@
 # WeightVectors
 
 ```@docs
-StreamSampling
+WeightVectors
 ```
 
 Documentation for [WeightVectors](https://github.com/LilithHafner/WeightVectors.jl).
