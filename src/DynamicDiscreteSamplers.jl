@@ -812,13 +812,9 @@ end
 # Conform to the AbstractArray API
 Base.size(w::Weights) = (w.m[1],)
 
-for T in [:FixedSizeWeights, :SemiResizableWeights, :ResizableWeights]
-    @eval function $T(x::Weights)
-        m = Memory{UInt64}(undef, length(x.m))
-        unsafe_copyto!(m, 1, x.m, 1, length(x.m))
-        $(Symbol(:_, T))(m)
-    end
-end
+FixedSizeWeights(x::Weights) = _FixedSizeWeights(copy(x.m))
+SemiResizableWeights(x::Weights) = _SemiResizableWeights(copy(x.m))
+ResizableWeights(x::Weights) = _ResizableWeights(copy(x.m))
 
 # TODO: this can be significantly optimized
 function (::Type{T})(x::AbstractVector{<:Real}) where {T <: Weights}
