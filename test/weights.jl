@@ -225,7 +225,7 @@ verify(w.m)
 w = WeightVectors.FixedSizeWeightVector(10)
 @test_throws MethodError resize!(w, 20)
 @test_throws MethodError resize!(w, 5)
-w2 = WeightVectors.ResizableWeightVector(w)
+w2 = WeightVectors.WeightVector(w)
 resize!(w2, 5)
 @test length(w2) == 5
 @test length(w) == 10 # The fixed size has not changed
