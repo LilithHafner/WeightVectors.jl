@@ -478,7 +478,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             m[10531] = new_next_free_space
 
             # Copy the group to new location
-            (v"1.11" <= VERSION || 2group_length-2 != 0) && unsafe_copyto!(m, next_free_space, m, group_pos, 2group_length-2) # TODO for clarity and maybe perf: remove this version check
+            (v"1.11" <= VERSION || 2group_length-2 != 0) && copyto!(m, next_free_space, m, group_pos, 2group_length-2) # TODO for clarity and maybe perf: remove this version check
 
             # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
             delta = (next_free_space-group_pos) << 12
@@ -797,7 +797,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         end
 
         # Copy the group to a compacted location
-        unsafe_copyto!(dst, dst_i, src, src_i, 2group_length)
+        copyto!(dst, dst_i, src, src_i, 2group_length)
 
         # Advance indices
         src_i += 2*1<<log2_allocated_size # TODO add test that fails if the 2* part is removed

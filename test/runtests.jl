@@ -94,6 +94,9 @@ end
 effects_code = replace(effects_code, "@assert"=>"#@assert") # Asserts have bad effects
 effects_code = replace(effects_code, "\nprecompile("=>"\n#precompile(") # Precompile hurts effects (https://github.com/JuliaLang/julia/issues/57324)
 effects_code = replace(effects_code, r"throw\((Bounds|Argument|Domain)Error\(.*?\)\)"=>"error()") # Good errors have bad effects
+if VERSION >= v"1.11"
+    effects_code = replace(effects_code, r"\n.* copyto!\(.*\n" => "\n") # https://github.com/JuliaLang/julia/issues/58750
+end
 effects_file = tempname()
 open(effects_file, "w") do io
     write(io, effects_code)
@@ -129,11 +132,11 @@ end
 
         e = Base.infer_effects(setindex!, (T, Float64, Int))
         @test e.consistent != TRUE
-        @test_broken e.effect_free == Core.Compiler.EFFECT_FREE_IF_INACCESSIBLEMEMONLY # broken due to copyto!(::Memory, ::Int, ::Memory, ::Int, ::Int)
+        VERSION >= v"1.12" && @test e.effect_free == Core.Compiler.EFFECT_FREE_IF_INACCESSIBLEMEMONLY # broken due to copyto!(::Memory, ::Int, ::Memory, ::Int, ::Int), which is hacked out in 1.12+
         @test e.nothrow == false # index out of bounds
         @test_broken e.terminates # loop analysis is weak
         VERSION >= v"1.11" && @test e.notaskstate
-        @test_broken e.inaccessiblememonly == Core.Compiler.INACCESSIBLEMEM_OR_ARGMEMONLY # broken due to copyto!(::Memory, ::Int, ::Memory, ::Int, ::Int)
+        VERSION >= v"1.12" && @test e.inaccessiblememonly == Core.Compiler.INACCESSIBLEMEM_OR_ARGMEMONLY # broken due to copyto!(::Memory, ::Int, ::Memory, ::Int, ::Int), which is hacked out in 1.12+
         VERSION >= v"1.11" && @test e.noub == TRUE
         VERSION >= v"1.11" && @test e.nonoverlayed == TRUE
         VERSION >= v"1.11" && @test e.nortcall
@@ -142,11 +145,11 @@ end
     for T in [WV.WeightVector, WV.SemiResizableWeightVector]
         e = Base.infer_effects(resize!, (T, Int))
         @test e.consistent != TRUE
-        @test_broken e.effect_free == Core.Compiler.EFFECT_FREE_IF_INACCESSIBLEMEMONLY # broken due to copyto!(::Memory, ::Int, ::Memory, ::Int, ::Int)
+        VERSION >= v"1.12" && @test e.effect_free == Core.Compiler.EFFECT_FREE_IF_INACCESSIBLEMEMONLY # broken due to copyto!(::Memory, ::Int, ::Memory, ::Int, ::Int), which is hacked out in 1.12+
         @test e.nothrow == false # index out of bounds
         @test_broken e.terminates # loop analysis is weak
         VERSION >= v"1.11" && @test e.notaskstate
-        @test_broken e.inaccessiblememonly == Core.Compiler.INACCESSIBLEMEM_OR_ARGMEMONLY # broken due to copyto!(::Memory, ::Int, ::Memory, ::Int, ::Int)
+        VERSION >= v"1.12" && @test e.inaccessiblememonly == Core.Compiler.INACCESSIBLEMEM_OR_ARGMEMONLY # broken due to copyto!(::Memory, ::Int, ::Memory, ::Int, ::Int), which is hacked out in 1.12+
         VERSION >= v"1.11" && @test e.noub == TRUE
         VERSION >= v"1.11" && @test e.nonoverlayed == TRUE
         VERSION >= v"1.11" && @test e.nortcall
