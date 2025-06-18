@@ -50,3 +50,19 @@ julia> w[6] = 200.0;
 julia> println(rand(rng, w, 10))
 [6, 2, 6, 6, 6, 1, 2, 6, 6, 1]
 ```
+
+## Citation
+
+If you use this package in a publication, or simply want to refer to it, please cite the paper below:
+
+```
+@misc{hafner2025exactsampler,
+      title={An Exact and Efficient Sampler for Dynamic Discrete Distributions}, 
+      author={Lilith Orion Hafner and Adriano Meligrana},
+      year={2025},
+      eprint={2506.14062},
+      archivePrefix={arXiv},
+      primaryClass={cs.DS},
+      url={https://arxiv.org/abs/2506.14062}, 
+}
+```
