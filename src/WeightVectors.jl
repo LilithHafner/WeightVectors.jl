@@ -1,14 +1,19 @@
-module WeightVectors
+module DynamicDiscreteSamplers
+
+export DynamicDiscreteSampler
+
+using Random
 
 VERSION >= v"1.11.0-DEV.469" && eval(Meta.parse("public Weights"))
 export FixedSizeWeightVector, WeightVector, SemiResizableWeightVector
-
-using Random
 
 isdefined(@__MODULE__, :Memory) || const Memory = Vector # Compat for Julia < 1.11
 
 const DEBUG = Base.JLOptions().check_bounds == 1
 _convert(T, x) = DEBUG ? T(x) : x%T
+macro check(arg)
+    DEBUG ? esc(:(@assert $arg)) : nothing
+end
 
 """
     Weights <: AbstractVector{Float64}
@@ -163,9 +168,8 @@ TODO
 # highest normal significand (52 ones with an implicit leading 1) the significand
 # stored in sub_weights is 0xfffffffffffff800 and there are 2^64-2^11 pips less than
 # that value for a probability of (2^64-2^11) / 2^64 == (2^53-1) / 2^53 == prevfloat(2.0)/2.0
-@assert 0xfffffffffffff800//big(2)^64 == (UInt64(2)^53-1)//UInt64(2)^53 == big(prevfloat(2.0))/big(2.0)
-@assert 0x8000000000000000 | (reinterpret(UInt64, 1.0::Float64) << 11) === 0x8000000000000000
-@assert 0x8000000000000000 | (reinterpret(UInt64, prevfloat(1.0)::Float64) << 11) === 0xfffffffffffff800
+@check 0xfffffffffffff800//big(2)^64 == (UInt64(2)^53-1)//UInt64(2)^53 == big(prevfloat(2.0))/big(2.0)
+@check 0x8000000000000000 | (reinterpret(UInt64, prevfloat(1.0)::Float64) << 11) === 0xfffffffffffff800
 # significand sums are literal sums of the element_from_sub_weights's (though stored
 # as UInt128s because any two element_from_sub_weights's will overflow when added).
 
@@ -277,7 +281,7 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
 
         set_global_shift_increase!(m, m2, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
 
-        @assert 46 <= Base.top_set_bit(m[5]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8 # TODO for perf: delete
+        @check 46 <= Base.top_set_bit(m[5]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8 # TODO for perf: delete
     end
 
     while true # TODO for confidence: move this to a separate, documented function and add unit tests.
@@ -344,7 +348,7 @@ end
 function _set_from_zero!(m::Memory, v::Float64, i::Int)
     uv = reinterpret(UInt64, v)
     j = i + 10794
-    @assert m[j] == 0
+    @check m[j] == 0
     m[4] += 1
     exponent = uv >> 52
     if exponent == 0
@@ -364,14 +368,14 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         shift = -24
         weight = _convert(UInt64, significand_sum << shift) + 1
 
-        @assert Base.top_set_bit(weight-1) == 40 # TODO for perf: delete
+        @check Base.top_set_bit(weight-1) == 40 # TODO for perf: delete
         m[weight_index] = weight
         m[5] = weight
     else
         shift = signed(exponent + m[3])
         if Base.top_set_bit(significand_sum)+shift > 64
             # if this would overflow, drop shift so that it renormalizes down to 48.
-            # this drops shift at least ~16 and makes the sum of weights at least ~2^48. # TODO: add an assert
+            # this drops shift at least ~16 and makes the sum of weights at least ~2^48. # TODO: add an check
             # Base.top_set_bit(significand_sum)+shift == 48
             # Base.top_set_bit(significand_sum)+signed(exponent + m[3]) == 48
             # Base.top_set_bit(significand_sum)+signed(exponent) + signed(m[3]) == 48
@@ -398,8 +402,8 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
                 shift = signed(exponent+m3)
                 new_weight = _convert(UInt64, significand_sum << shift) + 1
 
-                @assert significand_sum != 0
-                @assert m[weight_index] == weight
+                @check significand_sum != 0
+                @check m[weight_index] == weight
 
                 m[weight_index] = new_weight
                 m[5] += new_weight-weight
@@ -434,15 +438,15 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
                 next_free_space = compact!(m, m)
                 group_pos = next_free_space-new_allocation_length # The group will move but remian the last group
                 new_next_free_space = next_free_space+new_allocation_length
-                @assert new_next_free_space < length(m)+1 # TODO for perf, delete this
+                @check new_next_free_space < length(m)+1 # TODO for perf, delete this
                 m[group_length_index] = group_length
 
                 # Re-lookup allocated chunk because compaction could have changed other
                 # chunk elements. However, the allocated size of this group could not have
                 # changed because it was previously maxed out.
                 allocs_chunk = m[allocs_index]
-                @assert log2_allocated_size == allocs_chunk >> allocs_subindex % UInt8 - 1
-                @assert allocated_size == 1<<log2_allocated_size
+                @check log2_allocated_size == allocs_chunk >> allocs_subindex % UInt8 - 1
+                @check allocated_size == 1<<log2_allocated_size
             end
             # expand the allocated size and bump next_free_space
             new_chunk = allocs_chunk + UInt64(1) << allocs_subindex
@@ -456,7 +460,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
                 next_free_space = compact!(m, m)
                 m[group_length_index] = group_length
                 new_next_free_space = next_free_space+twice_new_allocated_size
-                @assert new_next_free_space < length(m)+1 # After compaction there should be room TODO for perf, delete this
+                @check new_next_free_space < length(m)+1 # After compaction there should be room TODO for perf, delete this
 
                 group_pos = m[group_length_index-1] # The group likely moved during compaction
 
@@ -464,8 +468,8 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
                 # chunk elements. However, the allocated size of this group could not have
                 # changed because it was previously maxed out.
                 allocs_chunk = m[allocs_index]
-                @assert log2_allocated_size == allocs_chunk >> allocs_subindex % UInt8 - 1
-                @assert allocated_size == 1<<log2_allocated_size
+                @check log2_allocated_size == allocs_chunk >> allocs_subindex % UInt8 - 1
+                @check allocated_size == 1<<log2_allocated_size
             end
             # TODO for perf: make compact! re-allocate the expanded group larger so there's no need to double the allocated size here if the compact branch is taken
             # TODO for perf, try removing the moveie before compaction (tricky: where to store that info?)
@@ -512,7 +516,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
 end
 
 function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m5) # Increase shift, on deletion of elements
-    @assert signed(m[3]) < signed(m3)
+    @check signed(m[3]) < signed(m3)
     m[3] = m3
     # Story:
     # In the likely case that the weight decrease resulted in a level's weight hitting zero
@@ -563,7 +567,7 @@ end
 function set_global_shift_decrease!(m::Memory, m3::UInt64, m5=m[5]) # Decrease shift, on insertion of elements
     m3_old = m[3]
     m[3] = m3
-    @assert signed(m3) < signed(m3_old)
+    @check signed(m3) < signed(m3_old)
 
     # In the case of adding a giant element, call this first, then add the element.
     # In any case, this only adjusts elements at or before m[2]
@@ -575,8 +579,8 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m5=m[5]) # Decrease s
     flatten_range = max(i1_old, 6):min(m2, i1-1)
     recompute_range = max(i1, 6):m2
     # From the level where one element contributes 2^64 to the level where one element contributes 1 is 64, and from there to the level where 2^64 elements contributes 1 is another 2^64.
-    @assert length(flatten_range) <= 64+Base.top_set_bit(m[4])+1
-    @assert length(recompute_range) <= 64+Base.top_set_bit(m[4])+1
+    @check length(flatten_range) <= 64+Base.top_set_bit(m[4])+1
+    @check length(recompute_range) <= 64+Base.top_set_bit(m[4])+1
 
     checkbounds(m, flatten_range)
     @inbounds for i in flatten_range # set nonzeros to 1
@@ -749,7 +753,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         target = signed(src[src_i+1])
         while target < 0
             if unsigned(target) < 0xc000000000000000 # empty non-abandoned group; let's clean it up
-                @assert 0x8000000000000001 <= unsigned(target) <= 0x8000000000000832
+                @check 0x8000000000000001 <= unsigned(target) <= 0x8000000000000832
                 exponent = unsigned(target) - 0x8000000000000000 # TODO for clarity: dry this
                 allocs_index, allocs_subindex = get_alloced_indices(exponent)
                 allocs_chunk = dst[allocs_index] # TODO for perf: consider not copying metadata on out of place compaction (and consider the impact here)
