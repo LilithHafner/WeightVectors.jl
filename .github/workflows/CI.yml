@@ -74,6 +74,6 @@ jobs:
         shell: julia --project=docs --color=yes {0}
         run: |
           using Documenter: DocMeta, doctest
-          using DynamicDiscreteSamplers
-          DocMeta.setdocmeta!(DynamicDiscreteSamplers, :DocTestSetup, :(using DynamicDiscreteSamplers); recursive=true)
-          doctest(DynamicDiscreteSamplers)
+          using WeightVectors
+          DocMeta.setdocmeta!(WeightVectors, :DocTestSetup, :(using WeightVectors); recursive=true)
+          doctest(WeightVectors)

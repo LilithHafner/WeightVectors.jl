@@ -1,14 +1,14 @@
-using DynamicDiscreteSamplers
+using WeightVectors
 using Documenter
 
-DocMeta.setdocmeta!(DynamicDiscreteSamplers, :DocTestSetup, :(using DynamicDiscreteSamplers); recursive=true)
+DocMeta.setdocmeta!(WeightVectors, :DocTestSetup, :(using WeightVectors); recursive=true)
 
 makedocs(;
-    modules=[DynamicDiscreteSamplers],
+    modules=[WeightVectors],
     authors="Lilith Orion Hafner <lilithhafner@gmail.com> and contributors",
-    sitename="DynamicDiscreteSamplers.jl",
+    sitename="WeightVectors.jl",
     format=Documenter.HTML(;
-        canonical="https://LilithHafner.github.io/DynamicDiscreteSamplers.jl",
+        canonical="https://LilithHafner.github.io/WeightVectors.jl",
         edit_link="main",
         assets=String[],
     ),
@@ -18,6 +18,6 @@ makedocs(;
 )
 
 deploydocs(;
-    repo="github.com/LilithHafner/DynamicDiscreteSamplers.jl",
+    repo="github.com/LilithHafner/WeightVectors.jl",
     devbranch="main",
 )

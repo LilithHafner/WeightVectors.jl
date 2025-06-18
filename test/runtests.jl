@@ -1,4 +1,4 @@
-using DynamicDiscreteSamplers
+using WeightVectors
 using HypothesisTests
 using Random
 using Test
@@ -6,11 +6,11 @@ using Aqua
 using StableRNGs
 using StatsBase
 
-@test DynamicDiscreteSamplers.DEBUG === true
+@test WeightVectors.DEBUG === true
 
 @testset "Constructor from array" begin
-    w = FixedSizeWeights([1.7,2.9])
-    @test w isa FixedSizeWeights
+    w = FixedSizeWeightVector([1.7,2.9])
+    @test w isa FixedSizeWeightVector
     @test w == [1.7, 2.9]
 end
 
@@ -70,13 +70,13 @@ function ensure_sampler_conforms_to_rng_api(source, domain)
         end
     end
 end
-w = DynamicDiscreteSamplers.FixedSizeWeights(2)
+w = WeightVectors.FixedSizeWeightVector(2)
 w[1] = 1.0
 w[2] = 2.0
 ensure_sampler_conforms_to_rng_api(w, 1:2)
 
 @testset "unsigned int construction" begin
-    @test length(FixedSizeWeights(UInt(10))) == 10
+    @test length(FixedSizeWeightVector(UInt(10))) == 10
 end
 
 include("DynamicDiscreteSampler_tests.jl") # Indirect tests for an upstream usage/legacy API
@@ -84,8 +84,8 @@ include("DynamicDiscreteSampler_tests.jl") # Indirect tests for an upstream usag
 # These tests are too slow:
 if "CI" in keys(ENV)
     @testset "Code quality (Aqua.jl)" begin
-        Aqua.test_all(DynamicDiscreteSamplers, deps_compat=false)
-        Aqua.test_deps_compat(DynamicDiscreteSamplers, check_extras=false)
+        Aqua.test_all(WeightVectors, deps_compat=false)
+        Aqua.test_deps_compat(WeightVectors, check_extras=false)
     end
 end
 
