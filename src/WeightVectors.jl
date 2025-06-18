@@ -1,6 +1,6 @@
-module DynamicDiscreteSamplers
+module WeightVectors
 
-export DynamicDiscreteSampler
+export WeightVectors
 
 using Random
 
