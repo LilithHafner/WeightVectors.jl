@@ -40,7 +40,7 @@ w = WeightVectors.FixedSizeWeightVector(10)
 w[1] = 3
 w[2] = 2
 w[3] = 3
-w = DynamicDiscreteSamplers.FixedSizeWeights(w)
+w = FixedSizeWeights(w)
 @test w[1] == 3
 @test w[2] == 2
 @test w[3] == 3
