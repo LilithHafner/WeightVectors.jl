@@ -1,7 +1,7 @@
 module DynamicDiscreteSamplers
 
 VERSION >= v"1.11.0-DEV.469" && eval(Meta.parse("public Weights"))
-export FixedSizeWeights, ResizableWeights, SemiResizableWeights
+export FixedSizeWeightVector, WeightVector, SemiResizableWeightVector
 
 using Random
 
@@ -22,22 +22,22 @@ abstract type Weights <: AbstractVector{Float64} end
 
 An object that confomrs the the `Weights` interface and cannot be resized.
 """
-struct FixedSizeWeights <: Weights
+struct FixedSizeWeightVector <: Weights
     m::Memory{UInt64}
-    global _FixedSizeWeights
-    _FixedSizeWeights(m::Memory{UInt64}) = new(m)
-    FixedSizeWeights(len::Integer) = new(initialize_empty(Int(len)))
+    global _FixedSizeWeightVector
+    _FixedSizeWeightVector(m::Memory{UInt64}) = new(m)
+    FixedSizeWeightVector(len::Integer) = new(initialize_empty(Int(len)))
 end
 """
     ResizableWeights <: Weights
 
 An object that confomrs the the `Weights` interface and can be resized.
 """
-mutable struct ResizableWeights <: Weights
+mutable struct WeightVector <: Weights
     m::Memory{UInt64}
-    global _ResizableWeights
-    _ResizableWeights(m::Memory{UInt64}) = new(m)
-    ResizableWeights(len::Integer) = new(initialize_empty(Int(len)))
+    global _WeightVector
+    _WeightVector(m::Memory{UInt64}) = new(m)
+    WeightVector(len::Integer) = new(initialize_empty(Int(len)))
 end
 """
     SemiResizableWeights <: Weights
@@ -45,11 +45,11 @@ end
 An object that confomrs the the `Weights` interface and can be resized, but only to sizes
 at most as large as it's original size.
 """
-struct SemiResizableWeights <: Weights
+struct SemiResizableWeightVector <: Weights
     m::Memory{UInt64}
-    global _SemiResizableWeights
-    _SemiResizableWeights(m::Memory{UInt64}) = new(m)
-    SemiResizableWeights(len::Integer) = new(initialize_empty(Int(len)))
+    global _SemiResizableWeightVector
+    _SemiResizableWeightVector(m::Memory{UInt64}) = new(m)
+    SemiResizableWeightVector(len::Integer) = new(initialize_empty(Int(len)))
 end
 
 #===== Overview  ======
@@ -812,9 +812,9 @@ end
 # Conform to the AbstractArray API
 Base.size(w::Weights) = (w.m[1],)
 
-FixedSizeWeights(x::Weights) = _FixedSizeWeights(copy(x.m))
-SemiResizableWeights(x::Weights) = _SemiResizableWeights(copy(x.m))
-ResizableWeights(x::Weights) = _ResizableWeights(copy(x.m))
+FixedSizeWeightVector(x::Weights) = _FixedSizeWeightVector(copy(x.m))
+SemiResizableWeightVector(x::Weights) = _SemiResizableWeightVector(copy(x.m))
+WeightVector(x::Weights) = _WeightVector(copy(x.m))
 
 # TODO: this can be significantly optimized
 function (::Type{T})(x) where {T <: Weights}
