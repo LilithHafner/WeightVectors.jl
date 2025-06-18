@@ -482,8 +482,9 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
 
             # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
             delta = (next_free_space-group_pos) << 12
+            checkbounds(m, next_free_space+1:next_free_space+2group_length-3)
             for k in 1:group_length-1
-                target = m[_convert(Int, next_free_space)+2k-1]
+                @inbounds target = m[_convert(Int, next_free_space)+2k-1]
                 l = _convert(Int, target + 10794)
                 m[l] += delta
             end
