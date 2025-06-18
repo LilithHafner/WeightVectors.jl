@@ -788,9 +788,8 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
         delta = unsigned(Int64(dst_i-src_i)) << 12
         dst[j] += delta
-        checkbounds(src, src_i+3:src_i+2signed(group_length)-1)
         for k in 1:signed(group_length)-1 # TODO: add a benchmark that stresses compaction and try hoisting this bounds checking
-            @inbounds target = src[src_i+2k+1]
+            target = src[src_i+2k+1]
             j = _convert(Int, target + 10794)
             dst[j] += delta
         end
