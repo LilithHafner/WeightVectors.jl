@@ -817,7 +817,7 @@ SemiResizableWeights(x::Weights) = _SemiResizableWeights(copy(x.m))
 ResizableWeights(x::Weights) = _ResizableWeights(copy(x.m))
 
 # TODO: this can be significantly optimized
-function (::Type{T})(x::AbstractVector{<:Real}) where {T <: Weights}
+function (::Type{T})(x) where {T <: Weights}
     w = T(length(x))
     for (i, v) in enumerate(x)
         w[i] = v
