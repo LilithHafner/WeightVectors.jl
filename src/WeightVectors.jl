@@ -380,7 +380,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             m3 = 48 - Base.top_set_bit(significand_sum) - exponent
             # The "weights are accurately computed" invariant is broken for weight_index, but the "sum(weights) == m[5]" invariant still holds
             # set_global_shift_decrease! will do something wrong to weight_index, but preserve the "sum(weights) == m[5]" invariant.
-            set_global_shift_decrease!(m, m3) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+            @noinline set_global_shift_decrease!(m, m3) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
             shift = signed(exponent + m3)
         end
         weight = _convert(UInt64, significand_sum << shift) + 1
@@ -394,7 +394,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         if o
             # If weights overflow (>2^64) then shift down by 16 bits
             m3 = m[3]-0x10
-            set_global_shift_decrease!(m, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+            @noinline set_global_shift_decrease!(m, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
             if weight_index > m[2] # if the new weight was not adjusted by set_global_shift_decrease!, then adjust it manually
                 shift = signed(exponent+m3)
                 new_weight = _convert(UInt64, significand_sum << shift) + 1
