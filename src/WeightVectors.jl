@@ -19,7 +19,7 @@ abstract type AbstractWeightVector <: AbstractVector{Float64} end
 """
     FixedSizeWeightVector <: AbstractWeightVector
 
-An object that confomrs the the `Weights` interface and cannot be resized.
+An object that conforms to the `AbstractWeightVector` interface and cannot be resized.
 """
 struct FixedSizeWeightVector <: AbstractWeightVector
     m::Memory{UInt64}
@@ -29,7 +29,7 @@ end
 """
     WeightVector <: AbstractWeightVector
 
-An object that confomrs the the `Weights` interface and can be resized.
+An object that conforms to the `AbstractWeightVector` interface and can be resized.
 """
 mutable struct WeightVector <: AbstractWeightVector
     m::Memory{UInt64}
@@ -796,9 +796,9 @@ end
 Base.size(w::AbstractWeightVector) = (w.m[1],)
 
 FixedSizeWeightVector(len::Integer) = _FixedSizeWeightVector(initialize_empty(Int(len)))
-FixedSizeWeightVector(x::Weights) = _FixedSizeWeightVector(copy(x.m))
+FixedSizeWeightVector(x::AbstractWeightVector) = _FixedSizeWeightVector(copy(x.m))
 WeightVector(len::Integer) = _WeightVector(initialize_empty(Int(len)))
-WeightVector(x::Weights) = _WeightVector(copy(x.m))
+WeightVector(x::AbstractWeightVector) = _WeightVector(copy(x.m))
 
 # TODO: this can be significantly optimized
 function (::Type{T})(x) where {T <: AbstractWeightVector}
