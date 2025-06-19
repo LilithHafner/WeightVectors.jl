@@ -432,7 +432,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             new_next_free_space = next_free_space+new_allocation_length
             if new_next_free_space > length(m)+1 # There isn't room; we need to compact
                 m[group_length_index] = group_length-1 # See comment above; we don't want to copy past the end of m
-                next_free_space = compact!(m, m)
+                next_free_space = @noinline compact!(m, m)
                 group_pos = next_free_space-new_allocation_length # The group will move but remian the last group
                 new_next_free_space = next_free_space+new_allocation_length
                 @assert new_next_free_space < length(m)+1 # TODO for perf, delete this
@@ -454,7 +454,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             new_next_free_space = next_free_space+twice_new_allocated_size
             if new_next_free_space > length(m)+1 # out of space; compact. TODO for perf, consider resizing at this time slightly eagerly?
                 m[group_length_index] = group_length-1 # incrementing the group length before compaction is spotty because if the group was previously empty then this new group length will be ignored (compact! loops over sub_weights, not levels)
-                next_free_space = compact!(m, m)
+                next_free_space = @noinline compact!(m, m)
                 m[group_length_index] = group_length
                 new_next_free_space = next_free_space+twice_new_allocated_size
                 @assert new_next_free_space < length(m)+1 # After compaction there should be room TODO for perf, delete this
