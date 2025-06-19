@@ -39,6 +39,7 @@ w = WeightVectors.FixedSizeWeightVector(10)
 w[1] = 3
 w[2] = 2
 w[3] = 3
+w = FixedSizeWeightVector(w)
 @test w[1] == 3
 @test w[2] == 2
 @test w[3] == 3
@@ -47,6 +48,7 @@ w = WeightVectors.FixedSizeWeightVector(10)
 w[9] = 3
 w[7] = 3
 w[1] = 3
+w = copy(w)
 @test w[9] == 3
 @test w[7] == 3
 @test w[1] == 3

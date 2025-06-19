@@ -25,7 +25,6 @@ struct FixedSizeWeightVector <: AbstractWeightVector
     m::Memory{UInt64}
     global _FixedSizeWeightVector
     _FixedSizeWeightVector(m::Memory{UInt64}) = new(m)
-    FixedSizeWeightVector(len::Integer) = new(initialize_empty(Int(len)))
 end
 """
     WeightVector <: AbstractWeightVector
@@ -34,7 +33,8 @@ An object that confomrs the the `Weights` interface and can be resized.
 """
 mutable struct WeightVector <: AbstractWeightVector
     m::Memory{UInt64}
-    WeightVector(len::Integer) = new(initialize_empty(Int(len)))
+    global _WeightVector
+    _WeightVector(m::Memory{UInt64}) = new(m)
 end
 
 #===== Overview  ======
@@ -795,8 +795,13 @@ end
 # Conform to the AbstractArray API
 Base.size(w::AbstractWeightVector) = (w.m[1],)
 
-# Define convinience constructors TODO: these can be significantly optimized, especially when `x isa Weights`
-function (::Type{T})(x::AbstractVector{<:Real}) where {T <: AbstractWeightVector}
+FixedSizeWeightVector(len::Integer) = _FixedSizeWeightVector(initialize_empty(Int(len)))
+FixedSizeWeightVector(x::Weights) = _FixedSizeWeightVector(copy(x.m))
+WeightVector(len::Integer) = _WeightVector(initialize_empty(Int(len)))
+WeightVector(x::Weights) = _WeightVector(copy(x.m))
+
+# TODO: this can be significantly optimized
+function (::Type{T})(x) where {T <: AbstractWeightVector}
     w = T(length(x))
     for (i, v) in enumerate(x)
         w[i] = v
