@@ -1,6 +1,6 @@
 module WeightVectors
 
-export AbstractWeightVector, FixedSizeWeightVector, WeightVector
+export FixedSizeWeightVector, WeightVector
 
 using Random
 
