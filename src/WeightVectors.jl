@@ -26,7 +26,6 @@ struct FixedSizeWeightVector <: Weights
     m::Memory{UInt64}
     global _FixedSizeWeightVector
     _FixedSizeWeightVector(m::Memory{UInt64}) = new(m)
-    FixedSizeWeightVector(len::Integer) = new(initialize_empty(Int(len)))
 end
 """
     WeightVector <: Weights
@@ -37,7 +36,6 @@ mutable struct WeightVector <: Weights
     m::Memory{UInt64}
     global _WeightVector
     _WeightVector(m::Memory{UInt64}) = new(m)
-    WeightVector(len::Integer) = new(initialize_empty(Int(len)))
 end
 """
     SemiResizableWeightVector <: Weights
@@ -49,7 +47,6 @@ struct SemiResizableWeightVector <: Weights
     m::Memory{UInt64}
     global _SemiResizableWeightVector
     _SemiResizableWeightVector(m::Memory{UInt64}) = new(m)
-    SemiResizableWeightVector(len::Integer) = new(initialize_empty(Int(len)))
 end
 
 #===== Overview  ======
@@ -811,8 +808,11 @@ end
 # Conform to the AbstractArray API
 Base.size(w::Weights) = (w.m[1],)
 
+FixedSizeWeightVector(len::Integer) = new(initialize_empty(Int(len)))
 FixedSizeWeightVector(x::Weights) = _FixedSizeWeightVector(copy(x.m))
+SemiResizableWeightVector(len::Integer) = new(initialize_empty(Int(len)))
 SemiResizableWeightVector(x::Weights) = _SemiResizableWeightVector(copy(x.m))
+WeightVector(len::Integer) = new(initialize_empty(Int(len)))
 WeightVector(x::Weights) = _WeightVector(copy(x.m))
 
 # TODO: this can be significantly optimized
