@@ -107,7 +107,7 @@ end
 @testset "Effects" begin
     WV = EffectsWorkaround.WeightVectors
     TRUE = Core.Compiler.ALWAYS_TRUE
-    for T in [WV.WeightVector, WV.SemiResizableWeightVector, WV.FixedSizeWeightVector]
+    for T in [WV.WeightVector, WV.FixedSizeWeightVector]
         e = Base.infer_effects(rand, (Xoshiro, T))
         @test e.consistent != TRUE
         @test e.effect_free == Core.Compiler.EFFECT_FREE_IF_INACCESSIBLEMEMONLY
@@ -142,7 +142,7 @@ end
         VERSION >= v"1.11" && @test e.nortcall
     end
 
-    for T in [WV.WeightVector, WV.SemiResizableWeightVector]
+    for T in [WV.WeightVector]
         e = Base.infer_effects(resize!, (T, Int))
         @test e.consistent != TRUE
         VERSION >= v"1.12" && @test e.effect_free == Core.Compiler.EFFECT_FREE_IF_INACCESSIBLEMEMONLY # broken due to copyto!(::Memory, ::Int, ::Memory, ::Int, ::Int), which is hacked out in 1.12+
