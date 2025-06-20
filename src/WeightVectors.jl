@@ -475,7 +475,6 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # update group start location
             group_pos = m[group_length_index-1] = next_free_space
         end
-    end
 
     # insert the element into the group
     group_lastpos = _convert(Int, (group_pos-2)+2group_length)
