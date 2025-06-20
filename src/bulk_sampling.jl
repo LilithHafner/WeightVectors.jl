@@ -1,7 +1,7 @@
 
 using AliasTables
 
-Random.rand!(rng::AbstractRNG, A::AbstractArray, st::Random.SamplerTrivial{<:Weights}) = _rand!(rng, A, st[].m)
+Random.rand!(rng::AbstractRNG, A::AbstractArray, st::Random.SamplerTrivial{<:AbstractWeightVector}) = _rand!(rng, A, st[].m)
 
 function _rand!(rng::AbstractRNG, samples::AbstractArray, m::Memory{UInt64})
     n = length(samples)
