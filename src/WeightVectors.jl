@@ -176,7 +176,7 @@ Base.getindex(w::AbstractWeightVector, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::AbstractWeightVector, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 Base.iszero(w::AbstractWeightVector) = w.m[2] == 5
 
-#=@inbounds=# function _rand(rng::AbstractRNG, m::Memory{UInt64})
+function _rand(rng::AbstractRNG, m::Memory{UInt64})
 
     @label reject
 
@@ -184,7 +184,7 @@ Base.iszero(w::AbstractWeightVector) = w.m[2] == 5
     x = @inline rand(rng, Random.Sampler(rng, Base.OneTo(m[5]), Val(1)))
     i = _convert(Int, m[2])
     mi = m[i]
-    @inbounds while i > 6
+    while i > 6
         x <= mi && break
         x -= mi
         i -= 1
@@ -245,7 +245,7 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
         m2 = signed(m[2])
         x = zero(UInt64)
         checkbounds(m, 2m2-2Sys.WORD_SIZE+2093:2m2+2093)
-        @inbounds for i in Sys.WORD_SIZE:-1:0 # This loop is backwards so that memory access is forwards. TODO for perf, we can get away with shaving 1 to 10 off of this loop.
+        for i in Sys.WORD_SIZE:-1:0 # This loop is backwards so that memory access is forwards. TODO for perf, we can get away with shaving 1 to 10 off of this loop.
             # This can underflow from significand sums into weights, but that underflow is safe because it can only happen if all the latter weights are zero. Be careful about this when re-arranging the memory layout!
             x += m[2m2-2i+2093] >> (i - 1)
         end
@@ -467,7 +467,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             m[10531] = new_next_free_space
 
             # Copy the group to new location
-            (v"1.11" <= VERSION || 2group_length-2 != 0) && unsafe_copyto!(m, next_free_space, m, group_pos, 2group_length-2) # TODO for clarity and maybe perf: remove this version check
+            (v"1.11" <= VERSION || 2group_length-2 != 0) && copyto!(m, next_free_space, m, group_pos, 2group_length-2) # TODO for clarity and maybe perf: remove this version check
 
             # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
             delta = (next_free_space-group_pos) << 12
@@ -532,14 +532,14 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m5) # Increase sh
     # i < -59-signed(m3); the low 64 bits are shifted off.
 
     checkbounds(m, r0:2r1+2093)
-    @inbounds for i in r0:min(r1, -60-signed(m3))
+    for i in r0:min(r1, -60-signed(m3))
         significand_sum_lo = m[_convert(Int, 2i+2092)]
         significand_sum_hi = m[_convert(Int, 2i+2093)]
         significand_sum_lo == significand_sum_hi == 0 && continue # in this case, the weight was and still is zero
         shift = signed(i-5+m3) + 64
         m5 += update_weight!(m, i, significand_sum_hi << shift)
     end
-    @inbounds for i in max(r0,-59-signed(m3)):r1
+    for i in max(r0,-59-signed(m3)):r1
         significand_sum = get_significand_sum(m, i)
         significand_sum == 0 && continue # in this case, the weight was and still is zero
         shift = signed(i-5+m3)
@@ -568,7 +568,7 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m5=m[5]) # Decrease s
     @assert length(recompute_range) <= 64+Base.top_set_bit(m[4])+1
 
     checkbounds(m, flatten_range)
-    @inbounds for i in flatten_range # set nonzeros to 1
+    for i in flatten_range # set nonzeros to 1
         old_weight = m[i]
         weight = old_weight != 0
         m[i] = weight
@@ -577,7 +577,7 @@ function set_global_shift_decrease!(m::Memory, m3::UInt64, m5=m[5]) # Decrease s
 
     delta = m3_old-m3
     checkbounds(m, recompute_range)
-    @inbounds for i in recompute_range
+    for i in recompute_range
         old_weight = m[i]
         old_weight <= 1 && continue # in this case, the weight was and still is 0 or 1
         m5 += update_weight!(m, i, (old_weight-1) >> delta)
@@ -715,10 +715,13 @@ function _resize!(w::WeightVector, len::Integer)
     # m2 .= 0 # For debugging; TODO: set to 0xdeadbeefdeadbeef to test
     m2[1] = len
     if len > old_len # grow
-        unsafe_copyto!(m2, 2, m, 2, old_len + 10794)
-        m2[old_len + 10795:len + 10794] .= 0
+        copyto!(m2, 2, m, 2, old_len + 10794)
+        for i in old_len + 10795:len + 10794
+            m2[i] = 0 # zero out the new elements
+        end
+        # m2[old_len + 10795:len + 10794] .= 0 has ub effect in 1.11
     else # shrink
-        unsafe_copyto!(m2, 2, m, 2, len + 10794)
+        copyto!(m2, 2, m, 2, len + 10794)
     end
 
     compact!(m2, m)
@@ -782,7 +785,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         end
 
         # Copy the group to a compacted location
-        unsafe_copyto!(dst, dst_i, src, src_i, 2group_length)
+        copyto!(dst, dst_i, src, src_i, 2group_length)
 
         # Advance indices
         src_i += 2*1<<log2_allocated_size # TODO add test that fails if the 2* part is removed
