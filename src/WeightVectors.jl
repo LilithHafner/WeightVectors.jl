@@ -4,6 +4,8 @@ export FixedSizeWeightVector, WeightVector
 
 using Random
 
+__init__() = sleep(1)
+
 isdefined(@__MODULE__, :Memory) || const Memory = Vector # Compat for Julia < 1.11
 
 const DEBUG = Base.JLOptions().check_bounds == 1
