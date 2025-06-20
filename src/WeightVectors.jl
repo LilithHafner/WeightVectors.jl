@@ -320,7 +320,7 @@ end
 
 Base.@propagate_inbounds function get_significand_sum(m, i)
     i = _convert(Int, 2i+2092)
-    significand_sum = UInt128(m[i]) | (UInt128(m[i+1]) << 64)
+    UInt128(m[i]) | (UInt128(m[i+1]) << 64)
 end
 function update_significand_sum(m, i, delta)
     j = _convert(Int, 2i+2092)
