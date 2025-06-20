@@ -2,7 +2,6 @@ using WeightVectors, Test
 
 @test WeightVectors.FixedSizeWeightVector(10) isa WeightVectors.FixedSizeWeightVector
 @test WeightVectors.WeightVector(10) isa WeightVectors.WeightVector
-@test WeightVectors.SemiResizableWeightVector(10) isa WeightVectors.SemiResizableWeightVector
 
 w = WeightVectors.FixedSizeWeightVector(10)
 
@@ -228,7 +227,7 @@ verify(w.m)
 w = WeightVectors.FixedSizeWeightVector(10)
 @test_throws MethodError resize!(w, 20)
 @test_throws MethodError resize!(w, 5)
-w2 = WeightVectors.SemiResizableWeightVector(w)
+w2 = WeightVectors.WeightVector(w)
 resize!(w2, 5)
 @test length(w2) == 5
 @test length(w) == 10 # The fixed size has not changed

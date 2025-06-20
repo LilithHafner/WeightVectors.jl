@@ -1,7 +1,6 @@
 module WeightVectors
 
-VERSION >= v"1.11.0-DEV.469" && eval(Meta.parse("public Weights"))
-export FixedSizeWeightVector, WeightVector, SemiResizableWeightVector
+export FixedSizeWeightVector, WeightVector
 
 using Random
 
@@ -11,42 +10,31 @@ const DEBUG = Base.JLOptions().check_bounds == 1
 _convert(T, x) = DEBUG ? T(x) : x%T
 
 """
-    Weights <: AbstractVector{Float64}
+    AbstractWeightVector <: AbstractVector{Float64}
 
 An abstract vector capable of storing normal, non-negative floating point numbers on which
 `rand` samples an index according to values rather than sampling a value uniformly.
 """
-abstract type Weights <: AbstractVector{Float64} end
+abstract type AbstractWeightVector <: AbstractVector{Float64} end
 """
-    FixedSizeWeightVector <: Weights
+    FixedSizeWeightVector <: AbstractWeightVector
 
-An object that confomrs the the `Weights` interface and cannot be resized.
+An object that conforms to the `AbstractWeightVector` interface and cannot be resized.
 """
-struct FixedSizeWeightVector <: Weights
+struct FixedSizeWeightVector <: AbstractWeightVector
     m::Memory{UInt64}
     global _FixedSizeWeightVector
     _FixedSizeWeightVector(m::Memory{UInt64}) = new(m)
 end
 """
-    WeightVector <: Weights
+    WeightVector <: AbstractWeightVector
 
-An object that confomrs the the `Weights` interface and can be resized.
+An object that conforms to the `AbstractWeightVector` interface and can be resized.
 """
-mutable struct WeightVector <: Weights
+mutable struct WeightVector <: AbstractWeightVector
     m::Memory{UInt64}
     global _WeightVector
     _WeightVector(m::Memory{UInt64}) = new(m)
-end
-"""
-    SemiResizableWeightVector <: Weights
-
-An object that confomrs the the `Weights` interface and can be resized, but only to sizes
-at most as large as it's original size.
-"""
-struct SemiResizableWeightVector <: Weights
-    m::Memory{UInt64}
-    global _SemiResizableWeightVector
-    _SemiResizableWeightVector(m::Memory{UInt64}) = new(m)
 end
 
 #===== Overview  ======
@@ -181,12 +169,12 @@ TODO
 # Trivial extensions:
 # push!, delete!
 
-Random.rand(rng::AbstractRNG, st::Random.SamplerTrivial{<:Weights}) = _rand(rng, st[].m)
-Random.Sampler(::Type{<:Random.AbstractRNG}, w::Weights, ::Random.Repetition) = Random.SamplerTrivial(w)
-Random.gentype(::Type{<:Weights}) = Int
-Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
-Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
-Base.iszero(w::Weights) = w.m[2] == 5
+Random.rand(rng::AbstractRNG, st::Random.SamplerTrivial{<:AbstractWeightVector}) = _rand(rng, st[].m)
+Random.Sampler(::Type{<:Random.AbstractRNG}, w::AbstractWeightVector, ::Random.Repetition) = Random.SamplerTrivial(w)
+Random.gentype(::Type{<:AbstractWeightVector}) = Int
+Base.getindex(w::AbstractWeightVector, i::Int) = _getindex(w.m, i)
+Base.setindex!(w::AbstractWeightVector, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
+Base.iszero(w::AbstractWeightVector) = w.m[2] == 5
 
 #=@inbounds=# function _rand(rng::AbstractRNG, m::Memory{UInt64})
 
@@ -698,14 +686,13 @@ end
 allocated_memory(length::Int) = 10794 + 8*length
 length_from_memory(allocated_memory::Int) = Int((allocated_memory-10794)/8)
 
-Base.resize!(w::Union{SemiResizableWeightVector, WeightVector}, len::Integer) = resize!(w, Int(len))
-function Base.resize!(w::Union{SemiResizableWeightVector, WeightVector}, len::Int)
+Base.resize!(w::WeightVector, len::Integer) = resize!(w, Int(len))
+function Base.resize!(w::WeightVector, len::Int)
     m = w.m
     old_len = m[1]
     if len > old_len
         am = allocated_memory(len)
         if am > length(m)
-            w isa SemiResizableWeightVector && throw(ArgumentError("Cannot increase the size of a SemiResizableWeightVector above its original allocated size. Try using a WeightVector instead."))
             _resize!(w, len)
         else
             m[1] = len
@@ -806,17 +793,15 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
 end
 
 # Conform to the AbstractArray API
-Base.size(w::Weights) = (w.m[1],)
+Base.size(w::AbstractWeightVector) = (w.m[1],)
 
 FixedSizeWeightVector(len::Integer) = _FixedSizeWeightVector(initialize_empty(Int(len)))
-FixedSizeWeightVector(x::Weights) = _FixedSizeWeightVector(copy(x.m))
-SemiResizableWeightVector(len::Integer) = _SemiResizableWeightVector(initialize_empty(Int(len)))
-SemiResizableWeightVector(x::Weights) = _SemiResizableWeightVector(copy(x.m))
+FixedSizeWeightVector(x::AbstractWeightVector) = _FixedSizeWeightVector(copy(x.m))
 WeightVector(len::Integer) = _WeightVector(initialize_empty(Int(len)))
-WeightVector(x::Weights) = _WeightVector(copy(x.m))
+WeightVector(x::AbstractWeightVector) = _WeightVector(copy(x.m))
 
 # TODO: this can be significantly optimized
-function (::Type{T})(x) where {T <: Weights}
+function (::Type{T})(x) where {T <: AbstractWeightVector}
     w = T(length(x))
     for (i, v) in enumerate(x)
         w[i] = v
