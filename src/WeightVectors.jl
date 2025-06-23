@@ -625,10 +625,10 @@ function _set_to_zero!(m::Memory, i::Int)
             m2 = m[2]
             if weight_index == m2 # We zeroed out the first group
                 checkbounds(m, level_weights_nonzero_index-1)
-                @inbounds while chunk == 0 # Find the new m[2]
+                while chunk == 0 # Find the new m[2]
                     level_weights_nonzero_index -= 1
                     m2 -= 64
-                    chunk = m[level_weights_nonzero_index]
+                    @inbounds chunk = m[level_weights_nonzero_index]
                 end
                 m2 += 63-trailing_zeros(chunk) - level_weights_nonzero_subindex
                 m[2] = m2
