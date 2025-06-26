@@ -109,7 +109,6 @@ Runs in `O(trials * weights)`, but can be as fast as `O(trials)` if the weights 
 function multinomial_sample(rng, trials, weights::AbstractVector{<:Integer})
     sum_weights = sum(weights)
     counts = Vector{Int}(undef, length(weights))
-    weight_copy = BigInt(0)
     for i in 1:length(weights)-1
         weight = weights[i]
         b = binomial_sample(rng, trials, weight, sum_weights)
