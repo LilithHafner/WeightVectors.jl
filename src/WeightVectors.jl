@@ -214,11 +214,11 @@ end
 
 @inline function sample_within_level(rng, m, pos, len)
     while true
-        r = rand(rng, Random.Sampler(rng, UInt, Val(1)))
+        r = rand(rng, Random.Sampler(rng, UInt64, Val(1)))
         k1 = (r>>leading_zeros(len-1))
         k2 = _convert(Int, k1<<1+pos)
         # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to 0
-        rand(rng, Random.Sampler(rng, UInt, Val(1))) < m[k2] * (k1 < len) && return Int(signed(m[k2+1]))
+        rand(rng, Random.Sampler(rng, UInt64, Val(1))) < m[k2] * (k1 < len) && return Int(signed(m[k2+1]))
     end
 end
 
