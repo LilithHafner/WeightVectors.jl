@@ -1,5 +1,7 @@
 
-using AliasTables
+using BitIntegers, AliasTables
+
+BitIntegers.@define_integers 2240
 
 Random.rand!(rng::AbstractRNG, A::AbstractArray, st::Random.SamplerTrivial{<:AbstractWeightVector}) = _rand!(rng, A, st[].m)
 
@@ -20,13 +22,13 @@ function _rand!(rng::AbstractRNG, samples::AbstractArray, m::Memory{UInt64})
     k = sum(count_ones(m[j]) for j in min_j:10528)
     n < 100*(k^0.72) && return fill_samples!(rng, m, samples)
     inds = Vector{Int}(undef, k)
-    weights = Vector{BigInt}(undef, k)
+    weights = Vector{UInt2240}(undef, k)
     l = 0
     for j in max_i:-1:min_i
         if m[j] != 0
             l += 1
             inds[l] = j
-            weights[l] = BigInt(get_significand_sum(m, j)) << (j-min_i)
+            weights[l] = UInt2240(get_significand_sum(m, j)) << (j-min_i)
         end
     end
     counts = multinomial_sample(rng, n, weights)
@@ -47,7 +49,6 @@ function _rand!(rng::AbstractRNG, samples::AbstractArray, m::Memory{UInt64})
     faster_shuffle!(rng, samples)
 end
 
-# it uses some internals from Base.GMP.MPZ (as MutableArithmetics.jl) to speed-up some BigInt operations
 """
     binomial_sample(rng, trials, px, py)
     
@@ -66,11 +67,11 @@ function binomial_sample(rng, trials, px, py)
     count = 0
     while trials > 0
         c = binomial_sample_fair_coin(rng, trials)
-        Base.GMP.MPZ.mul_2exp!(px, 1) # px *= 2
+        px *= 2
         if px > py
             count += c
             trials -= c
-            Base.GMP.MPZ.sub!(px, py) # px -= py
+            px -= py
         elseif px < py
             trials = c
         else
@@ -108,15 +109,13 @@ Runs in `O(trials * weights)`, but can be as fast as `O(trials)` if the weights 
 function multinomial_sample(rng, trials, weights::AbstractVector{<:Integer})
     sum_weights = sum(weights)
     counts = Vector{Int}(undef, length(weights))
-    weight_copy = BigInt(0)
     for i in 1:length(weights)-1
         weight = weights[i]
-        Base.GMP.MPZ.set!(weight_copy, weight)
-        b = binomial_sample(rng, trials, weight_copy, sum_weights)
+        b = binomial_sample(rng, trials, weight, sum_weights)
         counts[i] = b
         trials -= b
         trials == 0 && return counts
-        Base.GMP.MPZ.sub!(sum_weights, weight)
+        sum_weights -= weight
     end
     counts[end] = trials
     counts
