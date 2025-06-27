@@ -1,7 +1,7 @@
 
 using BitIntegers, AliasTables
 
-BitIntegers.@define_integers 2232
+BitIntegers.@define_integers 2240
 
 Random.rand!(rng::AbstractRNG, A::AbstractArray, st::Random.SamplerTrivial{<:AbstractWeightVector}) = _rand!(rng, A, st[].m)
 
@@ -22,13 +22,13 @@ function _rand!(rng::AbstractRNG, samples::AbstractArray, m::Memory{UInt64})
     k = sum(count_ones(m[j]) for j in min_j:10528)
     n < 100*(k^0.72) && return fill_samples!(rng, m, samples)
     inds = Vector{Int}(undef, k)
-    weights = Vector{UInt2232}(undef, k)
+    weights = Vector{UInt2240}(undef, k)
     l = 0
     for j in max_i:-1:min_i
         if m[j] != 0
             l += 1
             inds[l] = j
-            weights[l] = UInt2232(get_significand_sum(m, j)) << (j-min_i)
+            weights[l] = UInt2240(get_significand_sum(m, j)) << (j-min_i)
         end
     end
     counts = multinomial_sample(rng, n, weights)
