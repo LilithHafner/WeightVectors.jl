@@ -72,7 +72,7 @@ function binomial_sample(rng, trials, px, py)
     count = 0
     while trials > 0
         c = binomial_sample_fair_coin(rng, trials)
-        px <<= 1
+        px *= 2
         if px > py
             count += c
             trials -= c
