@@ -1,5 +1,5 @@
 
-using BitIntegers, AliasTables
+using AliasTables, BitIntegers, PtrArrays
 
 BitIntegers.@define_integers 2240
 
@@ -21,30 +21,35 @@ function _rand!(rng::AbstractRNG, samples::AbstractArray, m::Memory{UInt64})
     end
     k = sum(count_ones(m[j]) for j in min_j:10528)
     n < 100*(k^0.72) && return fill_samples!(rng, m, samples)
-    inds = Vector{Int}(undef, k)
-    weights = Vector{UInt2240}(undef, k)
-    l = 0
-    for j in max_i:-1:min_i
-        if m[j] != 0
-            l += 1
-            inds[l] = j
-            weights[l] = UInt2240(get_significand_sum(m, j)) << (j-min_i)
+    inds = malloc(Int, k)
+    weights = malloc(UInt2240, k)
+    try
+        l = 0
+        for j in max_i:-1:min_i
+            if m[j] != 0
+                l += 1
+                inds[l] = j
+                weights[l] = UInt2240(get_significand_sum(m, j)) << (j-min_i)
+            end
         end
-    end
-    counts = multinomial_sample(rng, n, weights)
-    ct, s = 0, 1
-    for i in 1:k
-        c = counts[i]
-        c == 0 && continue
-        j = 2*inds[i] + 6288
-        pos = m[j]
-        len = m[j+1]
-        for _ in 1:c
-            samples[s] = sample_within_level(rng, m, pos, len)
-            s += 1
+        counts = multinomial_sample(rng, n, weights)
+        ct, s = 0, 1
+        for i in 1:k
+            c = counts[i]
+            c == 0 && continue
+            j = 2*inds[i] + 6288
+            pos = m[j]
+            len = m[j+1]
+            for _ in 1:c
+                samples[s] = sample_within_level(rng, m, pos, len)
+                s += 1
+            end
+            ct += c
+            ct == n && break
         end
-        ct += c
-        ct == n && break
+    finally
+        free(inds)
+        free(weights)
     end
     faster_shuffle!(rng, samples)
 end
@@ -67,7 +72,7 @@ function binomial_sample(rng, trials, px, py)
     count = 0
     while trials > 0
         c = binomial_sample_fair_coin(rng, trials)
-        px *= 2
+        px <<= 1
         if px > py
             count += c
             trials -= c
