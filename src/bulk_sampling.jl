@@ -1,5 +1,5 @@
 
-using BitIntegers, AliasTables
+using AliasTables, BitIntegers, Bumper
 
 BitIntegers.@define_integers 2240
 
@@ -21,8 +21,9 @@ function _rand!(rng::AbstractRNG, samples::AbstractArray, m::Memory{UInt64})
     end
     k = sum(count_ones(m[j]) for j in min_j:10528)
     n < 100*(k^0.72) && return fill_samples!(rng, m, samples)
-    inds = Vector{Int}(undef, k)
-    weights = Vector{UInt2240}(undef, k)
+    @no_escape begin
+    inds = @alloc(Int, k)
+    weights = @alloc(UInt2240, k)
     l = 0
     for j in max_i:-1:min_i
         if m[j] != 0
@@ -45,6 +46,7 @@ function _rand!(rng::AbstractRNG, samples::AbstractArray, m::Memory{UInt64})
         end
         ct += c
         ct == n && break
+    end
     end
     faster_shuffle!(rng, samples)
 end
