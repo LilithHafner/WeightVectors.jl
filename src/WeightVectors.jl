@@ -214,7 +214,7 @@ end
 
 @inline function sample_within_level(rng, m, pos, len)
     shift = leading_zeros(len-1)
-    @assert pos != 0
+    @assert 1 <= len <= 2^52 && 1 <= pos <= 2^52
     checkbounds(m, (typemax(UInt64) >> shift) << 1 + pos + 1)
     @inbounds while true
         r = rand(rng, UInt64)
