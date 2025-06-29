@@ -22,31 +22,31 @@ function _rand!(rng::AbstractRNG, samples::AbstractArray, m::Memory{UInt64})
     k = sum(count_ones(m[j]) for j in min_j:10528)
     n < 100*(k^0.72) && return fill_samples!(rng, m, samples)
     @no_escape begin
-    inds = @alloc(Int, k)
-    weights = @alloc(UInt2240, k)
-    l = 0
-    for j in max_i:-1:min_i
-        if m[j] != 0
-            l += 1
-            inds[l] = j
-            weights[l] = UInt2240(get_significand_sum(m, j)) << (j-min_i)
+        inds = @alloc(Int, k)
+        weights = @alloc(UInt2240, k)
+        l = 0
+        for j in max_i:-1:min_i
+            if m[j] != 0
+                l += 1
+                inds[l] = j
+                weights[l] = UInt2240(get_significand_sum(m, j)) << (j-min_i)
+            end
         end
-    end
-    counts = multinomial_sample(rng, n, weights)
-    ct, s = 0, 1
-    for i in 1:k
-        c = counts[i]
-        c == 0 && continue
-        j = 2*inds[i] + 6288
-        pos = m[j]
-        len = m[j+1]
-        for _ in 1:c
-            samples[s] = sample_within_level(rng, m, pos, len)
-            s += 1
+        counts = multinomial_sample(rng, n, weights)
+        ct, s = 0, 1
+        for i in 1:k
+            c = counts[i]
+            c == 0 && continue
+            j = 2*inds[i] + 6288
+            pos = m[j]
+            len = m[j+1]
+            for _ in 1:c
+                samples[s] = sample_within_level(rng, m, pos, len)
+                s += 1
+            end
+            ct += c
+            ct == n && break
         end
-        ct += c
-        ct == n && break
-    end
     end
     faster_shuffle!(rng, samples)
 end
