@@ -3,11 +3,10 @@ using WeightVectors: FixedSizeWeightVector, WeightVector, SemiResizableWeightVec
 using Random
 include("../test/DynamicDiscreteSampler.jl")
 
-rng = Xoshiro(42)
 t0 = time()
-ds = DynamicDiscreteSampler(rng)
-push!(ds, 1, rand(rng))
-push!(ds, 2, rand(rng))
+ds = DynamicDiscreteSampler()
+push!(ds, 1, rand())
+push!(ds, 2, rand())
 x = rand(ds) + rand(ds)
 y = rand(ds, 1000)
 t1 = time()
