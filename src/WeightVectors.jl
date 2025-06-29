@@ -546,6 +546,7 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m5) # Increase sh
         shift = signed(i-5+m3)
         m5 += update_weight!(m, i, (significand_sum_hi << (64 + shift)) | (significand_sum_lo << shift))
     end
+
     m[5] = m5
 end
 
