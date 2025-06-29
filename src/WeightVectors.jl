@@ -540,12 +540,12 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m5) # Increase sh
         m5 += update_weight!(m, i, significand_sum_hi << shift)
     end
     @inbounds for i in max(r0,-59-signed(m3)):r1
-        significand_sum = get_significand_sum(m, i)
-        significand_sum == 0 && continue # in this case, the weight was and still is zero
+        significand_sum_lo = m[_convert(Int, 2i+2092)]
+        significand_sum_hi = m[_convert(Int, 2i+2093)]
+        significand_sum_lo == significand_sum_hi == 0 && continue # in this case, the weight was and still is zero
         shift = signed(i-5+m3)
-        m5 += update_weight!(m, i, significand_sum << shift)
+        m5 += update_weight!(m, i, (significand_sum_hi << (64 + shift)) | (significand_sum_lo << shift))
     end
-
     m[5] = m5
 end
 
