@@ -213,9 +213,12 @@ Base.iszero(w::AbstractWeightVector) = w.m[2] == 5
 end
 
 @inline function sample_within_level(rng, m, pos, len)
-    while true
+    shift = leading_zeros(len-1)
+    @assert pos != 0
+    checkbounds(m, (typemax(UInt64) >> shift) << 1 + pos + 1)
+    @inbounds while true
         r = rand(rng, UInt64)
-        k1 = (r>>leading_zeros(len-1))
+        k1 = (r>>shift)
         k2 = _convert(Int, k1<<1+pos)
         # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to 0
         rand(rng, UInt64) < m[k2] * (k1 < len) && return Int(signed(m[k2+1]))
