@@ -223,10 +223,10 @@ end
     # 3. shift = leading_zeros(len-1) which means that shift ∈ [8, 64] if 2. is true.
     # 4. k2+1 = (r >> shift) << 1 + pos + 1 by the transformations to r in the while loop.
     # 5. max(k2+1) = (typemax(UInt64) >> shift) << 1 + pos + 1 since max((r >> shift) << 1) = 
-    #    (max(r) >> shift) << 1 = (typemax(UInt64) >> shift) << 1 if 2. is true. Similarly, 
-    #    min(k2+1) = pos + 1 >= 2 if 2. is true.
+    #    (max(r) >> shift) << 1 = (typemax(UInt64) >> shift) << 1 by 1.,2. and 3. (if 2. is true). 
+    #    Similarly, min(k2+1) = pos + 1 >= 2 by 1.,2. and 3. (if 2. is true).
     # 6. Therefore, both m[k2] and m[k2+1] are inbound if we check that 2. holds and if we check
-    #    that max(k2+1) is inbounds. If one of these two conditions don't hold, m is corrupted and
+    #    that max(k2+1) is inbounds. If one of these two conditions doesn't hold, m is corrupted and
     #    then throwing an error is correct.
     (UInt64(1) <= len <= UInt64(2)^56 && UInt64(1) <= pos <= UInt64(2)^56) || throw("Sampler is corrupted")
     checkbounds(m, (typemax(UInt64) >> shift) << 1 + pos + 1)
