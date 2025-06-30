@@ -216,7 +216,7 @@ end
     shift = leading_zeros(len-1)
     # inbounds safety: the maximum of r is typemax(UInt64). Also, len and pos should be in [1, 2^56]
     # since the maximum length of m is 10794 + 8 * 2^52, shift by its definition is instead in [0, 64].
-    # Therefore r <= typemax(UInt64) implies k2 + 1 <= typemax(UInt64) >> shift) << 1 + pos + 1 since
+    # Therefore r <= typemax(UInt64) implies k2 + 1 <= (typemax(UInt64) >> shift) << 1 + pos + 1 since
     # with those conditions all operations are monotonically non-decreasing. Also k2+1 >= 2 since pos
     # is at least 1. Therefore both m[k2] and m[k2+1] are in-range.
     @assert UInt64(1) <= len <= UInt64(2)^56 && UInt64(1) <= pos <= UInt64(2)^56
