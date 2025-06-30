@@ -221,7 +221,9 @@ end
     #    and pos is the absolute position of the group into m and len is the 
     #    length of the group.
     # 3. shift = leading_zeros(len-1) which means that shift ∈ [8, 64] if 2. is true.
-    # 4. k2+1 = (r >> shift) << 1 + pos + 1 by the transformations to r in the while loop.
+    # 4. k2+1 = _convert(Int, (r >> shift) << 1 + pos) + 1 = (r >> shift) << 1 + pos) + 1 
+    #    by the transformations to r in the while loop and because the conversion doesn't have
+    #    any effect since (r >> shift) << 1 + pos <= 2^63-1 if 2. is true.
     # 5. max(k2+1) = (typemax(UInt64) >> shift) << 1 + pos + 1 since max((r >> shift) << 1) = 
     #    (max(r) >> shift) << 1 = (typemax(UInt64) >> shift) << 1 by 1.,2. and 3. (if 2. is true). 
     #    Similarly, min(k2+1) = pos + 1 >= 2 by 1.,2. and 3. (if 2. is true).
