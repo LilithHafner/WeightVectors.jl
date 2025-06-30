@@ -635,8 +635,8 @@ function _set_to_zero!(m::Memory, i::Int)
                     #    at the start of the while loop.
                     # 3. level_weights_nonzero_index >= 10496 because of 2. and since 0 <= exponent <= 4095 because exponent = m[j] & 4095.
                     # 4. m[5] > 0 since the branch containing the while loop requires m5 != 0 and m5 = m[5] - m[weight_index] > 0.
-                    # 5. Therefore, we will surely stop this loop when level_weights_nonzero_index = 5 because of 4. and we know that every
-                    #    previous access, when we decrement level_weights_nonzero_index by one at each iteration, is inbound because of 1. and 3.
+                    # 5. Therefore, we will surely stop this loop when level_weights_nonzero_index = 5 because of 4., and we know that every
+                    #    previous access, after we decrement level_weights_nonzero_index by one at each iteration, is inbound because of 1. and 3.
                     @inbounds chunk = m[level_weights_nonzero_index]
                 end
                 m2 += 63-trailing_zeros(chunk) - level_weights_nonzero_subindex
