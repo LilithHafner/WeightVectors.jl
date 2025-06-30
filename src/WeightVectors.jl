@@ -630,10 +630,10 @@ function _set_to_zero!(m::Memory, i::Int)
                     # @inbounds safety: at the start of the loop, chunk = m[level_weights_nonzero_index], therefore we
                     # know that evel_weights_nonzero_index is inbounds, then we also know by how it is computed that 
                     # level_weights_nonzero_index = _convert(Int, 10496 + exponent >> 6) where 0 <= exponent <= 4095
-                    # because exponent = mj & 4095 where mj is a UInt64, we also know that m[5] is not zero because
-                    # we enter the branch where we do this while loop when m5 = m[5] - old_weight > 0 which means that
-                    # m[5] > old_weight >= 0 since old_weight is a UInt64, therefore even if memory is corrupted we will
-                    # stop this loop when level_weights_nonzero_index = 5.
+                    # because exponent = mj & 4095 where mj is a UInt64. This means that level_weights_nonzero_index >= 10496
+                    # We also know that m[5] is not zero because we enter the branch where we do this while loop when
+                    # m5 = m[5] - old_weight > 0 which means that m[5] > old_weight >= 0 since old_weight is a UInt64,
+                    # therefore even if memory is corrupted we will stop this loop when level_weights_nonzero_index = 5.
                     @inbounds chunk = m[level_weights_nonzero_index]
                 end
                 m2 += 63-trailing_zeros(chunk) - level_weights_nonzero_subindex
