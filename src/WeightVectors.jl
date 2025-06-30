@@ -627,7 +627,7 @@ function _set_to_zero!(m::Memory, i::Int)
                 while chunk == 0 # Find the new m[2]
                     level_weights_nonzero_index -= 1
                     m2 -= 64
-                    # inbound safety: at the start of the loop, chunk = m[level_weights_nonzero_index], therefore we
+                    # @inbounds safety: at the start of the loop, chunk = m[level_weights_nonzero_index], therefore we
                     # know that evel_weights_nonzero_index is inbounds, then we also know by how it is computed that 
                     # level_weights_nonzero_index = _convert(Int, 10496 + exponent >> 6) where 0 <= exponent <= 4095
                     # because exponent = mj & 4095 where mj is a UInt64, we also know that m[5] is not zero because
