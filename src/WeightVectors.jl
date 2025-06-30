@@ -219,7 +219,7 @@ end
     # Therefore r <= typemax(UInt64) implies k2 + 1 <= (typemax(UInt64) >> shift) << 1 + pos + 1 since
     # with those conditions all operations are monotonically non-decreasing. Also k2+1 >= 2 since pos
     # is at least 1. Therefore both m[k2] and m[k2+1] are in-range.
-    @assert UInt64(1) <= len <= UInt64(2)^56 && UInt64(1) <= pos <= UInt64(2)^56
+    (UInt64(1) <= len <= UInt64(2)^56 && UInt64(1) <= pos <= UInt64(2)^56) || throw("Sampler is corrupted")
     checkbounds(m, (typemax(UInt64) >> shift) << 1 + pos + 1)
     @inbounds while true
         r = rand(rng, UInt64)
