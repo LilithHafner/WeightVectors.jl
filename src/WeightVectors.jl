@@ -214,11 +214,20 @@ end
 
 @inline function sample_within_level(rng, m, pos::UInt64, len::UInt64)
     shift = leading_zeros(len-1)
-    # @inbounds safety: the maximum of r is typemax(UInt64). Also, len and pos should be in [1, 2^56]
-    # since the maximum length of m is 10794 + 8 * 2^52, shift by its definition is instead in [0, 64].
-    # Therefore r <= typemax(UInt64) implies k2 + 1 <= (typemax(UInt64) >> shift) << 1 + pos + 1 since
-    # with those conditions all operations are monotonically non-decreasing. Also k2+1 >= 2 since pos
-    # is at least 1. Therefore both m[k2] and m[k2+1] are in-range.
+    # @inbounds safety: 
+    # 1. 0 <= r <= typemax(UInt64) since r = rand(rng, UInt64)
+    # 2. Suppose len and pos ∈ [1, 2^56]. This needs to be true if m
+    #    is not corrupted since the maximum length of m is 10794 + 8 * 2^52
+    #    and pos is the absolute position of the group into m and len is the 
+    #    length of the group.
+    # 3. shift = leading_zeros(len-1) which means that shift ∈ [8, 64] if 2. is true.
+    # 4. k2+1 = (r >> shift) << 1 + pos + 1 by the transformations to r in the while loop.
+    # 5. max(k2+1) = (typemax(UInt64) >> shift) << 1 + pos + 1 since max((r >> shift) << 1) = 
+    #    (max(r) >> shift) << 1 = (typemax(UInt64) >> shift) << 1 if 2. is true. Similarly, 
+    #    min(k2+1) = pos + 1 >= 2 if 2. is true.
+    # 6. Therefore, both m[k2] and m[k2+1] are inbound if we check that 2. holds and if we check
+    #    that max(k2+1) is inbounds. If one of these two conditions don't hold, m is corrupted and
+    #    then throwing an error is correct.
     (UInt64(1) <= len <= UInt64(2)^56 && UInt64(1) <= pos <= UInt64(2)^56) || throw("Sampler is corrupted")
     checkbounds(m, (typemax(UInt64) >> shift) << 1 + pos + 1)
     @inbounds while true
