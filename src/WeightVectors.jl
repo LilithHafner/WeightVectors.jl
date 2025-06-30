@@ -212,7 +212,7 @@ Base.iszero(w::AbstractWeightVector) = w.m[2] == 5
     sample_within_level(rng, m, pos, len)
 end
 
-@inline function sample_within_level(rng, m, pos, len)
+@inline function sample_within_level(rng, m, pos::UInt64, len::UInt64)
     shift = leading_zeros(len-1)
     # @inbounds safety: the maximum of r is typemax(UInt64). Also, len and pos should be in [1, 2^56]
     # since the maximum length of m is 10794 + 8 * 2^52, shift by its definition is instead in [0, 64].
