@@ -227,7 +227,7 @@ end
     #    Similarly, min(k2+1) = pos + 1 >= 2 by 1.,2. and 3. (if 2. is true).
     # 6. Therefore, both m[k2] and m[k2+1] are inbound if we check that 2. holds and if we check
     #    that max(k2+1) is inbounds. If one of these two conditions doesn't hold, m is corrupted and
-    #    then throwing an error is correct.
+    #    then we throw an error.
     (UInt64(1) <= len <= UInt64(2)^56 && UInt64(1) <= pos <= UInt64(2)^56) || throw("Sampler is corrupted")
     checkbounds(m, (typemax(UInt64) >> shift) << 1 + pos + 1)
     @inbounds while true
