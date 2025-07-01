@@ -266,7 +266,7 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
 
         set_global_shift_increase!(m, m2, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
 
-        @assert 46 <= Base.top_set_bit(m[5]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8 # TODO for perf: delete
+        @assert 46 <= Base.top_set_bit(m[5]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8
     end
 
     while true # TODO for confidence: move this to a separate, documented function and add unit tests.
@@ -353,7 +353,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         shift = -24
         weight = _convert(UInt64, significand_sum << shift) + 1
 
-        @assert Base.top_set_bit(weight-1) == 40 # TODO for perf: delete
+        @assert Base.top_set_bit(weight-1) == 40
         m[weight_index] = weight
         m[5] = weight
     else
