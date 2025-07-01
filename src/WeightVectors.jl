@@ -213,7 +213,7 @@ Base.iszero(w::AbstractWeightVector) = w.m[2] == 5
 end
 
 macro inbounds_if_word64(arg)
-    esc(Sys.WORD_SIZE == 64 ? :(@inbounds $arg)) : arg)
+    esc(Sys.WORD_SIZE == 64 ? :(@inbounds $arg) : arg)
 end
 
 @inline function sample_within_level(rng, m, pos::UInt64, len::UInt64)
