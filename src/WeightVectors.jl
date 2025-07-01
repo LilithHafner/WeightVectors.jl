@@ -634,8 +634,10 @@ function _set_to_zero!(m::Memory, i::Int)
                     # 2. level_weights_nonzero_index = get_level_weights_nonzero_indices(exponent) = _convert(Int, 10496 + exponent >> 6)
                     #    at the start of the while loop.
                     # 3. level_weights_nonzero_index >= 10496 because of 2. and since 0 <= exponent <= 4095 because exponent = m[j] & 4095.
-                    # 4. m[5] > 0 since the branch containing the while loop requires m5 != 0 and m5::UInt64 = m[5]::UInt64 - m[weight_index]::UInt64 > 0.
-                    # 5. Therefore, we will surely stop this loop when level_weights_nonzero_index = 5 because of 4., and we know that every
+                    # 4. m5 > 0 since accessing the while loop requires m5 != 0 and m5 is a UInt64, also m5 = m[5] - m[weight_index] for how
+                    #    it is computed.
+                    # 5. m[5] - m[weight_index] > 0 from 4. so m[5] > m[weight_index] which means m[5] > 0 since m[weight_index] is a UInt64.
+                    # 6. Therefore, we will surely stop this loop when level_weights_nonzero_index = 5 because of 5., and we know that every
                     #    previous access, after we decrement level_weights_nonzero_index by one at each iteration, is inbound because of 1. and 3.
                     @inbounds chunk = m[level_weights_nonzero_index]
                 end
