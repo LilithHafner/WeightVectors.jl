@@ -423,7 +423,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
                 next_free_space = compact!(m, m)
                 group_pos = next_free_space-new_allocation_length # The group will move but remian the last group
                 new_next_free_space = next_free_space+new_allocation_length
-                @assert new_next_free_space < length(m)+1 # TODO for perf, delete this
+                @assert new_next_free_space < length(m)+1
                 m[group_length_index] = group_length
 
                 # Re-lookup allocated chunk because compaction could have changed other
@@ -445,7 +445,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
                 next_free_space = compact!(m, m)
                 m[group_length_index] = group_length
                 new_next_free_space = next_free_space+twice_new_allocated_size
-                @assert new_next_free_space < length(m)+1 # After compaction there should be room TODO for perf, delete this
+                @assert new_next_free_space < length(m)+1 # After compaction there should be room
 
                 group_pos = m[group_length_index-1] # The group likely moved during compaction
 
