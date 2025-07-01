@@ -624,27 +624,21 @@ function _set_to_zero!(m::Memory, i::Int)
         else
             m2 = m[2]
             if weight_index == m2 # We zeroed out the first group
-                exponent != 0 || throw("Sampler is corrupted")
+                m[5] != 0 || throw("Sampler is corrupted")
                 while chunk == 0 # Find the new m[2]
                     level_weights_nonzero_index -= 1
                     m2 -= 64
                     # @inbounds safety: 
-                    # 1. level_weights_nonzero_index is inbounds in m at the start of the while loop since we compute
+                    # 1. m[5] != 0 because we check that before the loop.
+                    # 2. level_weights_nonzero_index is inbounds in m at the start of the while loop since we compute
                     #    chunk = m[level_weights_nonzero_index] outside of the loop and never change level_weights_nonzero_index nor resize m
                     #    after that before entering the while loop.
-                    # 2. level_weights_nonzero_index = get_level_weights_nonzero_indices(exponent) = _convert(Int, 10496 + exponent >> 6)
+                    # 3. level_weights_nonzero_index = get_level_weights_nonzero_indices(exponent) = _convert(Int, 10496 + exponent >> 6)
                     #    at the start of the while loop.
-                    # 3. 1 <= exponent <= 4095 because exponent = m[j] & 4095 and if we suppose exponent != 0. We therefore check that condition
-                    #    outside of the loop.
-                    # 4. level_weights_nonzero_index >= 10497 because of 2. and 3.
-                    # 5. m5 > 0 when it is computed in the top local scope of the function since accessing the while loop requires m5 != 0
-                    #    and m5 is a UInt64, also m5 = m[5] - m[weight_index].
-                    # 6. m[5] is not mutated in the branches before the while loop. Indeed the two mutations happening don't change that: 
-                    #    m[level_weights_nonzero_index] is mutated but we establised that level_weights_nonzero_index >= 10496, m[weight_index]
-                    #    is mutated but weight_index = _convert(Int, exponent + 5) >= 6 because of 3.
-                    # 7. m[5] - m[weight_index] > 0 from 5. and 6. so m[5] > m[weight_index] which means m[5] > 0 since m[weight_index] is a UInt64.
-                    # 8. Therefore, we will surely stop this loop when level_weights_nonzero_index = 5 because of 7., and we know that every
-                    #    previous access, after we decrement level_weights_nonzero_index by one at each iteration, is inbound because of 1. and 4.
+                    # 4. 0 <= exponent <= 4095 because exponent = m[j] & 4095.
+                    # 5. level_weights_nonzero_index >= 10497 because of 3. and 4.
+                    # 6. Therefore, we will surely stop this loop when level_weights_nonzero_index = 5 because of 1., and we know that every
+                    #    previous access, after we decrement level_weights_nonzero_index by one at each iteration, is inbound because of 2. and 5.
                     @inbounds chunk = m[level_weights_nonzero_index]
                 end
                 m2 += 63-trailing_zeros(chunk) - level_weights_nonzero_subindex
