@@ -635,7 +635,7 @@ function _set_to_zero!(m::Memory, i::Int)
                     #    at the start of the while loop.
                     # 4. 0 <= exponent <= 4095 because exponent = m[j] & 4095.
                     # 5. level_weights_nonzero_index >= 10497 because of 3. and 4.
-                    # 6. m[2] != 0 because we check that weight_index == m2 before the loop, m2 = m[2] and weight_index = _convert(Int, exponent + 5) >= 5
+                    # 6. m[2] != 0 because we check that weight_index == m2 before the loop, m2 = m[2] and 5 <= weight_index = _convert(Int, exponent + 5) <= 4100
                     #    because of 4.
                     # 7. Therefore, we will surely stop this loop when level_weights_nonzero_index = 2 because of 6., and we know that every
                     #    previous access, after we decrement level_weights_nonzero_index by one at each iteration, is inbound because of 2. and 5.
