@@ -624,12 +624,12 @@ function _set_to_zero!(m::Memory, i::Int)
         else
             m2 = m[2]
             if weight_index == m2 # We zeroed out the first group
-                m[5] != 0 || throw("Sampler is corrupted")
+                m2 != 0 || throw("Sampler is corrupted")
                 while chunk == 0 # Find the new m[2]
                     level_weights_nonzero_index -= 1
                     m2 -= 64
                     # @inbounds safety: 
-                    # 1. m[5] != 0 because we check that before the loop.
+                    # 1. m[2] != 0 because we check that m2 != 0 before the loop and m2 = m[2].
                     # 2. level_weights_nonzero_index is inbounds in m at the start of the while loop since we compute
                     #    chunk = m[level_weights_nonzero_index] outside of the loop and never change level_weights_nonzero_index nor resize m
                     #    after that before entering the while loop.
@@ -637,7 +637,7 @@ function _set_to_zero!(m::Memory, i::Int)
                     #    at the start of the while loop.
                     # 4. 0 <= exponent <= 4095 because exponent = m[j] & 4095.
                     # 5. level_weights_nonzero_index >= 10497 because of 3. and 4.
-                    # 6. Therefore, we will surely stop this loop when level_weights_nonzero_index = 5 because of 1., and we know that every
+                    # 6. Therefore, we will surely stop this loop when level_weights_nonzero_index = 2 because of 1., and we know that every
                     #    previous access, after we decrement level_weights_nonzero_index by one at each iteration, is inbound because of 2. and 5.
                     @inbounds chunk = m[level_weights_nonzero_index]
                 end
