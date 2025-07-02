@@ -628,17 +628,17 @@ function _set_to_zero!(m::Memory, i::Int)
                     level_weights_nonzero_index -= 1
                     m2 -= 64
                     # @inbounds safety: 
-                    # 2. level_weights_nonzero_index is inbounds in m at the start of the while loop since we compute
+                    # 1. level_weights_nonzero_index is inbounds in m at the start of the while loop since we compute
                     #    chunk = m[level_weights_nonzero_index] outside of the loop and never change level_weights_nonzero_index nor resize m
                     #    after that before entering the while loop.
-                    # 3. level_weights_nonzero_index = get_level_weights_nonzero_indices(exponent) = _convert(Int, 10496 + exponent >> 6)
+                    # 2. level_weights_nonzero_index = get_level_weights_nonzero_indices(exponent) = _convert(Int, 10496 + exponent >> 6)
                     #    at the start of the while loop.
-                    # 4. 0 <= exponent <= 4095 because exponent = m[j] & 4095.
-                    # 5. level_weights_nonzero_index >= 10497 because of 3. and 4.
-                    # 6. m[2] != 0 because we check that weight_index == m2 before the loop, m2 = m[2] and 5 <= weight_index = _convert(Int, exponent + 5) <= 4100
-                    #    because of 4.
-                    # 7. Therefore, we will surely stop this loop when level_weights_nonzero_index = 2 because of 6., and we know that every
-                    #    previous access, after we decrement level_weights_nonzero_index by one at each iteration, is inbound because of 2. and 5.
+                    # 3. 0 <= exponent <= 4095 because exponent = m[j] & 4095.
+                    # 4. level_weights_nonzero_index >= 10497 because of 2. and 3.
+                    # 5. m[2] != 0 because we check that weight_index == m2 before the loop, m2 = m[2] and 5 <= weight_index = _convert(Int, exponent + 5) <= 4100
+                    #    because of 3.
+                    # 6. Therefore, we will surely stop this loop when level_weights_nonzero_index = 2 because of 5., and we know that every
+                    #    previous access, after we decrement level_weights_nonzero_index by one at each iteration, is inbounds because of 1. and 4.
                     @inbounds chunk = m[level_weights_nonzero_index]
                 end
                 m2 += 63-trailing_zeros(chunk) - level_weights_nonzero_subindex
