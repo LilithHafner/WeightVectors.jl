@@ -629,8 +629,8 @@ function _set_to_zero!(m::Memory, i::Int)
                     m2 -= 64
                     # @inbounds safety: 
                     # 1. level_weights_nonzero_index is inbounds in m at the start of the while loop since we compute
-                    #    chunk = m[level_weights_nonzero_index] outside of the loop and never change level_weights_nonzero_index nor resize m
-                    #    after that before entering the while loop.
+                    #    chunk = m[level_weights_nonzero_index] outside of the loop and it didn't throw if we are in this while loop,
+                    #    also we never change level_weights_nonzero_index nor resize m after that before entering the while loop.
                     # 2. level_weights_nonzero_index = get_level_weights_nonzero_indices(exponent) = _convert(Int, 10496 + exponent >> 6)
                     #    at the start of the while loop.
                     # 3. 0 <= exponent <= 4095 because exponent = m[j] & 4095.
