@@ -596,7 +596,7 @@ end
 get_alloced_indices(exponent::UInt64) = _convert(Int, 10532 + exponent >> 3), exponent << 3 & 0x38
 get_level_weights_nonzero_indices(exponent::UInt64) = _convert(Int, 10496 + exponent >> 6), exponent & 0x3f
 
-function _set_to_zero!(m::Memory, i::Int)
+function _set_to_zero!(m::Memory{UInt64}, i::Int)
     # Find the entry's pos in the edit map table
     j = i + 10794
     mj = m[j]
