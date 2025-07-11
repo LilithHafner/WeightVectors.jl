@@ -234,7 +234,7 @@ end
     # 6. Therefore, both m[k2] and m[k2+1] are inbound if we check that 2. holds and if we check
     #    that max(k2+1) is inbounds. If one of these two conditions doesn't hold, m is corrupted and
     #    then we throw an error.
-    (UInt64(1) <= len <= UInt64(2)^56 && UInt64(1) <= pos <= UInt64(2)^56) || throw("Sampler is corrupted")
+    (8 <= shift && UInt64(1) <= pos <= UInt64(2)^56) || throw("Sampler is corrupted")
     checkbounds(m, (typemax(UInt64) >> shift) << 1 + pos + 1)
     @inbounds_if_word64 while true
         r = rand(rng, UInt64)::UInt64
