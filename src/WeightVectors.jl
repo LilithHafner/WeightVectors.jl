@@ -212,19 +212,14 @@ Base.iszero(w::AbstractWeightVector) = w.m[2] == 5
     sample_within_level(rng, m, pos, len)
 end
 
-macro inbounds_if_word64(arg)
-    esc(Sys.WORD_SIZE == 64 ? :(@inbounds $arg) : arg)
-end
-
 @inline function sample_within_level(rng, m, pos::UInt64, len::UInt64)
     shift = leading_zeros(len-1)
     # @inbounds safety when Sys.WORD_SIZE == 64: 
-    # 1. 0 <= r <= typemax(UInt64) since r = rand(rng, UInt64)
-    # 2. len and pos ∈ [1, 2^56]. This is explicitly checked and needs to be
-    #    true if m is not corrupted since the maximum length of m is 10794 + 8 * 2^52
-    #    and pos is the absolute position of the group into m and len is the length of 
-    #    the group.
-    # 3. shift = leading_zeros(len-1) which means that shift ∈ [8, 64].
+    # 1. 0 <= r <= typemax(UInt64) since r = rand(rng, UInt64)::UInt64
+    # 2. pos ∈ [1, 2^56]. This is explicitly checked and needs to be
+    #    true if m is not corrupted since the maximum length of m is 
+    #    10794+8*2^52 and pos is the absolute position of a group into m.
+    # 3. shift ∈ [8, 64] because shift = leading_zeros(len-1) <= 64 and we check 8 <= shift.
     # 4. In the loop, k1 = (r >> shift) and k2 = _convert(Int, k1<<1+pos) so 
     #    k2+1 = _convert(Int, (r >> shift) << 1 + pos) + 1 where the conversion can be
     #    spared since (r >> shift) << 1 + pos <= 2^63-1.
