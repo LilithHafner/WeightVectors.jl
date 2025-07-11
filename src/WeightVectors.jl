@@ -624,7 +624,6 @@ function _set_to_zero!(m::Memory{UInt64}, i::Int)
         else
             m2 = m[2]
             if weight_index == m2 # We zeroed out the first group
-                (level_weights_nonzero_index > 2 && m[2] != 0) || error("Sampler is corrupted")
                 while chunk == 0 # Find the new m[2]
                     level_weights_nonzero_index -= 1
                     m2 -= 64
