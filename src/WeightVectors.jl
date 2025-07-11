@@ -624,6 +624,7 @@ function _set_to_zero!(m::Memory{UInt64}, i::Int)
         else
             m2 = m[2]
             if weight_index == m2 # We zeroed out the first group
+                (level_weights_nonzero_index > 2 && m[2] != 0) || error("Sampler is corrupted")
                 while chunk == 0 # Find the new m[2]
                     level_weights_nonzero_index -= 1
                     m2 -= 64
@@ -637,7 +638,7 @@ function _set_to_zero!(m::Memory{UInt64}, i::Int)
                     # 3. level_weights_nonzero_index >= 10496 because level_weights_nonzero_index = get_level_weights_nonzero_indices(exponent)[1] =
                     #    = _convert(Int, 10496 + exponent >> 6) at the start of the while loop and the 2. statement.
                     # 4. m[2] != 0 because we check that weight_index == m2 before the loop, m2 = m[2] and 5 <= weight_index = _convert(Int, exponent + 5) <= 4100
-                    #    because of the 2. and 3. statements.
+                    #    because of the 2. and 3. statements, and, finally, m is not mutated from that point to the inbounds access.
                     # 5. Therefore, we will surely stop this loop when level_weights_nonzero_index = 2 because of the 4. statement, and because we know
                     #    that every previous access, after we decrement level_weights_nonzero_index by one at each iteration, is inbounds by considering 
                     #    the 1. and 3. statements.
