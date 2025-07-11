@@ -627,7 +627,9 @@ function _set_to_zero!(m::Memory{UInt64}, i::Int)
                 while chunk == 0 # Find the new m[2]
                     level_weights_nonzero_index -= 1
                     m2 -= 64
-                    # @inbounds safety: 
+                    # @inbounds safety:
+                    # 1. `m` is a `Memory{UInt64}`
+                    # 2. `level_weights_nonzero_index` is a `UInt64`
                     # 1. level_weights_nonzero_index is inbounds in m at the start of the while loop. We compute
                     #    chunk = m[level_weights_nonzero_index] outside of the loop and it didn't throw if we are in this while loop,
                     #    and we never change level_weights_nonzero_index nor resize m after that before entering the while loop.
