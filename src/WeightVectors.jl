@@ -241,7 +241,7 @@ end
         k1 = (r>>shift)
         k2 = _convert(Int, k1<<1+pos)
         # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to 0
-        rand(rng, UInt64) < m[k2] * (k1 < len) && return Int(signed(m[k2+1]))
+        rand(rng, UInt64) < @inbounds(m[k2]) * (k1 < len) && return Int(signed(@inbounds(m[k2+1])))
     end
 end
 
