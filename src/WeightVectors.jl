@@ -289,7 +289,7 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
 
         set_global_shift_increase!(m, m2, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
 
-        @assert 46 <= Base.top_set_bit(m[5]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8 # TODO for perf: delete
+        @assert 46 <= Base.top_set_bit(m[5]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8
     end
 
     while true # TODO for confidence: move this to a separate, documented function and add unit tests.
@@ -376,7 +376,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         shift = -24
         weight = _convert(UInt64, significand_sum << shift) + 1
 
-        @assert Base.top_set_bit(weight-1) == 40 # TODO for perf: delete
+        @assert Base.top_set_bit(weight-1) == 40
         m[weight_index] = weight
         m[5] = weight
     else
@@ -446,7 +446,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
                 next_free_space = compact!(m, m)
                 group_pos = next_free_space-new_allocation_length # The group will move but remian the last group
                 new_next_free_space = next_free_space+new_allocation_length
-                @assert new_next_free_space < length(m)+1 # TODO for perf, delete this
+                @assert new_next_free_space < length(m)+1
                 m[group_length_index] = group_length
 
                 # Re-lookup allocated chunk because compaction could have changed other
@@ -468,7 +468,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
                 next_free_space = compact!(m, m)
                 m[group_length_index] = group_length
                 new_next_free_space = next_free_space+twice_new_allocated_size
-                @assert new_next_free_space < length(m)+1 # After compaction there should be room TODO for perf, delete this
+                @assert new_next_free_space < length(m)+1 # After compaction there should be room
 
                 group_pos = m[group_length_index-1] # The group likely moved during compaction
 
