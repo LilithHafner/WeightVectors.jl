@@ -237,7 +237,7 @@ end
     (UInt64(1) <= len <= UInt64(2)^56 && UInt64(1) <= pos <= UInt64(2)^56) || throw("Sampler is corrupted")
     checkbounds(m, (typemax(UInt64) >> shift) << 1 + pos + 1)
     @inbounds_if_word64 while true
-        r = rand(rng, UInt64)
+        r = rand(rng, UInt64)::UInt64
         k1 = (r>>shift)
         k2 = _convert(Int, k1<<1+pos)
         # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to 0
