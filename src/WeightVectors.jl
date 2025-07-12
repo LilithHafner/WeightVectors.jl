@@ -229,8 +229,9 @@ end
     #    needs to be tight if m is not corrupted.
     # 6. Therefore, both m[k2] and m[k2+1] are inbound if we check that 2. and 3.hold and if we check
     #    that (typemax(UInt64) >> shift) << 1 + pos + 1 is inbounds. Note that (typemax(UInt64) >> shift) << 1 + pos + 1 
-    #    can't overflow because of 2. and 3. If one of these three conditions doesn't hold, m is corrupted
-    #    and then we throw an error.
+    #    can't overflow because of 2. and 3 and that by checking that it is inbounds in m we establish that it is less
+    #    than 2^(WORD_SIZE)-1 so _convert(Int, (typemax(UInt64) >> shift) << 1 + pos) just changes the type, not the value.
+    #    If one of these three conditions doesn't hold, m is corrupted and then we throw an error.
     (8 <= shift && UInt64(1) <= pos <= UInt64(2)^56) || throw("Sampler is corrupted")
     checkbounds(m, (typemax(UInt64) >> shift) << 1 + pos + 1)
     while true
