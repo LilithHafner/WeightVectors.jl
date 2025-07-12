@@ -217,10 +217,10 @@ end
     # @inbounds safety: 
     # 1. 0 <= r <= typemax(UInt64) since r = rand(rng, UInt64)::UInt64
     # 2. pos ∈ [1, 2^56]. This is explicitly checked and needs to be true if m is not
-    #    corrupted since the maximum length of m is 10794+8*2^52 and pos is the absolute
-    #    position of a group into m.
+    #    corrupted since pos is the absolute position of a group into m and the maximum
+    #    length of m is 10794+8*2^52 when WORD_SIZE == 64 and 2^32 when WORD_SIZE == 32.
     # 3. shift ∈ [8, 64] because shift = leading_zeros(len-1) <= 64 and we check 8 <= shift.
-    #    This also needs to be true if m is not corrupted for the same reason as 2.
+    #    This also needs to be true if m is not corrupted because of 2.
     # 4. In the loop, k1 = (r >> shift) and k2 = _convert(Int, k1<<1+pos) so 
     #    k2+1 = _convert(Int, (r >> shift) << 1 + pos) + 1 <= (r >> shift) << 1 + pos + 1
     # 5. max(k2+1) <= (typemax(UInt64) >> shift) << 1 + pos + 1 since max((r >> shift) << 1) = 
