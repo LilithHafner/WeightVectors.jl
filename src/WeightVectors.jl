@@ -226,7 +226,7 @@ end
     while true
         r = rand(rng, UInt64)::UInt64
         k1 = r>>shift
-        k2 = 2k1+pos
+        k2 = _convert(Int, 2k1+pos)
         # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to 0
         rand(rng, UInt64) < @inbounds(m[k2]) * (k1 < len) && return _convert(Int, @inbounds(m[k2+1])) # See justification of @inbounds safety, below.
     end
