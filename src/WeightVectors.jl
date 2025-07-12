@@ -221,7 +221,7 @@ end
     # These should never happen but is required to make `@inbounds` safe:
     1 <= pos::UInt64 <= UInt64(2)^63 || @fail 0
     2 <= shift::Int || @fail 0
-    2*(typemax(UInt)>>shift)+pos+1 <= lastindex(m) || @fail 0
+    2*(typemax(UInt64)>>shift)+pos+1 <= lastindex(m) || @fail 0
 
     while true
         r = rand(rng, UInt64)::UInt64
@@ -249,13 +249,13 @@ Formally,
     0>>shift <= r>>shift <= (2^64-1)>>shift                  | Applying a monotonically nondecreasing function on all sides of (1)
     0 <= r>>shift <= (2^64-1)>>shift                         | Shifting 0 does not change its value
     (2^64-1)>>shift <= 2^62-1                                | Shifting right by an Int at least 2 divides by 4 (or more), rounding down.
-(2) 0 <= r>>shift <= (2^64-1)>>shift <= 2^62-1               | Chained innequalities
+(2) 0 <= r>>shift <= (2^64-1)>>shift <= 2^62-1               | Chained inequalities
     Multiplying a UInt64 below 2^63 by two will not overflow.
     Multiplying a UInt64 by 2 is, in the absence of overflow, monotonically nondecreasing
     2*0 <= 2*(r>>shift) <= 2*((2^64-1)>>shift) <= 2*(2^62-1) | Applying a monotonically nondecreasing function on all sides of (2)
 (3) 0 <= 2*(r>>shift) <= 2*(2^64>>shift) <= 2^63-2           | Partial evaluation of expressions
 (4) pos::UInt64 <= 2^63                                      | From source
-    Adding A UInt64 that is less than or equal to 2^63 to a UInt that is less than 2^63 will not overflow.
+    Adding a UInt64 that is less than or equal to 2^63 to a UInt64 that is less than 2^63 will not overflow.
     Adding a UInt64 to a UInt64 is, in the absence of overflow, monotonically nondecreasing.
 (5) pos <= 2*(r>>shift)+pos <= 2*(2^64>>shift)+pos <= 2^63-2+pos  | Applying a monotonically nondecreasing function on all sides of (3)
     2^63-2 + pos <= 2^63-2 + 2^63                            | Applying a monotonically nondecreasing function on all sides of (4)
@@ -263,16 +263,16 @@ Formally,
 (7) pos <= 2*(r>>shift)+pos <= 2*(2^64>>shift)+pos <= 2^64-2 | Transitivity applied to (5) and (6)
 (8) k2 = 2*(r>>shift)+pos                                    | From source
 (9) pos <= k2 <= 2*(2^64>>shift)+pos <= 2^64-2               | Substitution of (8) into (7)
-(10)Incrementing a UInt64 that is less than or equal to 2^64-2 is a monotonically nondecreasing function
+(10) Adding 1 to a UInt64 that is less than or equal to 2^64-2 is a monotonically nondecreasing function
     k2+1 <= 2*(2^64>>shift)+pos+1                            | Applying a monotonically nondecreasing function on all sides of (9)
     k2 <= k2+1                                               | (10)
     1 <= pos                                                 | From source
-(11)1 <= k2 <= k2+1 <= 2*(2^64>>shift)+pos+1                 | Transitivity applied to the previous three lines and (9)
+(11) 1 <= k2 <= k2+1 <= 2*(2^64>>shift)+pos+1                | Transitivity applied to the previous three lines and (9)
     2*(2^64>>shift)+pos+1 <= lastindex(m)                    | From source
     1 <= k2 <= k2+1 <= lastindex(m)                          | Transitivity
     m is a Memory                                            | From source
     Memory uses 1 based indexing
-    k2 and k2+1 are inboounds in `m`                         | From the last three lines
+    k2 and k2+1 are in bounds in `m`                         | From the last three lines
 =#
 
 function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
