@@ -227,9 +227,10 @@ end
     #    (max(r) >> shift) << 1 = (typemax(UInt64) >> shift) << 1 by 1.,2. and 3. and 4.
     #    Similarly, min(k2+1) = pos + 1 >= 2 by 1.,2. and 3. Note that the bound on the maximum
     #    needs to be tight if m is not corrupted.
-    # 6. Therefore, both m[k2] and m[k2+1] are inbound if we check that 2. holds and if we check
-    #    that (typemax(UInt64) >> shift) << 1 + pos + 1 is inbounds. If one of these two conditions
-    #    doesn't hold, m is corrupted and then we throw an error.
+    # 6. Therefore, both m[k2] and m[k2+1] are inbound if we check that 2. and 3.hold and if we check
+    #    that (typemax(UInt64) >> shift) << 1 + pos + 1 is inbounds. Note that (typemax(UInt64) >> shift) << 1 + pos + 1 
+    #    can't overflow because of 2. and 3. If one of these three conditions doesn't hold, m is corrupted
+    #    and then we throw an error.
     (8 <= shift && UInt64(1) <= pos <= UInt64(2)^56) || throw("Sampler is corrupted")
     checkbounds(m, (typemax(UInt64) >> shift) << 1 + pos + 1)
     while true
