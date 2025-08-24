@@ -305,17 +305,62 @@ function _setindex!(m::Memory, v::Float64, i::Int)
     uv <= 0x7fefffffffffffff || throw(DomainError(v, "Invalid weight"))
     # Find the entry's pos in the edit map table
     j = i + 10794
+    exponent, significand = decompose_weight(v)
     if m[j] == 0
-        _set_from_zero!(m, v, i)
+        _set_from_zero!(m, i, exponent, significand)
     else
-        _set_nonzero!(m, v, i)
+        _set_nonzero!(m, i, exponent, significand)
     end
 end
 
-function _set_nonzero!(m, v, i)
-    # TODO for performance: join these two operations
-    _set_to_zero!(m, i)
-    _set_from_zero!(m, v, i)
+function _set_nonzero!(m, i, exponent, significand)
+    j = i + 10794
+    mj = m[j]
+    old_exponent = mj & 0xFFF
+    # If the level is unchanged, do an in-place replacement
+    if old_exponent == exponent
+        pos = _convert(Int, mj >> 12)
+        old_significand = m[pos]
+        m[pos] = significand
+
+        # update significand sum and level weight
+        weight_index = _convert(Int, old_exponent + 5)
+        delta = _convert(UInt128, significand) - _convert(UInt128, old_significand)
+        significand_sum = update_significand_sum(m, weight_index, delta)
+
+        # possibly reduce global shift if this level would overflow
+        shift = signed(old_exponent + m[3])
+        if Base.top_set_bit(significand_sum) + shift > 64
+            m3 = 48 - Base.top_set_bit(significand_sum) - old_exponent
+            set_global_shift_decrease!(m, m3)
+            shift = signed(old_exponent + m[3])
+        end
+
+        weight = _convert(UInt64, significand_sum << shift) + 1
+        old_weight = m[weight_index]
+        m[weight_index] = weight
+
+        # adjust total approximate weight
+        m5, o = Base.add_with_overflow(m[5] - old_weight, weight)
+        if o
+            m3 = m[3] - 0x10
+            set_global_shift_decrease!(m, m3, m5)
+            if weight_index > m[2]
+                shift = signed(old_exponent + m3)
+                new_weight = _convert(UInt64, significand_sum << shift) + 1
+                @assert significand_sum != 0
+                @assert m[weight_index] == weight
+                m[weight_index] = new_weight
+                m[5] += new_weight - weight
+            end
+        else
+            m[5] = m5
+        end        
+    else
+        # TODO for performance: join these two operations
+        _set_to_zero!(m, i)
+        _set_from_zero!(m, i, exponent, significand)
+    end
 end
 
 Base.@propagate_inbounds function get_significand_sum(m, i)
@@ -330,11 +375,8 @@ function update_significand_sum(m, i, delta)
     significand_sum
 end
 
-function _set_from_zero!(m::Memory, v::Float64, i::Int)
+function decompose_weight(v)
     uv = reinterpret(UInt64, v)
-    j = i + 10794
-    @assert m[j] == 0
-    m[4] += 1
     exponent = uv >> 52
     if exponent == 0
         exponent = _convert(UInt64, Base.top_set_bit(uv))
@@ -343,6 +385,13 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         exponent += 52
         significand = 0x8000000000000000 | uv << 11
     end
+    return exponent, significand
+end
+
+function _set_from_zero!(m::Memory, i::Int, exponent, significand)
+    j = i + 10794
+    @assert m[j] == 0
+    m[4] += 1
     # update group total weight and total weight
     weight_index = _convert(Int, exponent + 5)
     significand_sum = update_significand_sum(m, weight_index, significand) # Temporarily break the "weights are accurately computed" invariant
