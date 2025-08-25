@@ -323,7 +323,7 @@ function _set_nonzero!(m, i, exponent, significand)
         old_significand = m[pos]
         m[pos] = significand
 
-        # update significand sum and level weight
+        # update significand sum
         weight_index = _convert(Int, old_exponent + 5)
         delta = _convert(UInt128, significand) - _convert(UInt128, old_significand)
         significand_sum = update_significand_sum(m, weight_index, delta)
