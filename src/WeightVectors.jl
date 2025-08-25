@@ -804,6 +804,7 @@ WeightVector(x::AbstractWeightVector) = _WeightVector(copy(x.m))
 function (::Type{T})(x) where {T <: AbstractWeightVector}
     w = T(length(x))
     for (i, v) in enumerate(x)
+        iszero(v) && continue
         w[i] = v
     end
     w
