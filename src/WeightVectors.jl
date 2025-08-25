@@ -324,16 +324,16 @@ function _set_nonzero!(m, i, exponent, significand)
         m[pos] = significand
 
         # update significand sum
-        weight_index = _convert(Int, old_exponent + 5)
+        weight_index = _convert(Int, exponent + 5)
         delta = _convert(UInt128, significand) - _convert(UInt128, old_significand)
         significand_sum = update_significand_sum(m, weight_index, delta)
 
         # possibly reduce global shift if this level would overflow
-        shift = signed(old_exponent + m[3])
+        shift = signed(exponent + m[3])
         if Base.top_set_bit(significand_sum) + shift > 64
-            m3 = 48 - Base.top_set_bit(significand_sum) - old_exponent
+            m3 = 48 - Base.top_set_bit(significand_sum) - exponent
             set_global_shift_decrease!(m, m3)
-            shift = signed(old_exponent + m[3])
+            shift = signed(exponent + m[3])
         end
 
         weight = _convert(UInt64, significand_sum << shift) + 1
@@ -346,7 +346,7 @@ function _set_nonzero!(m, i, exponent, significand)
             m3 = m[3] - 0x10
             set_global_shift_decrease!(m, m3, m5)
             if weight_index > m[2]
-                shift = signed(old_exponent + m3)
+                shift = signed(exponent + m3)
                 new_weight = _convert(UInt64, significand_sum << shift) + 1
                 @assert significand_sum != 0
                 @assert m[weight_index] == weight
@@ -357,7 +357,6 @@ function _set_nonzero!(m, i, exponent, significand)
             m[5] = m5
         end        
     else
-        # TODO for performance: join these two operations
         _set_to_zero!(m, i)
         _set_from_zero!(m, i, exponent, significand)
     end
