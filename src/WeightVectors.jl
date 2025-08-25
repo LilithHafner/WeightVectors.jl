@@ -805,8 +805,8 @@ function (::Type{T})(x) where {T <: AbstractWeightVector}
     w = T(length(x))
     for (i, v) in enumerate(x)
         fv = Float64(v)
-        fv == 0.0 && continue
         fv < 0.0 && throw(DomainError(fv, "Invalid weight"))
+        fv == 0.0 && continue
         _set_from_zero!(w.m, fv, i)
     end
     w
