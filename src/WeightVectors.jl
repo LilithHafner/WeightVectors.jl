@@ -807,7 +807,7 @@ function (::Type{T})(x) where {T <: AbstractWeightVector}
         fv = Float64(v)
         fv == 0.0 && continue
         fv < 0.0 && throw(DomainError(fv, "Invalid weight"))
-        _set_from_zero!(m, fv, i)
+        _set_from_zero!(w.m, fv, i)
     end
     w
 end
