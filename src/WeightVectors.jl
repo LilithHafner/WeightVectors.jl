@@ -361,6 +361,7 @@ function _set_nonzero!(m, i, exponent, significand)
         _set_to_zero!(m, i)
         _set_from_zero!(m, i, exponent, significand)
     end
+    nothing
 end
 
 Base.@propagate_inbounds function get_significand_sum(m, i)
