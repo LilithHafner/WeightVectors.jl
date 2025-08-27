@@ -71,6 +71,8 @@ function intermixed_h(n, σ)
     res
 end
 
+SUITE["update ∘ rand add 1"] = FixedSizeWeightVector(1000) (_[$(rand(1:1000))] += 1)
+
 for n in [100, 1000, 10000], σ in [.1, 1, 10, 100]
     # TODO: try to use min over noise, average over rng, and max over treatment in analysis
     SUITE["constructor n=$n σ=$σ"] = @benchmarkable gaussian_weights_sequential_push($n, $σ)
