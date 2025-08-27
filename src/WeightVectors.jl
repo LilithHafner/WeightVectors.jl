@@ -357,6 +357,7 @@ function _set_nonzero!(m, i, exponent, significand)
             m[5] = m5
         end        
     else
+        # TODO for performance: join these two operations
         _set_to_zero!(m, i)
         _set_from_zero!(m, i, exponent, significand)
     end
