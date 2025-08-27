@@ -22,6 +22,7 @@ SUITE = BenchmarkGroup()
 SUITE["TTFX excluding time to load"] = constant(t1-t0)
 
 SUITE["constructor empty"] = @benchmarkable DynamicDiscreteSampler()
+
 SUITE["constructor zeros"] = @benchmarkable FixedSizeWeightVector(zeros(100))
 
 function gaussian_weights_sequential_push(n, σ)
