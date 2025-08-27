@@ -72,7 +72,7 @@ function intermixed_h(n, σ)
 end
 
 function rand_update_add_1(w, i)
-    w[rand(1:10)] += 1
+    w[i] += 1
     rand(w)
 end
 
