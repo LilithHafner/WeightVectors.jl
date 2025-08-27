@@ -71,12 +71,12 @@ function intermixed_h(n, σ)
     res
 end
 
-function rand_update_add_1(w)
+function rand_update_add_1(w, i)
     w[rand(1:10)] += 1
     rand(w)
 end
 
-SUITE["update ∘ rand +=1"] = @benchmarkable gaussian_weights_sequential_push(10, 10.0) rand_update_add_1(_)
+SUITE["update ∘ rand +=1"] = @benchmarkable gaussian_weights_sequential_push(10, 10.0) rand_update_add_1(_.w, $(rand(1:10)))
 
 for n in [100, 1000, 10000], σ in [.1, 1, 10, 100]
     # TODO: try to use min over noise, average over rng, and max over treatment in analysis
