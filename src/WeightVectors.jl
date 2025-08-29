@@ -402,6 +402,7 @@ function adjust_level_and_sum_weights(m, exponent, significand_sum, weight_index
     else
         m[5] = m5
     end
+    nothing
 end
 
 function _set_from_zero!(m::Memory, i::Int, exponent, significand)
