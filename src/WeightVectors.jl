@@ -316,7 +316,7 @@ end
 function _set_nonzero!(m, i, exponent, significand)
     j = i + 10794
     mj = m[j]
-    old_exponent = mj & 0xFFF
+    old_exponent = mj & 4095
     # If the level is unchanged, do an in-place replacement
     if old_exponent == exponent
         pos = _convert(Int, mj >> 12)
