@@ -328,34 +328,7 @@ function _set_nonzero!(m, i, exponent, significand)
         delta = _convert(UInt128, significand) - _convert(UInt128, old_significand)
         significand_sum = update_significand_sum(m, weight_index, delta)
 
-        # possibly reduce global shift if this level would overflow
-        shift = signed(exponent + m[3])
-        if Base.top_set_bit(significand_sum) + shift > 64
-            m3 = 48 - Base.top_set_bit(significand_sum) - exponent
-            set_global_shift_decrease!(m, m3)
-            shift = signed(exponent + m[3])
-        end
-
-        weight = _convert(UInt64, significand_sum << shift) + 1
-        old_weight = m[weight_index]
-        m[weight_index] = weight
-
-        # adjust total approximate weight
-        m5, o = Base.add_with_overflow(m[5] - old_weight, weight)
-        if o
-            m3 = m[3] - 0x10
-            set_global_shift_decrease!(m, m3, m5)
-            if weight_index > m[2]
-                shift = signed(exponent + m3)
-                new_weight = _convert(UInt64, significand_sum << shift) + 1
-                @assert significand_sum != 0
-                @assert m[weight_index] == weight
-                m[weight_index] = new_weight
-                m[5] += new_weight - weight
-            end
-        else
-            m[5] = m5
-        end        
+        adjust_level_and_sum_weights(m, exponent, significand_sum, weight_index) 
     else
         # TODO for performance: join these two operations
         _set_to_zero!(m, i)
@@ -389,6 +362,48 @@ function decompose_weight(v)
     return exponent, significand
 end
 
+function adjust_level_and_sum_weights(m, exponent, significand_sum, weight_index)
+    shift = signed(exponent + m[3])
+    if Base.top_set_bit(significand_sum)+shift > 64
+        # if this would overflow, drop shift so that it renormalizes down to 48.
+        # this drops shift at least ~16 and makes the sum of weights at least ~2^48. # TODO: add an assert
+        # Base.top_set_bit(significand_sum)+shift == 48
+        # Base.top_set_bit(significand_sum)+signed(exponent + m[3]) == 48
+        # Base.top_set_bit(significand_sum)+signed(exponent) + signed(m[3]) == 48
+        # signed(m[3]) == 48 - Base.top_set_bit(significand_sum) - signed(exponent)
+        m3 = 48 - Base.top_set_bit(significand_sum) - exponent
+        # The "weights are accurately computed" invariant is broken for weight_index, but the "sum(weights) == m[5]" invariant still holds
+        # set_global_shift_decrease! will do something wrong to weight_index, but preserve the "sum(weights) == m[5]" invariant.
+        set_global_shift_decrease!(m, m3) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+        shift = signed(exponent + m3)
+    end
+    weight = _convert(UInt64, significand_sum << shift) + 1
+
+    old_weight = m[weight_index]
+    m[weight_index] = weight # The "weights are accurately computed" invariant is now restored
+    m5 = m[5] # The "sum(weights) == m[5]" invariant is broken
+    m5 -= old_weight
+    # m5 can overflow when added to `weight` only if the previous branch preventing single level overflow isn't taken
+    m5, o = Base.add_with_overflow(m5, weight) # The "sum(weights) == m5" invariant now holds, though the computation overflows
+    if o
+        # If weights overflow (>2^64) then shift down by 16 bits
+        m3 = m[3]-0x10
+        set_global_shift_decrease!(m, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+        if weight_index > m[2] # if the new weight was not adjusted by set_global_shift_decrease!, then adjust it manually
+            shift = signed(exponent+m3)
+            new_weight = _convert(UInt64, significand_sum << shift) + 1
+
+            @assert significand_sum != 0
+            @assert m[weight_index] == weight
+
+            m[weight_index] = new_weight
+            m[5] += new_weight-weight
+        end
+    else
+        m[5] = m5
+    end
+end
+
 function _set_from_zero!(m::Memory, i::Int, exponent, significand)
     j = i + 10794
     @assert m[j] == 0
@@ -407,45 +422,7 @@ function _set_from_zero!(m::Memory, i::Int, exponent, significand)
         m[weight_index] = weight
         m[5] = weight
     else
-        shift = signed(exponent + m[3])
-        if Base.top_set_bit(significand_sum)+shift > 64
-            # if this would overflow, drop shift so that it renormalizes down to 48.
-            # this drops shift at least ~16 and makes the sum of weights at least ~2^48. # TODO: add an assert
-            # Base.top_set_bit(significand_sum)+shift == 48
-            # Base.top_set_bit(significand_sum)+signed(exponent + m[3]) == 48
-            # Base.top_set_bit(significand_sum)+signed(exponent) + signed(m[3]) == 48
-            # signed(m[3]) == 48 - Base.top_set_bit(significand_sum) - signed(exponent)
-            m3 = 48 - Base.top_set_bit(significand_sum) - exponent
-            # The "weights are accurately computed" invariant is broken for weight_index, but the "sum(weights) == m[5]" invariant still holds
-            # set_global_shift_decrease! will do something wrong to weight_index, but preserve the "sum(weights) == m[5]" invariant.
-            set_global_shift_decrease!(m, m3) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
-            shift = signed(exponent + m3)
-        end
-        weight = _convert(UInt64, significand_sum << shift) + 1
-
-        old_weight = m[weight_index]
-        m[weight_index] = weight # The "weights are accurately computed" invariant is now restored
-        m5 = m[5] # The "sum(weights) == m[5]" invariant is broken
-        m5 -= old_weight
-        # m5 can overflow when added to `weight` only if the previous branch preventing single level overflow isn't taken
-        m5, o = Base.add_with_overflow(m5, weight) # The "sum(weights) == m5" invariant now holds, though the computation overflows
-        if o
-            # If weights overflow (>2^64) then shift down by 16 bits
-            m3 = m[3]-0x10
-            set_global_shift_decrease!(m, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
-            if weight_index > m[2] # if the new weight was not adjusted by set_global_shift_decrease!, then adjust it manually
-                shift = signed(exponent+m3)
-                new_weight = _convert(UInt64, significand_sum << shift) + 1
-
-                @assert significand_sum != 0
-                @assert m[weight_index] == weight
-
-                m[weight_index] = new_weight
-                m[5] += new_weight-weight
-            end
-        else
-            m[5] = m5
-        end
+        adjust_level_and_sum_weights(m, exponent, significand_sum, weight_index)
     end
     m[2] = max(m[2], weight_index) # Set after insertion because update_weights! may need to update the global shift, in which case knowing the old m[2] will help it skip checking empty levels
     level_weights_nonzero_index,level_weights_nonzero_subindex = get_level_weights_nonzero_indices(exponent)
