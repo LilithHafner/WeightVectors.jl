@@ -422,7 +422,7 @@ function _set_from_zero!(m::Memory, i::Int, exponent, significand)
         m[weight_index] = weight
         m[5] = weight
     else
-        adjust_level_and_sum_weights(m, exponent, significand_sum, weight_index)
+        @inline adjust_level_and_sum_weights(m, exponent, significand_sum, weight_index)
     end
     m[2] = max(m[2], weight_index) # Set after insertion because update_weights! may need to update the global shift, in which case knowing the old m[2] will help it skip checking empty levels
     level_weights_nonzero_index,level_weights_nonzero_subindex = get_level_weights_nonzero_indices(exponent)
