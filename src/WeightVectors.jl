@@ -305,7 +305,7 @@ function _setindex!(m::Memory, v::Float64, i::Int)
     uv <= 0x7fefffffffffffff || throw(DomainError(v, "Invalid weight"))
     # Find the entry's pos in the edit map table
     j = i + 10794
-    exponent, significand = decompose_weight(v)
+    exponent, significand = decompose_weight(uv)
     if m[j] == 0
         _set_from_zero!(m, i, exponent, significand)
     else
@@ -339,8 +339,7 @@ function update_significand_sum(m, i, delta)
     significand_sum
 end
 
-function decompose_weight(v)
-    uv = reinterpret(UInt64, v)
+function decompose_weight(uv)
     exponent = uv >> 52
     if exponent == 0
         exponent = _convert(UInt64, Base.top_set_bit(uv))
@@ -838,7 +837,9 @@ function (::Type{T})(x) where {T <: AbstractWeightVector}
         fv = Float64(v)
         fv < 0.0 && throw(DomainError(fv, "Invalid weight"))
         fv == 0.0 && continue
-        _set_from_zero!(w.m, fv, i)
+        uv = reinterpret(UInt64, v)
+        exponent, significand = decompose_weight(uv)
+        _set_from_zero!(w.m, i, exponent, significand)
     end
     w
 end
