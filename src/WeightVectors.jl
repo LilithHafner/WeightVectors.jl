@@ -298,14 +298,14 @@ end
 function _setindex!(m::Memory, v::Float64, i::Int)
     @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeightVector(m), i))
     uv = reinterpret(UInt64, v)
+    j = i + 10794
+    mj = m[j]
     if uv == 0
-        _set_to_zero!(m, i)
+        _set_to_zero!(m, j, mj)
         return
     end
     uv <= 0x7fefffffffffffff || throw(DomainError(v, "Invalid weight"))
     # Find the entry's pos in the edit map table
-    j = i + 10794
-    mj = m[j]
     exponent, significand = decompose_weight(uv)
     if mj == 0
         _set_from_zero!(m, j, mj, exponent, significand)
