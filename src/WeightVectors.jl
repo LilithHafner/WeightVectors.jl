@@ -298,31 +298,31 @@ end
 function _setindex!(m::Memory, v::Float64, i::Int)
     @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeightVector(m), i))
     uv = reinterpret(UInt64, v)
-    j = i + 10794
-    mj = m[j]
     if uv == 0
-        _set_to_zero!(m, j, mj)
+        _set_to_zero!(m, i)
         return
     end
     uv <= 0x7fefffffffffffff || throw(DomainError(v, "Invalid weight"))
     # Find the entry's pos in the edit map table
+    j = i + 10794
     exponent, significand = decompose_weight(uv)
-    if mj == 0
-        _set_from_zero!(m, j, mj, exponent, significand)
+    if m[j] == 0
+        _set_from_zero!(m, i, exponent, significand)
     else
-        _set_nonzero!(m, j, mj, exponent, significand)
+        _set_nonzero!(m, i, exponent, significand)
     end
 end
 
-function _set_nonzero!(m, j, mj, exponent, significand)
+function _set_nonzero!(m, i, exponent, significand)
+    mj = m[i + 10794]
     old_exponent = mj & 4095
     # If the level is unchanged, do an in-place replacement
     if old_exponent == exponent
         _set_nonzero_same_level!(m, mj, exponent, significand)
     else
         # TODO for performance: join these two operations
-        _set_to_zero!(m, j, mj)
-        _set_from_zero!(m, j, mj, exponent, significand)
+        _set_to_zero!(m, i)
+        _set_from_zero!(m, i, exponent, significand)
     end
     nothing
 end
@@ -399,6 +399,7 @@ function _set_nonzero_same_level!(m, mj, exponent, significand)
     old_significand = m[pos]
     m[pos] = significand
 
+    # update significand sum
     weight_index = _convert(Int, exponent + 5)
     delta = _convert(UInt128, significand) - _convert(UInt128, old_significand)
     significand_sum = update_significand_sum(m, weight_index, delta)
@@ -406,8 +407,9 @@ function _set_nonzero_same_level!(m, mj, exponent, significand)
     adjust_level_and_sum_weights!(m, exponent, significand_sum, weight_index) 
 end
 
-function _set_from_zero!(m::Memory, j, mj, exponent, significand)
-    @assert mj == 0
+function _set_from_zero!(m::Memory, i::Int, exponent, significand)
+    j = i + 10794
+    @assert m[j] == 0
     m[4] += 1
     # update group total weight and total weight
     weight_index = _convert(Int, exponent + 5)
@@ -520,7 +522,7 @@ function _set_from_zero!(m::Memory, j, mj, exponent, significand)
     # insert the element into the group
     group_lastpos = _convert(Int, (group_pos-2)+2group_length)
     m[group_lastpos] = significand
-    m[group_lastpos+1] = j - 10794
+    m[group_lastpos+1] = i
 
     # log the insertion location in the edit map
     m[j] = _convert(UInt64, group_lastpos) << 12 + exponent
@@ -624,8 +626,11 @@ end
 get_alloced_indices(exponent::UInt64) = _convert(Int, 10532 + exponent >> 3), exponent << 3 & 0x38
 get_level_weights_nonzero_indices(exponent::UInt64) = _convert(Int, 10496 + exponent >> 6), exponent & 0x3f
 
-function _set_to_zero!(m::Memory, j, mj)
-    mj == 0 && return # if the entry's pos in the edit map table is already zero, return
+function _set_to_zero!(m::Memory, i::Int)
+    # Find the entry's pos in the edit map table
+    j = i + 10794
+    mj = m[j]
+    mj == 0 && return # if the entry is already zero, return
     m[4] -= 1
     pos = _convert(Int, mj >> 12)
     exponent = mj & 4095
@@ -834,9 +839,7 @@ function (::Type{T})(x) where {T <: AbstractWeightVector}
         fv == 0.0 && continue
         uv = reinterpret(UInt64, v)
         exponent, significand = decompose_weight(uv)
-        j = i + 10794
-        mj = w.m[j]
-        _set_from_zero!(w.m, j, mj, exponent, significand)
+        _set_from_zero!(w.m, i, exponent, significand)
     end
     w
 end
