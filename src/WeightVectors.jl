@@ -314,21 +314,11 @@ function _setindex!(m::Memory, v::Float64, i::Int)
 end
 
 function _set_nonzero!(m, i, exponent, significand)
-    j = i + 10794
-    mj = m[j]
+    mj = m[i + 10794]
     old_exponent = mj & 4095
     # If the level is unchanged, do an in-place replacement
     if old_exponent == exponent
-        pos = _convert(Int, mj >> 12)
-        old_significand = m[pos]
-        m[pos] = significand
-
-        # update significand sum
-        weight_index = _convert(Int, exponent + 5)
-        delta = _convert(UInt128, significand) - _convert(UInt128, old_significand)
-        significand_sum = update_significand_sum(m, weight_index, delta)
-
-        adjust_level_and_sum_weights(m, exponent, significand_sum, weight_index) 
+        _set_nonzero_same_level!(m, mj, exponent, significand)
     else
         # TODO for performance: join these two operations
         _set_to_zero!(m, i)
@@ -362,7 +352,7 @@ function decompose_weight(v)
     return exponent, significand
 end
 
-function adjust_level_and_sum_weights(m, exponent, significand_sum, weight_index)
+function adjust_level_and_sum_weights!(m, exponent, significand_sum, weight_index)
     shift = signed(exponent + m[3])
     if Base.top_set_bit(significand_sum)+shift > 64
         # if this would overflow, drop shift so that it renormalizes down to 48.
@@ -405,6 +395,19 @@ function adjust_level_and_sum_weights(m, exponent, significand_sum, weight_index
     nothing
 end
 
+function _set_nonzero_same_level!(m, mj, exponent, significand)
+    pos = _convert(Int, mj >> 12)
+    old_significand = m[pos]
+    m[pos] = significand
+
+    # update significand sum
+    weight_index = _convert(Int, exponent + 5)
+    delta = _convert(UInt128, significand) - _convert(UInt128, old_significand)
+    significand_sum = update_significand_sum(m, weight_index, delta)
+
+    adjust_level_and_sum_weights!(m, exponent, significand_sum, weight_index) 
+end
+
 function _set_from_zero!(m::Memory, i::Int, exponent, significand)
     j = i + 10794
     @assert m[j] == 0
@@ -423,7 +426,7 @@ function _set_from_zero!(m::Memory, i::Int, exponent, significand)
         m[weight_index] = weight
         m[5] = weight
     else
-        @inline adjust_level_and_sum_weights(m, exponent, significand_sum, weight_index)
+        @inline adjust_level_and_sum_weights!(m, exponent, significand_sum, weight_index)
     end
     m[2] = max(m[2], weight_index) # Set after insertion because update_weights! may need to update the global shift, in which case knowing the old m[2] will help it skip checking empty levels
     level_weights_nonzero_index,level_weights_nonzero_subindex = get_level_weights_nonzero_indices(exponent)
