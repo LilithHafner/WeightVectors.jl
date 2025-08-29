@@ -520,7 +520,7 @@ function _set_from_zero!(m::Memory, j, mj, exponent, significand)
     # insert the element into the group
     group_lastpos = _convert(Int, (group_pos-2)+2group_length)
     m[group_lastpos] = significand
-    m[group_lastpos+1] = _convert(Int, j - 10794)
+    m[group_lastpos+1] = j - 10794
 
     # log the insertion location in the edit map
     m[j] = _convert(UInt64, group_lastpos) << 12 + exponent
