@@ -835,7 +835,7 @@ function (::Type{T})(x) where {T <: AbstractWeightVector}
         uv = reinterpret(UInt64, v)
         exponent, significand = decompose_weight(uv)
         j = i + 10794
-        mj = m[j]
+        mj = w.m[j]
         _set_from_zero!(w.m, j, mj, exponent, significand)
     end
     w
