@@ -7,11 +7,13 @@ version = "0.0.0"
 AliasTables = "66dad0bd-aa9a-41b7-9441-69ab47430ed8"
 BitIntegers = "c3b6d118-76ef-56ca-8cc7-ebb389d030a1"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Unroll = "36e64239-2ab9-4580-84fb-56737a503d36"
 
 [compat]
 AliasTables = "1"
 BitIntegers = "0.3"
 Random = "1.10.0"
+Unroll = "0.1"
 julia = "1.10.0"
 
 [extras]
