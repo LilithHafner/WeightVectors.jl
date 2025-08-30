@@ -7,7 +7,6 @@ module WeightVectors
     read(path, String)
 end WeightVectors
 
-VERSION >= v"1.11.0-DEV.469" && eval(Meta.parse("public Weights"))
 export FixedSizeWeightVector, WeightVector
 
 using Random
