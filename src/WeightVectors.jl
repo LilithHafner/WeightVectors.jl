@@ -8,7 +8,7 @@ module WeightVectors
 end WeightVectors
 
 VERSION >= v"1.11.0-DEV.469" && eval(Meta.parse("public Weights"))
-export FixedSizeWeightVector, WeightVector, SemiResizableWeightVector
+export FixedSizeWeightVector, WeightVector
 
 using Random
 
@@ -18,41 +18,31 @@ const DEBUG = Base.JLOptions().check_bounds == 1
 _convert(T, x) = DEBUG ? T(x) : x%T
 
 """
-    Weights <: AbstractVector{Float64}
+    AbstractWeightVector <: AbstractVector{Float64}
 
 An abstract vector capable of storing normal, non-negative floating point numbers on which
 `rand` samples an index according to values rather than sampling a value uniformly.
 """
-abstract type Weights <: AbstractVector{Float64} end
+abstract type AbstractWeightVector <: AbstractVector{Float64} end
 """
-    FixedSizeWeightVector <: Weights
+    FixedSizeWeightVector <: AbstractWeightVector
 
-An object that confomrs the the `Weights` interface and cannot be resized.
+An object that conforms to the `AbstractWeightVector` interface and cannot be resized.
 """
-struct FixedSizeWeightVector <: Weights
+struct FixedSizeWeightVector <: AbstractWeightVector
     m::Memory{UInt64}
     global _FixedSizeWeightVector
     _FixedSizeWeightVector(m::Memory{UInt64}) = new(m)
-    FixedSizeWeightVector(len::Integer) = new(initialize_empty(Int(len)))
 end
 """
-    WeightVector <: Weights
+    WeightVector <: AbstractWeightVector
 
-An object that confomrs the the `Weights` interface and can be resized.
+An object that conforms to the `AbstractWeightVector` interface and can be resized.
 """
-mutable struct WeightVector <: Weights
+mutable struct WeightVector <: AbstractWeightVector
     m::Memory{UInt64}
-    WeightVector(len::Integer) = new(initialize_empty(Int(len)))
-end
-"""
-    SemiResizableWeightVector <: Weights
-
-An object that confomrs the the `Weights` interface and can be resized, but only to sizes
-at most as large as it's original size.
-"""
-struct SemiResizableWeightVector <: Weights
-    m::Memory{UInt64}
-    SemiResizableWeightVector(len::Integer) = new(initialize_empty(Int(len)))
+    global _WeightVector
+    _WeightVector(m::Memory{UInt64}) = new(m)
 end
 
 #===== Overview  ======
@@ -187,12 +177,12 @@ TODO
 # Trivial extensions:
 # push!, delete!
 
-Random.rand(rng::AbstractRNG, st::Random.SamplerTrivial{<:Weights}) = _rand(rng, st[].m)
-Random.Sampler(::Type{<:Random.AbstractRNG}, w::Weights, ::Random.Repetition) = Random.SamplerTrivial(w)
-Random.gentype(::Type{<:Weights}) = Int
-Base.getindex(w::Weights, i::Int) = _getindex(w.m, i)
-Base.setindex!(w::Weights, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
-Base.iszero(w::Weights) = w.m[2] == 5
+Random.rand(rng::AbstractRNG, st::Random.SamplerTrivial{<:AbstractWeightVector}) = _rand(rng, st[].m)
+Random.Sampler(::Type{<:Random.AbstractRNG}, w::AbstractWeightVector, ::Random.Repetition) = Random.SamplerTrivial(w)
+Random.gentype(::Type{<:AbstractWeightVector}) = Int
+Base.getindex(w::AbstractWeightVector, i::Int) = _getindex(w.m, i)
+Base.setindex!(w::AbstractWeightVector, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
+Base.iszero(w::AbstractWeightVector) = w.m[2] == 5
 
 #=@inbounds=# function _rand(rng::AbstractRNG, m::Memory{UInt64})
 
@@ -284,7 +274,7 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
 
         set_global_shift_increase!(m, m2, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
 
-        @assert 46 <= Base.top_set_bit(m[5]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8 # TODO for perf: delete
+        @assert 46 <= Base.top_set_bit(m[5]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8
     end
 
     while true # TODO for confidence: move this to a separate, documented function and add unit tests.
@@ -338,7 +328,7 @@ end
 
 Base.@propagate_inbounds function get_significand_sum(m, i)
     i = _convert(Int, 2i+2092)
-    significand_sum = UInt128(m[i]) | (UInt128(m[i+1]) << 64)
+    UInt128(m[i]) | (UInt128(m[i+1]) << 64)
 end
 function update_significand_sum(m, i, delta)
     j = _convert(Int, 2i+2092)
@@ -371,7 +361,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         shift = -24
         weight = _convert(UInt64, significand_sum << shift) + 1
 
-        @assert Base.top_set_bit(weight-1) == 40 # TODO for perf: delete
+        @assert Base.top_set_bit(weight-1) == 40
         m[weight_index] = weight
         m[5] = weight
     else
@@ -441,7 +431,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
                 next_free_space = compact!(m, m)
                 group_pos = next_free_space-new_allocation_length # The group will move but remian the last group
                 new_next_free_space = next_free_space+new_allocation_length
-                @assert new_next_free_space < length(m)+1 # TODO for perf, delete this
+                @assert new_next_free_space < length(m)+1
                 m[group_length_index] = group_length
 
                 # Re-lookup allocated chunk because compaction could have changed other
@@ -463,7 +453,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
                 next_free_space = compact!(m, m)
                 m[group_length_index] = group_length
                 new_next_free_space = next_free_space+twice_new_allocated_size
-                @assert new_next_free_space < length(m)+1 # After compaction there should be room TODO for perf, delete this
+                @assert new_next_free_space < length(m)+1 # After compaction there should be room
 
                 group_pos = m[group_length_index-1] # The group likely moved during compaction
 
@@ -704,14 +694,13 @@ end
 allocated_memory(length::Int) = 10794 + 8*length
 length_from_memory(allocated_memory::Int) = Int((allocated_memory-10794)/8)
 
-Base.resize!(w::Union{SemiResizableWeightVector, WeightVector}, len::Integer) = resize!(w, Int(len))
-function Base.resize!(w::Union{SemiResizableWeightVector, WeightVector}, len::Int)
+Base.resize!(w::WeightVector, len::Integer) = resize!(w, Int(len))
+function Base.resize!(w::WeightVector, len::Int)
     m = w.m
     old_len = m[1]
     if len > old_len
         am = allocated_memory(len)
         if am > length(m)
-            w isa SemiResizableWeightVector && throw(ArgumentError("Cannot increase the size of a SemiResizableWeightVector above its original allocated size. Try using a WeightVector instead."))
             _resize!(w, len)
         else
             m[1] = len
@@ -812,13 +801,21 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
 end
 
 # Conform to the AbstractArray API
-Base.size(w::Weights) = (w.m[1],)
+Base.size(w::AbstractWeightVector) = (w.m[1],)
 
-# Define convinience constructors TODO: these can be significantly optimized, especially when `x isa Weights`
-function (::Type{T})(x::AbstractVector{<:Real}) where {T <: Weights}
+FixedSizeWeightVector(len::Integer) = _FixedSizeWeightVector(initialize_empty(Int(len)))
+FixedSizeWeightVector(x::AbstractWeightVector) = _FixedSizeWeightVector(copy(x.m))
+WeightVector(len::Integer) = _WeightVector(initialize_empty(Int(len)))
+WeightVector(x::AbstractWeightVector) = _WeightVector(copy(x.m))
+
+# TODO: this can be significantly optimized
+function (::Type{T})(x) where {T <: AbstractWeightVector}
     w = T(length(x))
     for (i, v) in enumerate(x)
-        w[i] = v
+        fv = Float64(v)
+        fv < 0.0 && throw(DomainError(fv, "Invalid weight"))
+        fv == 0.0 && continue
+        _set_from_zero!(w.m, fv, i)
     end
     w
 end
