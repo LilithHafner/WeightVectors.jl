@@ -1,6 +1,6 @@
 module WeightVectors
 
-# Use the README as the module docs
+# Useful to retrieve the README for the WeightVectors docs
 @doc let
     path = joinpath(dirname(@__DIR__), "README.md")
     include_dependency(path)
