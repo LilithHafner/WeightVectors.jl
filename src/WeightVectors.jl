@@ -1,12 +1,5 @@
 module WeightVectors
 
-# Useful to retrieve the README for the WeightVectors docs
-@doc let
-    path = joinpath(dirname(@__DIR__), "README.md")
-    include_dependency(path)
-    read(path, String)
-end WeightVectors
-
 export FixedSizeWeightVector, WeightVector
 
 using Random
