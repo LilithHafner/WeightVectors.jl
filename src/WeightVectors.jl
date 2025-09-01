@@ -245,9 +245,9 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
         m2 = signed(m[2])
         x = zero(UInt64)
         checkbounds(m, 2m2-2Sys.WORD_SIZE+2093:2m2+2093)
-        # TODO for perf, we can get away with shaving 1 to 10 off of this operations.
+        # TODO for perf, we can get away with shaving 1 to 10 off of these operations.
         # This can underflow from significand sums into weights, but that underflow is safe because it can only happen if all the latter weights are zero. Be careful about this when re-arranging the memory layout!
-        Base.Cartesian.@nexprs 65 i -> (@inbounds x += m[2m2-2i-1+2093] >> (i - 2))
+        Base.Cartesian.@nexprs 65 i -> (@inbounds x += m[2m2-2i+2+2093] >> (i - 2))
 
         # x is computed by rounding down at a certain level and then summing (and adding 1)
         # m[5] will be computed by rounding up at a more precise level and then summing
