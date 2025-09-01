@@ -2,7 +2,7 @@ module WeightVectors
 
 export FixedSizeWeightVector, WeightVector
 
-using Random, Unroll
+using Random
 
 isdefined(@__MODULE__, :Memory) || const Memory = Vector # Compat for Julia < 1.11
 
