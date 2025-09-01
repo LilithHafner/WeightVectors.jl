@@ -6,9 +6,6 @@ CurrentModule = WeightVectors
 
 Documentation for [WeightVectors](https://github.com/LilithHafner/WeightVectors.jl).
 
-```@index
-```
-
-```@autodocs
-Modules = [WeightVectors]
+```@docs
+WeightVectors
 ```
