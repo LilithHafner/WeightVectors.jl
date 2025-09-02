@@ -471,7 +471,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
 
             # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
             delta = (next_free_space-group_pos) << 12
-            @simd for k in 1:group_length-1
+            for k in 1:group_length-1
                 target = m[_convert(Int, next_free_space)+2k-1]
                 l = _convert(Int, target + 10794)
                 m[l] += delta
@@ -775,7 +775,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         # Adjust the pos entries in edit_map (bad memory order TODO: consider unzipping edit map to improve locality here)
         delta = unsigned(Int64(dst_i-src_i)) << 12
         dst[j] += delta
-        @simd for k in 1:signed(group_length)-1 # TODO: add a benchmark that stresses compaction and try hoisting this bounds checking
+        for k in 1:signed(group_length)-1 # TODO: add a benchmark that stresses compaction and try hoisting this bounds checking
             target = src[src_i+2k+1]
             j = _convert(Int, target + 10794)
             dst[j] += delta
