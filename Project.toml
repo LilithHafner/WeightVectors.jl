@@ -1,7 +1,7 @@
 name = "WeightVectors"
 uuid = "02edb123-fbf3-4025-abe6-bed5b7376cdf"
 authors = ["Lilith Orion Hafner <lilithhafner@gmail.com>, Adriano Meligrana <adrianomeligrana@proton.me> and contributors"]
-version = "0.0.0"
+version = "0.1.0"
 
 [deps]
 AliasTables = "66dad0bd-aa9a-41b7-9441-69ab47430ed8"
