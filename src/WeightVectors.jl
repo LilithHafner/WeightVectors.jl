@@ -1,5 +1,8 @@
 module WeightVectors
 
+# Useful to retrieve the README for the WeightVectors docs
+@doc read(joinpath(dirname(@__DIR__), "README.md"), String) WeightVectors
+
 export FixedSizeWeightVector, WeightVector
 
 using Random

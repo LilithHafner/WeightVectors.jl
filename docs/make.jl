@@ -5,7 +5,7 @@ DocMeta.setdocmeta!(WeightVectors, :DocTestSetup, :(using WeightVectors); recurs
 
 makedocs(;
     modules=[WeightVectors],
-    authors="Lilith Orion Hafner <lilithhafner@gmail.com> and contributors",
+    authors="Lilith Orion Hafner <lilithhafner@gmail.com>, Adriano Meligrana <adrianomeligrana@proton.me> and contributors",
     sitename="WeightVectors.jl",
     format=Documenter.HTML(;
         canonical="https://LilithHafner.github.io/WeightVectors.jl",
@@ -14,7 +14,9 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
+        "API" => "api.md"
     ],
+    warnonly = [:missing_docs],
 )
 
 deploydocs(;
