@@ -22,4 +22,5 @@ makedocs(;
 deploydocs(;
     repo="github.com/LilithHafner/WeightVectors.jl",
     devbranch="main",
+    push_preview = true,
 )
