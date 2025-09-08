@@ -1,6 +1,3 @@
-```@meta
-CurrentModule = WeightVectors
-```
 
 # WeightVectors
 
