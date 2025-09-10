@@ -215,13 +215,34 @@ Base.iszero(w::AbstractWeightVector) = w.m[2] == 5
     sample_within_level(rng, m, pos, len)
 end
 
-@inline function sample_within_level(rng, m, pos, len)
+@inline function sample_within_level(rng, m, pos::UInt64, len::UInt64)
+    shift = leading_zeros(len-1)
+    # @inbounds safety: 
+    # 1. 0 <= r <= typemax(UInt64) since r = rand(rng, UInt64)::UInt64
+    # 2. pos ∈ [1, 2^56]. This is explicitly checked and needs to be true if m is not corrupted since
+    #    pos is the absolute position of a group into m and the maximum length of m is 10794+8*2^52
+    #    when WORD_SIZE == 64 and 2^32 when WORD_SIZE == 32.
+    # 3. shift ∈ [8, 64] because shift = leading_zeros(len-1) <= 64 and we check 8 <= shift. This also
+    #    needs to be true if m is not corrupted because of 2.
+    # 4. In the loop, k1 = (r >> shift) and k2 = _convert(Int, k1<<1+pos) so 
+    #    k2+1 = _convert(Int, (r >> shift) << 1 + pos) + 1 <= (r >> shift) << 1 + pos + 1
+    # 5. max(k2+1) <= (typemax(UInt64) >> shift) << 1 + pos + 1 since max((r >> shift) << 1) = 
+    #    (max(r) >> shift) << 1 = (typemax(UInt64) >> shift) << 1 by 1.,2. and 3. and 4. Similarly,
+    #    min(k2+1) = pos + 1 >= 2 by 1.,2. and 3.
+    # 6. Therefore, both m[k2] and m[k2+1] are inbound if we check that 2. and 3.hold and if we check
+    #    that (typemax(UInt64) >> shift) << 1 + pos + 1 is inbounds. Note that (typemax(UInt64) >> shift) << 1 + pos + 1 
+    #    can't overflow because of 2. and 3 and that by checking that it is inbounds in m we establish that
+    #    it is less than 2^(WORD_SIZE-1) so _convert(Int, (typemax(UInt64) >> shift) << 1 + pos) only changes 
+    #    the type, not the value. If one of these three conditions doesn't hold, m is corrupted and then we
+    #    throw an error.
+    (8 <= shift && UInt64(1) <= pos <= UInt64(2)^56) || throw("Sampler is corrupted")
+    checkbounds(m, (typemax(UInt64) >> shift) << 1 + pos + 1)
     while true
-        r = rand(rng, UInt64)
-        k1 = (r>>leading_zeros(len-1))
+        r = rand(rng, UInt64)::UInt64
+        k1 = (r>>shift)
         k2 = _convert(Int, k1<<1+pos)
         # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to 0
-        rand(rng, UInt64) < m[k2] * (k1 < len) && return Int(signed(m[k2+1]))
+        rand(rng, UInt64) < @inbounds(m[k2]) * (k1 < len) && return Int(signed(@inbounds(m[k2+1])))
     end
 end
 
