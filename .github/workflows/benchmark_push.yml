@@ -47,6 +47,6 @@ jobs:
                 cat table.md >> body.md
 
             - name: Create commit comment
-              uses: peter-evans/commit-comment@v3
+              uses: peter-evans/commit-comment@v4
               with:
                 body-path: body.md
