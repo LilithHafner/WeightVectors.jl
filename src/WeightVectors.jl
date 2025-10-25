@@ -776,7 +776,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         # another reallocation. We allocate 3x more space than solid so this threshold means that any single group will be denser than
         # the aggregate density of the whole weight vector immediatly after a compact! by a factor of 1/12. This threshold is
         # implemented, by multiplying group_length by 6/5 when deciding whether to compact:
-        log2_new_allocated_size = group_length == 0 ? 0 : min(log2_allocated_size, Base.top_set_bit(group_length*6÷5))
+        log2_new_allocated_size = min(log2_allocated_size, Base.top_set_bit(group_length*6÷5))
         new_chunk = allocs_chunk + Int64(log2_new_allocated_size - log2_allocated_size) << allocs_subindex
         dst[allocs_index] = new_chunk
 
