@@ -138,7 +138,7 @@ TODO
 # gc info:
 # 10531                  next_free_space::Int (used to re-allocate)
 # 16 unused bits
-# 10532..10794           level allocated length::[UInt8 2098] (2^(x-1) is implied)
+# 10532..10794           level allocated length::[UInt8 2098] (1<<(x-1) is implied, note that this is 2^(x-1) with a x==0 => alloc_size==0 special case)
 
 # 10795+len..10794+len   edit_map (maps index to current location in sub_weights)::[(pos<<11 + exponent)::UInt64] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. (len refers to allocated length, not m[1])
 
