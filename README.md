@@ -1,10 +1,10 @@
 # WeightVectors
 
-<!-- [![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://LilithHafner.github.io/WeightVectors.jl/stable/) -->
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://LilithHafner.github.io/WeightVectors.jl/stable/)
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://LilithHafner.github.io/WeightVectors.jl/dev/)
 [![Build Status](https://github.com/LilithHafner/WeightVectors.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/LilithHafner/WeightVectors.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![Coverage](https://codecov.io/gh/LilithHafner/WeightVectors.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/LilithHafner/WeightVectors.jl) <!--
-[![PkgEval](https://JuliaCI.github.io/NanosoldierReports/pkgeval_badges/W/WeightVectors.svg)](https://JuliaCI.github.io/NanosoldierReports/pkgeval_badges/W/WeightVectors.html) -->
+[![Coverage](https://codecov.io/gh/LilithHafner/WeightVectors.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/LilithHafner/WeightVectors.jl)
+[![PkgEval](https://JuliaCI.github.io/NanosoldierReports/pkgeval_badges/W/WeightVectors.svg)](https://JuliaCI.github.io/NanosoldierReports/pkgeval_badges/W/WeightVectors.html)
 [![Aqua](https://raw.githubusercontent.com/JuliaTesting/Aqua.jl/master/badge.svg)](https://github.com/JuliaTesting/Aqua.jl)
 
 `WeightVectors.jl` implements efficient samplers which can be used to sample from a dynamic discrete distribution, supporting removal, addition and sampling of elements in constant time.
