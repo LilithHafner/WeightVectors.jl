@@ -8,6 +8,7 @@ ds = DynamicDiscreteSampler()
 push!(ds, 1, rand())
 push!(ds, 2, rand())
 x = rand(ds) + rand(ds)
+y = rand(ds, 1000)
 t1 = time()
 
 using ChairmarksForAirspeedVelocity
