@@ -81,6 +81,30 @@ end
 
 include("DynamicDiscreteSampler_tests.jl") # Indirect tests for an upstream usage/legacy API
 
+@testset "Recompute shift overflow stress test" begin
+    function recompute_shift_stress_test()
+        w = WeightVector(1)
+        m5 = w.m[5]
+        i = 0
+        while w.m[5] >= m5
+            m5 = w.m[5]
+            i += 1
+            i > length(w) && resize!(w, 2length(w))
+            w[i] = floatmax()
+            i > 2^25 && error("The pathological constructor isn't constructing properly")
+        end
+        w[2:end] .= nextfloat(0.0)
+        w.m[5] < 2^24 || error("The pathological constructor isn't constructing properly")
+        while w.m[5] < 2^25
+            rand(w)
+            i += 1
+            i > 2^28 && error("The pathological constructor isn't constructing properly")
+        end
+        true
+    end
+    @test recompute_shift_stress_test()
+end
+
 # These tests are too slow:
 if "CI" in keys(ENV)
     @testset "Code quality (Aqua.jl)" begin
