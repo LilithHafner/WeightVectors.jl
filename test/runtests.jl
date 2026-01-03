@@ -88,9 +88,9 @@ include("DynamicDiscreteSampler_tests.jl") # Indirect tests for an upstream usag
         w .= floatmax()
         w[2098:end] .= nextfloat(0.0)
         w[1:2097] .= ldexp.(nextfloat(0.0), 1:2097)
-        w.m[5] < 2^32 || error("The pathological constructor isn't constructing properly")
+        w.m[5] < UInt64(2)^32 || error("The pathological constructor isn't constructing properly")
         i = 0
-        while w.m[5] < 2^32
+        while w.m[5] < UInt64(2)^32
             rand(w)
             i += 1
             i > 2^25 && error("Unexpectedly not hitting the recompute m5 edge case (p=1e-14)")
