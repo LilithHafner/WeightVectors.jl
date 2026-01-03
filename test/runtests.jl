@@ -83,22 +83,17 @@ include("DynamicDiscreteSampler_tests.jl") # Indirect tests for an upstream usag
 
 @testset "Recompute shift overflow stress test" begin
     function recompute_shift_stress_test()
-        w = WeightVector(1)
-        m5 = w.m[5]
+        w = WeightVector(2^(24-7)+1)
+        w[end] = floatmax()/2^7
+        w .= floatmax()
+        w[2098:end] .= nextfloat(0.0)
+        w[1:2097] .= ldexp.(nextfloat(0.0), 1:2097)
+        w.m[5] < 2^32 || error("The pathological constructor isn't constructing properly")
         i = 0
-        while w.m[5] >= m5
-            m5 = w.m[5]
-            i += 1
-            i > length(w) && resize!(w, 2length(w))
-            w[i] = floatmax()
-            i > 2^25 && error("The pathological constructor isn't constructing properly")
-        end
-        w[2:end] .= nextfloat(0.0)
-        w.m[5] < 2^24 || error("The pathological constructor isn't constructing properly")
-        while w.m[5] < 2^25
+        while w.m[5] < 2^32
             rand(w)
             i += 1
-            i > 2^28 && error("The pathological constructor isn't constructing properly")
+            i > 2^25 && error("Unexpectedly not hitting the recompute m5 edge case (p=1e-14)")
         end
         true
     end
