@@ -11,6 +11,9 @@ isdefined(@__MODULE__, :Memory) || const Memory = Vector # Compat for Julia < 1.
 
 const DEBUG = Base.JLOptions().check_bounds == 1
 _convert(T, x) = DEBUG ? T(x) : x%T
+macro fail(x)
+    DEBUG ? :(error()) : esc(:(return $x))
+end
 
 """
     AbstractWeightVector <: AbstractVector{Float64}
@@ -215,15 +218,65 @@ Base.iszero(w::AbstractWeightVector) = w.m[2] == 5
     sample_within_level(rng, m, pos, len)
 end
 
-@inline function sample_within_level(rng, m, pos, len)
+@inline function sample_within_level(rng, m::Memory{UInt64}, pos::UInt64, len::UInt64)
+    shift = leading_zeros(len-1)
+
+    # These should never happen but is required to make `@inbounds` safe:
+    1 <= pos::UInt64 <= UInt64(2)^63 || @fail 0
+    2 <= shift::Int || @fail 0
+    2*(typemax(UInt64)>>shift)+pos+1 <= lastindex(m) || @fail 0
+
     while true
-        r = rand(rng, UInt64)
-        k1 = (r>>leading_zeros(len-1))
-        k2 = _convert(Int, k1<<1+pos)
+        r = rand(rng, UInt64)::UInt64
+        k1 = r>>shift
+        k2 = _convert(Int, 2k1+pos)
         # TODO for perf: delete the k1 < len check by maintaining all the out of bounds m[k2] equal to 0
-        rand(rng, UInt64) < m[k2] * (k1 < len) && return Int(signed(m[k2+1]))
+        rand(rng, UInt64) < @inbounds(m[k2]) * (k1 < len) && return _convert(Int, @inbounds(m[k2+1])) # See justification of @inbounds safety, below.
     end
 end
+#=
+Loose justification that @inbounds is safe in sample_within_level
+
+    k2 = 2*(r>>shift)+pos which is bounded by 2*(typemax(UInt64)>>shift)+pos.
+    We check that 2*(typemax(UInt64)>>shift)+pos+1 is in bounds in m so k2 and k2+1 should
+    also be in bounds, as long as they are at least 1, which is also checked.
+
+Formally,
+
+    Claim                                                    | Justificaiton
+    -------------------------------------------------------- | -------------
+    r is a UInt64                                            | From source
+(1) 0 <= r <= 2^64-1                                         | Property of UInt64
+    2 <= shift::Int                                          | From source
+    Shifting a UInt64 right by a positive Int is a monotonically nondecreasing function
+    0>>shift <= r>>shift <= (2^64-1)>>shift                  | Applying a monotonically nondecreasing function on all sides of (1)
+    0 <= r>>shift <= (2^64-1)>>shift                         | Shifting 0 does not change its value
+    (2^64-1)>>shift <= 2^62-1                                | Shifting right by an Int at least 2 divides by 4 (or more), rounding down.
+(2) 0 <= r>>shift <= (2^64-1)>>shift <= 2^62-1               | Chained inequalities
+    Multiplying a UInt64 below 2^63 by two will not overflow.
+    Multiplying a UInt64 by 2 is, in the absence of overflow, monotonically nondecreasing
+    2*0 <= 2*(r>>shift) <= 2*((2^64-1)>>shift) <= 2*(2^62-1) | Applying a monotonically nondecreasing function on all sides of (2)
+(3) 0 <= 2*(r>>shift) <= 2*(2^64>>shift) <= 2^63-2           | Partial evaluation of expressions
+(4) pos::UInt64 <= 2^63                                      | From source
+    Adding a UInt64 that is less than or equal to 2^63 to a UInt64 that is less than 2^63 will not overflow.
+    Adding a UInt64 to a UInt64 is, in the absence of overflow, monotonically nondecreasing.
+(5) pos <= 2*(r>>shift)+pos <= 2*(2^64>>shift)+pos <= 2^63-2+pos  | Applying a monotonically nondecreasing function on all sides of (3)
+    2^63-2 + pos <= 2^63-2 + 2^63                            | Applying a monotonically nondecreasing function on all sides of (4)
+(6) 2^63-2 + pos <= 2^64-2                                   | Partial evaluation
+(7) pos <= 2*(r>>shift)+pos <= 2*(2^64>>shift)+pos <= 2^64-2 | Transitivity applied to (5) and (6)
+(8) k2 = 2*(r>>shift)+pos                                    | From source
+(9) pos <= k2 <= 2*(2^64>>shift)+pos <= 2^64-2               | Substitution of (8) into (7)
+(10) Adding 1 to a UInt64 that is less than or equal to 2^64-2 is a monotonically nondecreasing function
+    k2+1 <= 2*(2^64>>shift)+pos+1                            | Applying a monotonically nondecreasing function on all sides of (9)
+    k2 <= k2+1                                               | (10)
+    1 <= pos                                                 | From source
+(11) 1 <= k2 <= k2+1 <= 2*(2^64>>shift)+pos+1                | Transitivity applied to the previous three lines and (9)
+    2*(2^64>>shift)+pos+1 <= lastindex(m)                    | From source
+    1 <= k2 <= k2+1 <= lastindex(m)                          | Transitivity
+    m is a Memory                                            | From source
+    Memory uses 1 based indexing
+    k2 and k2+1 are in bounds in `m`                         | From the last three lines
+=#
 
 function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
     # shift::Int = exponent+m[3]
