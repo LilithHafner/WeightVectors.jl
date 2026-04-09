@@ -96,7 +96,7 @@ Flips up to 64 coins at a time.
 function binomial_sample_fair_coin(rng, trials)
     sum((rand(rng, FLIP_64_COINS)-1 for _ in 1:trials >> 6), init=0) + 
     sum((rand(rng, FLIP_16_COINS)-1 for _ in 1:(trials >> 4) % 4), init=0) + 
-    count(rand(Bool) for _ in 1:trials%16)
+    count(rand(rng, Bool) for _ in 1:trials%16)
 end
 
 """
