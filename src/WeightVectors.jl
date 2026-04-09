@@ -279,7 +279,7 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
         target = (significand_sum << shift) % UInt64
         x > target && return true
         x < target && return false
-        shift >= 0 && return false
+        shift >= 0 && return true
     end
 end
 
