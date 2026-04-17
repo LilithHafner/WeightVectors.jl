@@ -212,10 +212,9 @@ function ensure_sampling_shift!(m::Memory{UInt64})
 end
 
 #=@inbounds=# function _rand(rng::AbstractRNG, m::Memory{UInt64})
+    ensure_sampling_shift!(m)
 
     @label reject
-
-    ensure_sampling_shift!(m)
 
     # Select level
     x = @inline rand(rng, Random.Sampler(rng, Base.OneTo(m[5]), Val(1)))
