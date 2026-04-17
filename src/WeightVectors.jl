@@ -181,9 +181,10 @@ Base.iszero(w::AbstractWeightVector) = w.m[2] == 5
 
 function ensure_sampling_shift!(m::Memory{UInt64}, m5)
 
+    m5 == UInt64(0) && return
+
     # If the sum of approximate weights becomes less than 2^32, then for performance reasons (to keep this low probability rejection step sufficiently low probability)
     # Increase the shift to a reasonable level.
-    # The fact that we are here past the isempty check in `rand` means that there are some nonzero weights.
 	m2 = signed(m[2])
 	x = zero(UInt64)
 	offset = 2m2+2093+2
