@@ -222,9 +222,8 @@ function pathological6_setup()
 end
 
 function pathological6_update(ds)
-    tmp = 2050
-    push!(ds, tmp, ldexp(1.0, 1023))
-    delete!(ds, tmp)
+    push!(ds, 2050, ldexp(1.0, 1023))
+    delete!(ds, 2050)
     rand(ds)
 end
 
