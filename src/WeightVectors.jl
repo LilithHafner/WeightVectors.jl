@@ -179,9 +179,43 @@ Base.getindex(w::AbstractWeightVector, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::AbstractWeightVector, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 Base.iszero(w::AbstractWeightVector) = w.m[2] == 5
 
+function ensure_sampling_shift!(m::Memory{UInt64})
+    m5 = m[5]
+    m5 >= (UInt64(1) << 32) && return
+
+    # If the sum of approximate weights becomes less than 2^32, then for performance reasons (to keep this low probability rejection step sufficiently low probability)
+    # Increase the shift to a reasonable level.
+    # The fact that we are here past the isempty check in `rand` means that there are some nonzero weights.
+	m2 = signed(m[2])
+	x = zero(UInt64)
+	offset = 2m2+2093+2
+	checkbounds(m, offset-65*2:offset-2)
+	
+    # TODO for perf, we can get away with shaving 1 to 10 off of these operations.
+    # This can underflow from significand sums into weights, but that underflow is safe because it can only happen if all the latter weights are zero. Be careful about this when re-arranging the memory layout!
+    Base.Cartesian.@nexprs 65 i -> (@inbounds x += m[offset - 2i] >> (i - 2))
+	
+    # x is computed by rounding down at a certain level and then summing (and adding 1)
+	# m[5] will be computed by rounding up at a more precise level and then summing
+	# x could be 0 (treated as 1/2 when computing log2 with top_set_bit), composed of
+	# .9 + .9 + .9 + ... for up to about log2(length) levels
+	# meaning m[5] could be up to 2log2(length) times greater than predicted according to x2
+	# if length is 2^64 than this could push m[5]'s top set bit up to 9 bits higher.
+	# If, on the other hand, x was computed with significantly higher precision, then
+	# it could overflow if there were 2^64 elements in a weight. We could probably
+	# squeeze a few more bits out of this, but targeting 46 with a window of 46 to 53 is
+	# plenty good enough.
+	m3 = unsigned(-17 - Base.top_set_bit(x) - (m2 - 5))
+	set_global_shift_increase!(m, m2, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+	@assert 46 <= Base.top_set_bit(m[5]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8
+    return
+end
+
 #=@inbounds=# function _rand(rng::AbstractRNG, m::Memory{UInt64})
 
     @label reject
+
+    ensure_sampling_shift!(m)
 
     # Select level
     x = @inline rand(rng, Random.Sampler(rng, Base.OneTo(m[5]), Val(1)))
@@ -238,39 +272,6 @@ function _rand_slow_path(rng::AbstractRNG, m::Memory{UInt64}, i)
     exponent = i-5
     shift = signed(exponent + m[3])
     significand_sum = get_significand_sum(m, i)
-
-    m5 = m[5]
-    if m5 < UInt64(1)<<32
-        # If the sum of approximate weights becomes less than 2^32, then for performance reasons (to keep this low probability rejection step sufficiently low probability)
-        # Increase the shift to a reasonable level.
-        # The fact that we are here past the isempty check in `rand` means that there are some nonzero weights.
-
-        m2 = signed(m[2])
-        x = zero(UInt64)
-        offset = 2m2+2093+2
-        checkbounds(m, offset-65*2:offset-2)
-        # TODO for perf, we can get away with shaving 1 to 10 off of these operations.
-        # This can underflow from significand sums into weights, but that underflow is safe because it can only happen if all the latter weights are zero. Be careful about this when re-arranging the memory layout!
-        Base.Cartesian.@nexprs 65 i -> (@inbounds x += m[offset - 2i] >> (i - 2))
-
-        # x is computed by rounding down at a certain level and then summing (and adding 1)
-        # m[5] will be computed by rounding up at a more precise level and then summing
-        # x could be 0 (treated as 1/2 when computing log2 with top_set_bit), composed of
-        # .9 + .9 + .9 + ... for up to about log2(length) levels
-        # meaning m[5] could be up to 2log2(length) times greater than predicted according to x2
-        # if length is 2^64 than this could push m[5]'s top set bit up to 9 bits higher.
-
-        # If, on the other hand, x was computed with significantly higher precision, then
-        # it could overflow if there were 2^64 elements in a weight. We could probably
-        # squeeze a few more bits out of this, but targeting 46 with a window of 46 to 53 is
-        # plenty good enough.
-
-        m3 = unsigned(-17 - Base.top_set_bit(x) - (m2 - 5))
-
-        set_global_shift_increase!(m, m2, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
-
-        @assert 46 <= Base.top_set_bit(m[5]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8
-    end
 
     while true # TODO for confidence: move this to a separate, documented function and add unit tests.
         x = rand(rng, UInt64)
