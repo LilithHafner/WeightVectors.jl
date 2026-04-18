@@ -205,7 +205,7 @@ function ensure_sampling_shift!(m::Memory{UInt64}, m5)
 	# squeeze a few more bits out of this, but targeting 46 with a window of 46 to 53 is
 	# plenty good enough.
 	m3 = unsigned(-17 - Base.top_set_bit(x) - (m2 - 5))
-	set_global_shift_increase!(m, m2, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+    set_global_shift_increase!(m, m2, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
 	@assert 46 <= Base.top_set_bit(m[5]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8
     return
 end
