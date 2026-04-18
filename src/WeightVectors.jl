@@ -485,7 +485,7 @@ function set_global_shift_increase!(m::Memory{UInt64}, m5)
     checkbounds(m, offset-65*2:offset-2)
 
     # This can underflow from significand sums into weights, but that underflow is safe because it can only happen if all the latter weights are zero. Be careful about this when re-arranging the memory layout!
-    for i in 1:(Base.top_set_bit(m[4])+1)
+    for i in (Base.top_set_bit(m[4])+1):-1:1
         @inbounds x += m[offset - 2i] >> (i - 2)
     end
 
