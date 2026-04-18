@@ -179,7 +179,7 @@ Base.getindex(w::AbstractWeightVector, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::AbstractWeightVector, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 Base.iszero(w::AbstractWeightVector) = w.m[2] == 5
 
-function ensure_sampling_shift!(m::Memory{UInt64}, m5)
+function set_global_shift_increase!(m::Memory{UInt64}, m5)
 
     # If the sum of approximate weights becomes less than 2^32, then for performance reasons (to keep the low probability rejection step sufficiently low probability)
     # Increase the shift to a reasonable level.
@@ -213,7 +213,7 @@ end
 #=@inbounds=# function _rand(rng::AbstractRNG, m::Memory{UInt64})
 	m5 = m[5]
     if m5 < (UInt64(1) << 32)
-    	@noinline ensure_sampling_shift!(m, m5)
+    	@noinline set_global_shift_increase!(m, m5)
 	end
 
     @label reject
