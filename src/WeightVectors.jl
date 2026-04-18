@@ -494,12 +494,16 @@ function set_global_shift_increase!(m::Memory{UInt64}, m5)
 	# .9 + .9 + .9 + ... for up to about log2(length) levels
 	# meaning m[5] could be up to 2log2(length) times greater than predicted according to x2
 	# if length is 2^64 than this could push m[5]'s top set bit up to 9 bits higher.
+
 	# If, on the other hand, x was computed with significantly higher precision, then
 	# it could overflow if there were 2^64 elements in a weight. We could probably
 	# squeeze a few more bits out of this, but targeting 46 with a window of 46 to 53 is
 	# plenty good enough.
+
 	m3 = unsigned(-17 - Base.top_set_bit(x) - (m2 - 5))
+
     set_global_shift_increase!(m, m2, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+
 	@assert 46 <= Base.top_set_bit(m[5]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8
 end
 
