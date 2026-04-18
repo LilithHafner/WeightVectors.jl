@@ -207,6 +207,28 @@ function pathological5b′′_setup()
 end
 SUITE["pathological 5b′′"] = @benchmarkable pathological5b′′_setup pathological5b′′_update
 
+function pathological6_setup()
+    ds = DynamicDiscreteSampler()
+    idx = 1
+    for k in 0:51
+        push!(ds, idx, reinterpret(Float64, UInt64(1) << k))
+        idx += 1
+    end
+    for e in -1022:974
+        push!(ds, idx, ldexp(1.0, e))
+        idx += 1
+    end
+    ds
+end
+
+function pathological6_update(ds)
+    push!(ds, 2050, ldexp(1.0, 1023))
+    delete!(ds, 2050)
+    rand(ds)
+end
+
+SUITE["pathological 6"] = @benchmarkable pathological6_setup pathological6_update
+
 function pathological_compaction_setup()
     w = FixedSizeWeightVector(2^20+1)
     w[1:2^19] .= 1
