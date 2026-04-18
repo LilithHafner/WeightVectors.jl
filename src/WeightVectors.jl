@@ -179,37 +179,6 @@ Base.getindex(w::AbstractWeightVector, i::Int) = _getindex(w.m, i)
 Base.setindex!(w::AbstractWeightVector, v, i::Int) = (_setindex!(w.m, Float64(v), i); w)
 Base.iszero(w::AbstractWeightVector) = w.m[2] == 5
 
-function set_global_shift_increase!(m::Memory{UInt64}, m5)
-
-    # If the sum of approximate weights becomes less than 2^32, then for performance reasons (to keep the low probability rejection step sufficiently low probability)
-    # Increase the shift to a reasonable level.
-	m2 = signed(m[2])
-    # This function is only called by `rand`, so we can assume that the weight vector is non-empty and throw if not.
-    m2 == 5 && throw(ArgumentError("Cannot sample from a WeightVector when all weights are zero"))
-	x = zero(UInt64)
-	offset = 2m2+2093+2
-	checkbounds(m, offset-65*2:offset-2)
-	
-    # TODO for perf, we can get away with shaving 1 to 10 off of these operations.
-    # This can underflow from significand sums into weights, but that underflow is safe because it can only happen if all the latter weights are zero. Be careful about this when re-arranging the memory layout!
-    Base.Cartesian.@nexprs 65 i -> (@inbounds x += m[offset - 2i] >> (i - 2))
-	
-    # x is computed by rounding down at a certain level and then summing (and adding 1)
-	# m[5] will be computed by rounding up at a more precise level and then summing
-	# x could be 0 (treated as 1/2 when computing log2 with top_set_bit), composed of
-	# .9 + .9 + .9 + ... for up to about log2(length) levels
-	# meaning m[5] could be up to 2log2(length) times greater than predicted according to x2
-	# if length is 2^64 than this could push m[5]'s top set bit up to 9 bits higher.
-	# If, on the other hand, x was computed with significantly higher precision, then
-	# it could overflow if there were 2^64 elements in a weight. We could probably
-	# squeeze a few more bits out of this, but targeting 46 with a window of 46 to 53 is
-	# plenty good enough.
-	m3 = unsigned(-17 - Base.top_set_bit(x) - (m2 - 5))
-    set_global_shift_increase!(m, m2, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
-	@assert 46 <= Base.top_set_bit(m[5]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8
-    return
-end
-
 #=@inbounds=# function _rand(rng::AbstractRNG, m::Memory{UInt64})
 	m5 = m[5]
     if m5 < (UInt64(1) << 32)
@@ -505,53 +474,64 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     nothing
 end
 
-function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m5) # Increase shift, on deletion of elements
-    @assert signed(m[3]) < signed(m3)
-    m[3] = m3
-    # Story:
-    # In the likely case that the weight decrease resulted in a level's weight hitting zero
-    # that level's weight is already updated and m5 adjusted accordingly TODO for perf don't adjust, pass the values around instead
-    # In any event, m5 is accurate for current weights and all weights and significand_sums's above (before) m2 are zero so we don't need to touch them
-    # Between m2 and i1, weights that were previously 1 may need to be increased. Below (past, after) i1, all weights will round up to 1 or 0 so we don't need to touch them
+function set_global_shift_increase!(m::Memory{UInt64}, m5)
+    # If the sum of approximate weights becomes less than 2^32, then for performance reasons (to keep the low probability rejection step sufficiently low probability)
+    # Increase the shift to a reasonable level.
+	m2 = signed(m[2])
+    # This function is only called by `rand`, so we can assume that the weight vector is non-empty and throw if not.
+    m2 == 5 && throw(ArgumentError("Cannot sample from a WeightVector when all weights are zero"))
+	x = zero(UInt64)
+	offset = 2m2+2093+2
+	checkbounds(m, offset-65*2:offset-2)
 
-    #=
-    weight = UInt64(significand_sum<<shift) + 1
-    when is that always 1? when
-    UInt64(significand_sum<<shift) == 0
-    significand_sum could be as much as m[4] * 0xfffffffffffff800. When
-    shift <= -Base.top_set_bit(m[4] * 0xfffffffffffff800)
-    significand_sum<<shift will be zero.
-    shift = signed(exponent+m3)
-    shift = signed(i-4+m3)
-    signed(i-5+m3) <= -Base.top_set_bit(m[4] * 0xfffffffffffff800)
-    i <= -signed(m3)-Base.top_set_bit(m[4] * 0xfffffffffffff800)+5
-    So for i <= signed(m3)-Base.top_set_bit(m[4] * 0xfffffffffffff800)+5 we will not need to adjust the ith weight
-    A slightly stricter and simpler condition is i <= -signed(m3)-59-Base.top_set_bit(m[4])
-    =#
-    r0 = max(6, -signed(m3)-59-Base.top_set_bit(m[4]))
-    r1 = m2
+    # TODO for perf, we can get away with shaving 1 to 10 off of these operations.
+    # This can underflow from significand sums into weights, but that underflow is safe because it can only happen if all the latter weights are zero. Be careful about this when re-arranging the memory layout!
+    Base.Cartesian.@nexprs 65 i -> (@inbounds x += m[offset - 2i] >> (i - 2))
 
-    # shift = signed(i-5+m3)
-    # weight = significand_sum == 0 ? 0 : UInt64(significand_sum << shift) + 1
-    # shift < -64; the low 64 bits are shifted off.
-    # i < -59-signed(m3); the low 64 bits are shifted off.
+    # x is computed by rounding down at a certain level and then summing (and adding 1)
+	# m[5] will be computed by rounding up at a more precise level and then summing
+	# x could be 0 (treated as 1/2 when computing log2 with top_set_bit), composed of
+	# .9 + .9 + .9 + ... for up to about log2(length) levels
+	# meaning m[5] could be up to 2log2(length) times greater than predicted according to x2
+	# if length is 2^64 than this could push m[5]'s top set bit up to 9 bits higher.
+	# If, on the other hand, x was computed with significantly higher precision, then
+	# it could overflow if there were 2^64 elements in a weight. We could probably
+	# squeeze a few more bits out of this, but targeting 46 with a window of 46 to 53 is
+	# plenty good enough.
+	m3 = unsigned(-17 - Base.top_set_bit(x) - (m2 - 5))
+    set_global_shift_increase!(m, m2, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+	@assert 46 <= Base.top_set_bit(m[5]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8
+    return
+end
 
-    checkbounds(m, r0:2r1+2093)
-    @inbounds for i in r0:min(r1, -60-signed(m3))
-        significand_sum_lo = m[_convert(Int, 2i+2092)]
-        significand_sum_hi = m[_convert(Int, 2i+2093)]
-        significand_sum_lo == significand_sum_hi == 0 && continue # in this case, the weight was and still is zero
-        shift = signed(i-5+m3) + 64
-        m5 += update_weight!(m, i, significand_sum_hi << shift)
-    end
-    @inbounds for i in max(r0,-59-signed(m3)):r1
-        significand_sum = get_significand_sum(m, i)
-        significand_sum == 0 && continue # in this case, the weight was and still is zero
-        shift = signed(i-5+m3)
-        m5 += update_weight!(m, i, significand_sum << shift)
-    end
+function set_global_shift_increase!(m::Memory{UInt64}, m5)
+    # If the sum of approximate weights becomes less than 2^32, then for performance reasons (to keep the low probability rejection step sufficiently low probability)
+    # Increase the shift to a reasonable level.
+    m2 = signed(m[2])
+    # This function is only called by `rand`, so we can assume that the weight vector is non-empty and throw if not.
+    m2 == 5 && throw(ArgumentError("Cannot sample from a WeightVector when all weights are zero"))
+    x = zero(UInt64)
+    offset = 2m2+2093+2
+    checkbounds(m, offset-65*2:offset-2)
 
-    m[5] = m5
+    # TODO for perf, we can get away with shaving 1 to 10 off of these operations.
+    # This can underflow from significand sums into weights, but that underflow is safe because it can only happen if all the latter weights are zero. Be careful about this when re-arranging the memory layout!
+    Base.Cartesian.@nexprs 65 i -> (@inbounds x += m[offset - 2i] >> (i - 2))
+
+    # x is computed by rounding down at a certain level and then summing (and adding 1)
+    # m[5] will be computed by rounding up at a more precise level and then summing
+    # x could be 0 (treated as 1/2 when computing log2 with top_set_bit), composed of
+    # .9 + .9 + .9 + ... for up to about log2(length) levels
+    # meaning m[5] could be up to 2log2(length) times greater than predicted according to x2
+    # if length is 2^64 than this could push m[5]'s top set bit up to 9 bits higher.
+    # If, on the other hand, x was computed with significantly higher precision, then
+    # it could overflow if there were 2^64 elements in a weight. We could probably
+    # squeeze a few more bits out of this, but targeting 46 with a window of 46 to 53 is
+    # plenty good enough.
+    m3 = unsigned(-17 - Base.top_set_bit(x) - (m2 - 5))
+    set_global_shift_increase!(m, m2, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+    @assert 46 <= Base.top_set_bit(m[5]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8
+    return
 end
 
 function set_global_shift_decrease!(m::Memory, m3::UInt64, m5=m[5]) # Decrease shift, on insertion of elements
