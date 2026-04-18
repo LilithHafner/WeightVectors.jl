@@ -486,7 +486,7 @@ function set_global_shift_increase!(m::Memory{UInt64}, m5)
 
     # TODO for perf, we can get away with shaving 1 to 10 off of these operations.
     # This can underflow from significand sums into weights, but that underflow is safe because it can only happen if all the latter weights are zero. Be careful about this when re-arranging the memory layout!
-    Base.Cartesian.@nexprs 65 i -> (@inbounds x += m[offset - 2i] >> (i - 2))
+    Base.Cartesian.@nexprs 54 i -> (@inbounds x += m[offset - 2i] >> (i - 2))
 
     # x is computed by rounding down at a certain level and then summing (and adding 1)
     # m[5] will be computed by rounding up at a more precise level and then summing
