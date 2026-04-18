@@ -5,7 +5,7 @@ using WeightVectors, Test
 
 w = WeightVectors.FixedSizeWeightVector(10)
 
-@test_throws ArgumentError("collection must be non-empty") rand(w)
+@test_throws ArgumentError("Cannot sample from a WeightVector when all weights are zero") rand(w)
 
 @test 1 === (w[1] = 1)
 
