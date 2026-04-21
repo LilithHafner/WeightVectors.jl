@@ -188,7 +188,7 @@ Base.iszero(w::AbstractWeightVector) = w.m[2] == 5
     @label reject
 
     # Select level
-    x = @inline rand(rng, Random.Sampler(rng, Base.OneTo(m[5]), Val(1)))
+    x = @inline rand(rng, Random.Sampler(rng, Base.OneTo(m5), Val(1)))
     i = _convert(Int, m[2])
     mi = m[i]
     @inbounds while i > 6
