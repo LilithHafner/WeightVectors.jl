@@ -182,7 +182,7 @@ Base.iszero(w::AbstractWeightVector) = w.m[2] == 5
 #=@inbounds=# function _rand(rng::AbstractRNG, m::Memory{UInt64})
     m5 = m[5]
     if m5 < (UInt64(1) << 32)
-        @noinline set_global_shift_increase!(m, m5)
+        m5 = @noinline set_global_shift_increase!(m, m5)
     end
 
     @label reject
@@ -502,9 +502,11 @@ function set_global_shift_increase!(m::Memory{UInt64}, m5)
 
     m3 = unsigned(-17 - Base.top_set_bit(x) - (m2 - 5))
 
-    set_global_shift_increase!(m, m2, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
+    m5 = set_global_shift_increase!(m, m2, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
 
     @assert 46 <= Base.top_set_bit(m[5]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8
+
+    return m5
 end
 
 function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m5) # Increase shift, on deletion of elements
