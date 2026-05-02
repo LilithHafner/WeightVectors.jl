@@ -57,7 +57,7 @@ If you use this package in a publication, or simply want to refer to it, please 
 
 ```
 @misc{hafner2025exactsampler,
-      title={An Exact and Efficient Sampler for Dynamic Discrete Distributions}, 
+      title={Exact and Efficient Sampling from Dynamic Discrete Distributions with Finite-Precision Weights}, 
       author={Lilith Orion Hafner and Adriano Meligrana},
       year={2025},
       eprint={2506.14062},
