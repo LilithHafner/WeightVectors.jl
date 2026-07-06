@@ -7,6 +7,7 @@ using StableRNGs
 using StatsBase
 
 @test WeightVectors.DEBUG === true
+@test_throws ErrorException WeightVectors.@fail 0
 
 @testset "Constructor from array" begin
     w = FixedSizeWeightVector([1.7,2.9])
