@@ -139,10 +139,9 @@ TODO
 # 10529..10530           exact_sum::UInt128 and dirty_info, only meaningful when dirty (m[5] == 0 but m[2] != 5).
 #                        m[10529] is the low word of the exact sum(level weights). m[10530] packs:
 #                        bits 0..15: the high bits of the exact sum (which is < 2098*2^64 < 2^76)
-#                        bits 16..31: m[2] just before the insertion that made the sampler dirty
-#                        bits 32..47: the level index of the insertion that made the sampler dirty
-#                        bit 62: pristine: nothing changed since that insertion
-#                        bit 63: some level may be saturated
+#                        bits 16..31: the number of saturated levels (level weight typemax(UInt64))
+#                        bits 32..47 and 48..63: two slots, each 0 or the index of a saturated level. When the
+#                        number of saturated levels equals the number of filled slots, we know all of them.
 
 # gc info:
 # 10531                  next_free_space::Int (used to re-allocate)
@@ -345,19 +344,19 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         old_weight = m[weight_index]
         m[weight_index] = weight
         if m5 == 0 # already dirty
-            set_exact_sum!(m, get_exact_sum(m) + (weight - old_weight), m[10530] & SATURATED_FLAG | UInt64(weight == typemax(UInt64)) << 63)
+            set_exact_sum!(m, get_exact_sum(m) + (weight - old_weight), update_dirty_info(m[10530], weight_index, old_weight, weight))
         else
             m5 -= old_weight
             m5, o = Base.add_with_overflow(m5, weight)
             if o | (m5 == typemax(UInt64)) # this also catches a saturated level weight
-                set_exact_sum!(m, UInt128(m5) + UInt128(o) << 64, m[2] << 16 | UInt64(weight_index) << 32 | PRISTINE_FLAG | UInt64(weight == typemax(UInt64)) << 63)
+                set_exact_sum!(m, UInt128(m5) + UInt128(o) << 64, weight == typemax(UInt64) ? UInt64(1) << 16 | UInt64(weight_index) << 32 : zero(UInt64))
                 m[5] = 0
             else
                 m[5] = m5
             end
         end
     end
-    m[2] = max(m[2], weight_index) # Set after insertion because if this insertion made the sampler dirty, renormalize! uses the old m[2] (stored in m[10530]) to skip checking empty levels
+    m[2] = max(m[2], weight_index)
     level_weights_nonzero_index,level_weights_nonzero_subindex = get_level_weights_nonzero_indices(exponent)
     m[level_weights_nonzero_index] |= 0x8000000000000000 >> level_weights_nonzero_subindex
 
@@ -468,12 +467,34 @@ end
     _convert(UInt64, significand_sum << shift) + 1
 end
 
-const SATURATED_FLAG = UInt64(1) << 63
-const PRISTINE_FLAG = UInt64(1) << 62
 get_exact_sum(m::Memory{UInt64}) = UInt128(m[10529]) | (UInt128(m[10530] & 0xffff) << 64)
 function set_exact_sum!(m::Memory{UInt64}, x::UInt128, dirty_info::UInt64)
     m[10529] = x % UInt64
     m[10530] = (x >>> 64) % UInt64 | dirty_info
+end
+
+# Update the saturated level count and slots in dirty_info (bits 16..63 of m[10530]) after
+# the weight of level i changed from old_weight to weight. Returns bits 0..15 cleared.
+function update_dirty_info(dirty_info::UInt64, i::Int, old_weight::UInt64, weight::UInt64)
+    was_saturated = old_weight == typemax(UInt64)
+    is_saturated = weight == typemax(UInt64)
+    was_saturated == is_saturated && return dirty_info & ~UInt64(0xffff)
+    n_saturated = dirty_info >> 16 & 0xffff
+    slot1 = dirty_info >> 32 & 0xffff
+    slot2 = dirty_info >> 48
+    if is_saturated
+        n_saturated += 1
+        if slot1 == 0
+            slot1 = UInt64(i)
+        elseif slot2 == 0
+            slot2 = UInt64(i)
+        end # else there is no room, so we won't know all saturated levels until one of these two is no longer saturated
+    else
+        n_saturated -= 1
+        slot1 == i && (slot1 = zero(UInt64))
+        slot2 == i && (slot2 = zero(UInt64))
+    end
+    n_saturated << 16 | slot1 << 32 | slot2 << 48
 end
 
 function renormalize!(m::Memory{UInt64})
@@ -489,35 +510,36 @@ function renormalize!(m::Memory{UInt64})
     if m5 == 0 # dirty: the shift must decrease. The low 64 bits of the exact sum are exact, all the arithmetic below is mod 2^64 and the final sum fits, so it is exact.
         dirty_info = m[10530]
         exact_sum = get_exact_sum(m)
-        if dirty_info & SATURATED_FLAG == 0
-            # No level is saturated, so the exact sum tells us exactly how far to decrease
-            # the shift for the sum to land at ~2^48: no need to estimate.
-            m3 = m3_old - unsigned(Base.top_set_bit(exact_sum) - 48)
-            m[3] = m3
-            m5 = decrease_shift!(m, m2, m3_old, m3, exact_sum % UInt64)
-        elseif dirty_info & PRISTINE_FLAG != 0
-            # A single insertion saturated level i and nothing changed since. Do exactly
-            # what an eager decrease would have done at insertion time: bring level i to
-            # 48 bits, which drops the shift by at least 16 so the other levels (whose sum
-            # fit in 64 bits before) sum to at most ~2^48.
-            i = _convert(Int, dirty_info >> 32 & 0xffff)
-            old_m2 = _convert(Int, dirty_info >> 16 & 0xffff) # levels in old_m2+1:m2 other than i are empty
-            significand_sum = get_significand_sum(m, i)
-            m3 = unsigned(48 - Base.top_set_bit(significand_sum) - (i - 5))
-            m[3] = m3
-            m[i] = 0 # exclude level i from decrease_shift!
-            m5 = decrease_shift!(m, old_m2, m3_old, m3, (exact_sum - typemax(UInt64)) % UInt64)
-            m5 += update_weight!(m, i, significand_sum << signed(i-5+m3))
+        n_saturated = _convert(Int, dirty_info >> 16 & 0xffff)
+        slot1 = _convert(Int, dirty_info >> 32 & 0xffff)
+        slot2 = _convert(Int, dirty_info >> 48)
+        known = n_saturated == (slot1 != 0) + (slot2 != 0) # the slots hold all the saturated levels
+        if known
+            # The levels that are not saturated sum to exactly exact_sum - n_saturated*typemax(UInt64).
+            # Decrease the shift enough for each saturated level to land at 48 bits and for the
+            # other levels to sum to at most ~2^48. This needs no estimate, and if a level is
+            # saturated its significand_sum << shift was >= 2^64, so this decreases the shift
+            # by at least 16 (if none is, the exact sum was >= 2^64).
+            delta = Base.top_set_bit(exact_sum - n_saturated * UInt128(typemax(UInt64))) - 48
+            for i in (slot1, slot2)
+                i == 0 && continue
+                delta = max(delta, Base.top_set_bit(get_significand_sum(m, i)) + signed(i - 5 + m3_old) - 48)
+            end
+            m3 = m3_old - unsigned(delta)
         else
-            m5 = exact_sum % UInt64
             m3 = estimate_shift(m, m2)
-            m[3] = m3
-            m5 = signed(m3) < signed(m3_old) ? decrease_shift!(m, m2, m3_old, m3, m5) : increase_shift!(m, m2, m3, m5)
+        end
+        m[3] = m3
+        m5 = exact_sum % UInt64
+        if signed(m3) < signed(m3_old)
+            m5 = decrease_shift!(m, m2, m3_old, m3, m5, known, slot1, slot2)
+        else # Can only happen if the estimate is way off
+            m5 = increase_shift!(m, m2, m3, m5)
         end
     else
         m3 = estimate_shift(m, m2)
         m[3] = m3
-        m5 = signed(m3) < signed(m3_old) ? decrease_shift!(m, m2, m3_old, m3, m5) : increase_shift!(m, m2, m3, m5)
+        m5 = signed(m3) < signed(m3_old) ? decrease_shift!(m, m2, m3_old, m3, m5, true, 0, 0) : increase_shift!(m, m2, m3, m5)
     end
     m[5] = m5
 
@@ -591,32 +613,28 @@ function increase_shift!(m::Memory{UInt64}, m2::Int, m3::UInt64, m5::UInt64)
     m5
 end
 
-function decrease_shift!(m::Memory{UInt64}, m2::Int, m3_old::UInt64, m3::UInt64, m5::UInt64)
+function decrease_shift!(m::Memory{UInt64}, m2::Int, m3_old::UInt64, m3::UInt64, m5::UInt64, known::Bool, slot1::Int, slot2::Int)
     tsb4 = Base.top_set_bit(m[4])
     i1 = -signed(m3)-59-tsb4 # this is the first index that could have weight > 1 (anything before this will have weight 1 or 0)
     i1_old = -signed(m3_old)-59-tsb4 # anything before this is already weight 1 or 0
+    # Every nonempty level has significand_sum >= 2^63, so a level that is not saturated at
+    # the old shift has i-5+m3_old <= -1. Above top, every nonempty level is saturated.
+    top = min(m2, 4-signed(m3_old))
+    top < m2 && (top = last_nonzero_level(m, top, i1_old)) # tighten it to skip empty levels
 
     # Levels in i1_old:i1-1 may have weight > 1 at the old shift, but must have weight 0 or 1 now.
-    # Normally this range is short, but because the decrease is deferred, levels far above
-    # the old m[2] may have been populated in the meantime, in which case it can span ~2000
-    # mostly empty levels and we skip them using level_weights_nonzero.
-    lo = max(i1_old, 6)
-    hi = min(m2, i1-1)
-    if hi - lo < 256
-        checkbounds(m, lo:hi)
-        @inbounds for i in lo:hi # set nonzeros to 1
-            old_weight = m[i]
-            weight = old_weight != 0
-            m[i] = weight
-            m5 += weight-old_weight
-        end
-    else
-        m5 = flatten_levels!(m, lo, hi, m5)
+    flatten_range = max(i1_old, 6):min(top, i1-1)
+    checkbounds(m, flatten_range)
+    @inbounds for i in flatten_range # set nonzeros to 1
+        old_weight = m[i]
+        weight = old_weight != 0
+        m[i] = weight
+        m5 += weight-old_weight
     end
 
-    # Levels in i1:m2 can be shifted by delta, except saturated ones which must be recomputed.
+    # Levels in i1:top can be shifted by delta, except saturated ones which must be recomputed.
     delta = m3_old-m3
-    recompute_range = max(i1, 6):m2
+    recompute_range = max(i1, 6):top
     checkbounds(m, recompute_range)
     @inbounds for i in recompute_range
         old_weight = m[i]
@@ -627,12 +645,34 @@ function decrease_shift!(m::Memory{UInt64}, m2::Int, m3_old::UInt64, m3::UInt64,
             m5 += update_weight!(m, i, (old_weight-1) >> delta)
         end
     end
+
+    # Levels in top+1:m2 are empty or saturated. Recompute the saturated ones from their
+    # significand sums (this also flattens those below i1 to 1).
+    if known # slot1 and slot2 hold all the saturated levels
+        slot1 > top && (m5 += update_weight!(m, slot1, get_significand_sum(m, slot1) << signed(slot1-5+m3)))
+        slot2 > top && (m5 += update_weight!(m, slot2, get_significand_sum(m, slot2) << signed(slot2-5+m3)))
+    else
+        m5 = recompute_levels!(m, top+1, m2, m3, m5)
+    end
     m5
 end
 
-# Set the weight of every nonzero level in lo:hi to 1, returning the updated m5. Walks
-# level_weights_nonzero so that empty levels are skipped 64 at a time.
-function flatten_levels!(m::Memory{UInt64}, lo::Int, hi::Int, m5::UInt64)
+# The highest nonempty level in lo:hi, or lo-1 if there is none.
+function last_nonzero_level(m::Memory{UInt64}, hi::Int, lo::Int)
+    e = hi - 5
+    k = e >> 6
+    chunk = m[10496 + k] & (typemax(UInt64) << (63 - e & 63))
+    while chunk == 0
+        k -= 1
+        k << 6 + 68 < lo && return lo-1 # all levels in this chunk are below lo
+        chunk = m[10496 + k]
+    end
+    max(lo-1, k << 6 + 63 - trailing_zeros(chunk) + 5)
+end
+
+# Recompute the weight of every nonempty level in lo:hi from its significand sum, returning
+# the updated m5. Walks level_weights_nonzero so that empty levels are skipped 64 at a time.
+function recompute_levels!(m::Memory{UInt64}, lo::Int, hi::Int, m3::UInt64, m5::UInt64)
     lo > hi && return m5
     e_lo = lo - 5
     e_hi = hi - 5
@@ -644,9 +684,7 @@ function flatten_levels!(m::Memory{UInt64}, lo::Int, hi::Int, m5::UInt64)
             lz = leading_zeros(chunk)
             chunk &= ~(0x8000000000000000 >> lz)
             i = k << 6 + lz + 5
-            old_weight = m[i]
-            m[i] = 1
-            m5 += 1 - old_weight
+            m5 += update_weight!(m, i, get_significand_sum(m, i) << signed(i-5+m3))
         end
     end
     m5
@@ -710,7 +748,7 @@ function _set_to_zero!(m::Memory, i::Int)
         if exact_sum < typemax(UInt64) # the level weights fit again; no need to renormalize (this is 0 if we are now empty)
             m[5] = exact_sum % UInt64
         else
-            set_exact_sum!(m, exact_sum, m[10530] & SATURATED_FLAG)
+            set_exact_sum!(m, exact_sum, update_dirty_info(m[10530], weight_index, old_weight, new_weight))
         end
     else
         m[5] = m5 - old_weight + new_weight # This might be less than 2^32, but that's okay. If it is, and that's relevant, it will be corrected in rand
