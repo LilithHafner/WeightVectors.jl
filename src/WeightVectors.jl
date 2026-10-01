@@ -529,17 +529,14 @@ function renormalize!(m::Memory{UInt64})
         else
             m3 = estimate_shift(m, m2)
         end
+        @assert signed(m3) < signed(m3_old) # The exact sum of level weights is >= 2^64 at the old shift
         m[3] = m3
-        m5 = exact_sum % UInt64
-        if signed(m3) < signed(m3_old)
-            m5 = decrease_shift!(m, m2, m3_old, m3, m5, known, slot1, slot2)
-        else # Can only happen if the estimate is way off
-            m5 = increase_shift!(m, m2, m3, m5)
-        end
-    else
+        m5 = decrease_shift!(m, m2, m3_old, m3, exact_sum % UInt64, known, slot1, slot2)
+    else # m5 < 2^32: the shift must increase
         m3 = estimate_shift(m, m2)
+        @assert signed(m3_old) < signed(m3)
         m[3] = m3
-        m5 = signed(m3) < signed(m3_old) ? decrease_shift!(m, m2, m3_old, m3, m5, true, 0, 0) : increase_shift!(m, m2, m3, m5)
+        m5 = increase_shift!(m, m2, m3, m5)
     end
     m[5] = m5
 
