@@ -327,7 +327,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     significand_sum = update_significand_sum(m, weight_index, significand) # Temporarily break the "weights are accurately computed" invariant
 
     m5 = m[5]
-    if m5 == 0 && m[4] == 1 # if we were empty, set global shift (m[3]) so that m[5] will become ~2^40.
+    if m[4] == 1 # if we were empty, set global shift (m[3]) so that m[5] will become ~2^40.
         m[3] = -24 - exponent
 
         shift = -24
@@ -617,7 +617,7 @@ function decrease_shift!(m::Memory{UInt64}, m2::Int, m3_old::UInt64, m3::UInt64,
     # Every nonempty level has significand_sum >= 2^63, so a level that is not saturated at
     # the old shift has i-5+m3_old <= -1. Above top, every nonempty level is saturated.
     top = min(m2, 4-signed(m3_old))
-    top < m2 && (top = last_nonzero_level(m, top, i1_old)) # tighten it to skip empty levels
+    top < m2 && (top = last_nonzero_level(m, top, max(i1_old, 6))) # tighten it to skip empty levels (top >= 5, so an empty slot is never above it)
 
     # Levels in i1_old:i1-1 may have weight > 1 at the old shift, but must have weight 0 or 1 now.
     flatten_range = max(i1_old, 6):min(top, i1-1)
