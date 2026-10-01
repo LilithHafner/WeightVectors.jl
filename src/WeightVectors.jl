@@ -138,16 +138,16 @@ TODO
 # 10496..10528           level_weights_nonzero::[Bool 2098] # map of which levels have nonzero weight (used to bump m2 efficiently when a level is zeroed out)
 # 10529..10530           exact_sum::UInt128 # exact sum(level weights), only meaningful when dirty (m[5] == 0 but m[2] != 5)
 # 10531                  saturated_levels::Int # number of saturated levels (level weight typemax(UInt64)), always 0 when not dirty
-# 10532..10533           saturated_level_slots::[Int 2] # each 0 or the index of a saturated level. When the number of saturated levels equals the number of filled slots, we know all of them.
+# 10532..10564           level_weights_saturated::[Bool 2098] # map of which levels are saturated, laid out like level_weights_nonzero, all zero when not dirty
 
 # gc info:
-# 10534                  next_free_space::Int (used to re-allocate)
+# 10565                  next_free_space::Int (used to re-allocate)
 # 16 unused bits
-# 10535..10797           level allocated length::[UInt8 2098] (1<<(x-1) is implied, note that this is 2^(x-1) with a x==0 => alloc_size==0 special case)
+# 10566..10828           level allocated length::[UInt8 2098] (1<<(x-1) is implied, note that this is 2^(x-1) with a x==0 => alloc_size==0 special case)
 
-# 10798+len..10797+len   edit_map (maps index to current location in sub_weights)::[(pos<<11 + exponent)::UInt64] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. (len refers to allocated length, not m[1])
+# 10829+len..10828+len   edit_map (maps index to current location in sub_weights)::[(pos<<11 + exponent)::UInt64] (zero means zero; fixed location, always at the start. Force full realloc when it OOMs. (len refers to allocated length, not m[1])
 
-# 10798+len..10797+7len  sub_weights (woven with targets)::[[significand::UInt64, target::Int}]]. allocated_len == length_from_memory(length(m)) (len refers to allocated length, not m[1]).
+# 10829+len..10828+7len  sub_weights (woven with targets)::[[significand::UInt64, target::Int}]]. allocated_len == length_from_memory(length(m)) (len refers to allocated length, not m[1]).
 
 # significands are stored in sub_weights with their implicit leading 1 added
 #     normals: element_from_sub_weights = 0x8000000000000000 | (reinterpret(UInt64, weight::Float64) << 11)
@@ -258,7 +258,7 @@ end
 
 function _getindex(m::Memory{UInt64}, i::Int)
     @boundscheck 1 <= i <= m[1] || throw(BoundsError(_FixedSizeWeightVector(m), i))
-    j = i + 10797
+    j = i + 10828
     mj = m[j]
     mj == 0 && return 0.0
     pos = _convert(Int, mj >> 12)
@@ -280,7 +280,7 @@ function _setindex!(m::Memory, v::Float64, i::Int)
     end
     uv <= 0x7fefffffffffffff || throw(DomainError(v, "Invalid weight"))
     # Find the entry's pos in the edit map table
-    j = i + 10797
+    j = i + 10828
     if m[j] == 0
         _set_from_zero!(m, v, i)
     else
@@ -308,7 +308,7 @@ end
 
 function _set_from_zero!(m::Memory, v::Float64, i::Int)
     uv = reinterpret(UInt64, v)
-    j = i + 10797
+    j = i + 10828
     @assert m[j] == 0
     m[4] += 1
     exponent = uv >> 52
@@ -348,9 +348,9 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             m5, o = Base.add_with_overflow(m5, weight)
             if o | (m5 == typemax(UInt64)) # this also catches a saturated level weight
                 set_exact_sum!(m, UInt128(m5) + UInt128(o) << 64)
-                if weight == typemax(UInt64) # the only saturated level (m[10531:10533] are zero when not dirty)
+                if weight == typemax(UInt64) # the only saturated level (m[10531:10564] are zero when not dirty)
                     m[10531] = 1
-                    m[10532] = weight_index
+                    toggle_saturated!(m, weight_index)
                 end
                 m[5] = 0
             else
@@ -374,7 +374,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
 
     # if there is not room in the group, shift and expand
     if group_length > allocated_size
-        next_free_space = m[10534]
+        next_free_space = m[10565]
         # if at end already, simply extend the allocation # TODO see if removing this optimization is problematic; TODO verify the optimization is triggering
         if next_free_space == (group_pos-2)+2group_length # note that this is valid even if group_length is 1 (previously zero).
             new_allocation_length = max(2, 2allocated_size)
@@ -397,7 +397,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             # expand the allocated size and bump next_free_space
             new_chunk = allocs_chunk + UInt64(1) << allocs_subindex
             m[allocs_index] = new_chunk
-            m[10534] = new_next_free_space
+            m[10565] = new_next_free_space
         else # move and reallocate (this branch also handles creating new groups: TODO expirment with perf and clarity by splicing that branch out)
             twice_new_allocated_size = max(0x2,allocated_size<<2)
             new_next_free_space = next_free_space+twice_new_allocated_size
@@ -425,7 +425,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             new_chunk = allocs_chunk + UInt64(1) << allocs_subindex
             m[allocs_index] = new_chunk
 
-            m[10534] = new_next_free_space
+            m[10565] = new_next_free_space
 
             # Copy the group to new location
             (v"1.11" <= VERSION || 2group_length-2 != 0) && unsafe_copyto!(m, next_free_space, m, group_pos, 2group_length-2) # TODO for clarity and maybe perf: remove this version check
@@ -434,7 +434,7 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             delta = (next_free_space-group_pos) << 12
             for k in 1:group_length-1
                 target = m[_convert(Int, next_free_space)+2k-1]
-                l = _convert(Int, target + 10797)
+                l = _convert(Int, target + 10828)
                 m[l] += delta
             end
 
@@ -475,26 +475,17 @@ function set_exact_sum!(m::Memory{UInt64}, x::UInt128)
     m[10530] = (x >>> 64) % UInt64
 end
 
-# Update the number of saturated levels and the slots after the weight of level i changed
-# from old_weight to weight.
+# Update the number of saturated levels and the saturated map after the weight of level i
+# changed from old_weight to weight.
 function update_saturated_levels!(m::Memory{UInt64}, i::Int, old_weight::UInt64, weight::UInt64)
     was_saturated = old_weight == typemax(UInt64)
     is_saturated = weight == typemax(UInt64)
     was_saturated == is_saturated && return
-    if is_saturated
-        m[10531] += 1
-        if m[10532] == 0
-            m[10532] = i
-        elseif m[10533] == 0
-            m[10533] = i
-        end # else there is no room, so we won't know all saturated levels until one of these two is no longer saturated
-    else
-        m[10531] -= 1
-        m[10532] == i && (m[10532] = 0)
-        m[10533] == i && (m[10533] = 0)
-    end
+    m[10531] += ifelse(is_saturated, 1, -1)
+    toggle_saturated!(m, i)
     nothing
 end
+toggle_saturated!(m::Memory{UInt64}, i::Int) = (e = i - 5; m[10532 + e >> 6] ⊻= 0x8000000000000000 >> (e & 63))
 
 function renormalize!(m::Memory{UInt64})
     # Called by `rand` when m[5] < 2^32. That is either because the shift is too low for
@@ -509,28 +500,23 @@ function renormalize!(m::Memory{UInt64})
     if m5 == 0 # dirty: the shift must decrease. The low 64 bits of the exact sum are exact, all the arithmetic below is mod 2^64 and the final sum fits, so it is exact.
         exact_sum = get_exact_sum(m)
         n_saturated = _convert(Int, m[10531])
-        slot1 = _convert(Int, m[10532])
-        slot2 = _convert(Int, m[10533])
-        known = n_saturated == (slot1 != 0) + (slot2 != 0) # the slots hold all the saturated levels
-        if known
-            # The levels that are not saturated sum to exactly exact_sum - n_saturated*typemax(UInt64).
-            # Decrease the shift enough for each saturated level to land at 48 bits and for the
-            # other levels to sum to at most ~2^48. This needs no estimate, and if a level is
-            # saturated its significand_sum << shift was >= 2^64, so this decreases the shift
-            # by at least 16 (if none is, the exact sum was >= 2^64).
-            delta = Base.top_set_bit(exact_sum - n_saturated * UInt128(typemax(UInt64))) - 48
-            for i in (slot1, slot2)
-                i == 0 && continue
-                delta = max(delta, Base.top_set_bit(get_significand_sum(m, i)) + signed(i - 5 + m3_old) - 48)
-            end
-            m3 = m3_old - unsigned(delta)
-        else
-            m3 = estimate_shift(m, m2)
+        # The levels that are not saturated sum to exactly exact_sum - n_saturated*typemax(UInt64).
+        # Decrease the shift enough for each saturated level to land at 48 bits and for the
+        # other levels to sum to at most ~2^48. This needs no estimate, and if a level is
+        # saturated its significand_sum << shift was >= 2^64, so this decreases the shift
+        # by at least 16 (if none is, the exact sum was >= 2^64).
+        delta = Base.top_set_bit(exact_sum - n_saturated * UInt128(typemax(UInt64))) - 48
+        i = m2
+        for _ in 1:n_saturated
+            i = last_set_level(m, 10532, i, 6)
+            delta = max(delta, Base.top_set_bit(get_significand_sum(m, i)) + signed(i - 5 + m3_old) - 48)
+            i -= 1
         end
+        m3 = m3_old - unsigned(delta)
         @assert signed(m3) < signed(m3_old) # The exact sum of level weights is >= 2^64 at the old shift
         m[3] = m3
-        m5 = decrease_shift!(m, m2, m3_old, m3, exact_sum % UInt64, known, slot1, slot2)
-        m[10531] = m[10532] = m[10533] = 0 # no level is saturated anymore
+        m5 = decrease_shift!(m, m2, m3_old, m3, exact_sum % UInt64, n_saturated)
+        m[10531] = 0 # no level is saturated anymore (decrease_shift! cleared the saturated map)
     else # m5 < 2^32: the shift must increase
         m3 = estimate_shift(m, m2)
         @assert signed(m3_old) < signed(m3)
@@ -609,7 +595,7 @@ function increase_shift!(m::Memory{UInt64}, m2::Int, m3::UInt64, m5::UInt64)
     m5
 end
 
-function decrease_shift!(m::Memory{UInt64}, m2::Int, m3_old::UInt64, m3::UInt64, m5::UInt64, known::Bool, slot1::Int, slot2::Int)
+function decrease_shift!(m::Memory{UInt64}, m2::Int, m3_old::UInt64, m3::UInt64, m5::UInt64, n_saturated::Int)
     tsb4 = Base.top_set_bit(m[4])
     i1 = -signed(m3)-59-tsb4 # this is the first index that could have weight > 1 (anything before this will have weight 1 or 0)
     i1_old = -signed(m3_old)-59-tsb4 # anything before this is already weight 1 or 0
@@ -643,48 +629,32 @@ function decrease_shift!(m::Memory{UInt64}, m2::Int, m3_old::UInt64, m3::UInt64,
     end
 
     # Levels in top+1:m2 are empty or saturated. Recompute the saturated ones from their
-    # significand sums (this also flattens those below i1 to 1).
-    if known # slot1 and slot2 hold all the saturated levels
-        slot1 > top && (m5 += update_weight!(m, slot1, get_significand_sum(m, slot1) << signed(slot1-5+m3)))
-        slot2 > top && (m5 += update_weight!(m, slot2, get_significand_sum(m, slot2) << signed(slot2-5+m3)))
-    else
-        m5 = recompute_levels!(m, top+1, m2, m3, m5)
+    # significand sums (this also flattens those below i1 to 1), and clear the saturated map
+    # (the saturated levels in the window were recomputed above).
+    i = m2
+    for _ in 1:n_saturated
+        i = last_set_level(m, 10532, i, 6)
+        toggle_saturated!(m, i)
+        i > top && (m5 += update_weight!(m, i, get_significand_sum(m, i) << signed(i-5+m3)))
+        i -= 1
     end
     m5
 end
 
-# The highest nonempty level in lo:hi, or lo-1 if there is none.
-function last_nonzero_level(m::Memory{UInt64}, hi::Int, lo::Int)
+# The highest level in lo:hi whose bit is set in the level map starting at base
+# (level_weights_nonzero or level_weights_saturated), or lo-1 if there is none.
+function last_set_level(m::Memory{UInt64}, base::Int, hi::Int, lo::Int)
     e = hi - 5
     k = e >> 6
-    chunk = m[10496 + k] & (typemax(UInt64) << (63 - e & 63))
+    chunk = m[base + k] & (typemax(UInt64) << (63 - e & 63))
     while chunk == 0
         k -= 1
         k << 6 + 68 < lo && return lo-1 # all levels in this chunk are below lo
-        chunk = m[10496 + k]
+        chunk = m[base + k]
     end
     max(lo-1, k << 6 + 63 - trailing_zeros(chunk) + 5)
 end
-
-# Recompute the weight of every nonempty level in lo:hi from its significand sum, returning
-# the updated m5. Walks level_weights_nonzero so that empty levels are skipped 64 at a time.
-function recompute_levels!(m::Memory{UInt64}, lo::Int, hi::Int, m3::UInt64, m5::UInt64)
-    lo > hi && return m5
-    e_lo = lo - 5
-    e_hi = hi - 5
-    for k in e_lo >> 6:e_hi >> 6
-        chunk = m[10496 + k]
-        k == e_lo >> 6 && (chunk &= typemax(UInt64) >> (e_lo & 63))
-        k == e_hi >> 6 && (chunk &= typemax(UInt64) << (63 - e_hi & 63))
-        while chunk != 0
-            lz = leading_zeros(chunk)
-            chunk &= ~(0x8000000000000000 >> lz)
-            i = k << 6 + lz + 5
-            m5 += update_weight!(m, i, get_significand_sum(m, i) << signed(i-5+m3))
-        end
-    end
-    m5
-end
+last_nonzero_level(m::Memory{UInt64}, hi::Int, lo::Int) = last_set_level(m, 10496, hi, lo) # the highest nonempty level in lo:hi
 
 Base.@propagate_inbounds function update_weight!(m::Memory{UInt64}, i, shifted_significand_sum)
     weight = _convert(UInt64, shifted_significand_sum) + 1
@@ -693,12 +663,12 @@ Base.@propagate_inbounds function update_weight!(m::Memory{UInt64}, i, shifted_s
     weight-old_weight
 end
 
-get_alloced_indices(exponent::UInt64) = _convert(Int, 10535 + exponent >> 3), exponent << 3 & 0x38
+get_alloced_indices(exponent::UInt64) = _convert(Int, 10566 + exponent >> 3), exponent << 3 & 0x38
 get_level_weights_nonzero_indices(exponent::UInt64) = _convert(Int, 10496 + exponent >> 6), exponent & 0x3f
 
 function _set_to_zero!(m::Memory, i::Int)
     # Find the entry's pos in the edit map table
-    j = i + 10797
+    j = i + 10828
     mj = m[j]
     mj == 0 && return # if the entry is already zero, return
     m[4] -= 1
@@ -742,7 +712,7 @@ function _set_to_zero!(m::Memory, i::Int)
     if m5 == 0 # dirty (we can't be empty, we just removed an element)
         update_saturated_levels!(m, weight_index, old_weight, new_weight)
         exact_sum = get_exact_sum(m) - old_weight + new_weight
-        if exact_sum < typemax(UInt64) # the level weights fit again; no need to renormalize (this is 0 if we are now empty). No level is saturated so m[10531:10533] are zero.
+        if exact_sum < typemax(UInt64) # the level weights fit again; no need to renormalize (this is 0 if we are now empty). No level is saturated so m[10531:10564] are zero.
             m[5] = exact_sum % UInt64
         else
             set_exact_sum!(m, exact_sum)
@@ -763,7 +733,7 @@ function _set_to_zero!(m::Memory, i::Int)
     shifted_element = m[pos+1] = m[group_lastpos+1]
 
     # adjust the edit map entry of the shifted element
-    m[_convert(Int, shifted_element) + 10797] = _convert(UInt64, pos) << 12 + exponent
+    m[_convert(Int, shifted_element) + 10828] = _convert(UInt64, pos) << 12 + exponent
     m[j] = 0
 
     # When zeroing out a group, mark the group as empty so that compaction will update the group metadata and then skip over it.
@@ -785,15 +755,15 @@ Initialize a `Memory` that, when underlaying a `Weights` object, represents `len
 function initialize_empty(len::Int)
     m = Memory{UInt64}(undef, allocated_memory(len))
     # m .= 0 # This is here so that a sparse rendering for debugging is easier TODO for tests: set this to 0xdeadbeefdeadbeed
-    m[4:10797+len] .= 0 # metadata and edit map need to be zeroed but the bulk does not
+    m[4:10828+len] .= 0 # metadata and edit map need to be zeroed but the bulk does not
     m[1] = len
     m[2] = 5
     # no need to set m[3]
-    m[10534] = 10798+len
+    m[10565] = 10829+len
     m
 end
-allocated_memory(length::Int) = 10797 + 7*length
-length_from_memory(allocated_memory::Int) = Int((allocated_memory-10797)/7)
+allocated_memory(length::Int) = 10828 + 7*length
+length_from_memory(allocated_memory::Int) = Int((allocated_memory-10828)/7)
 
 Base.resize!(w::WeightVector, len::Integer) = resize!(w, Int(len))
 function Base.resize!(w::WeightVector, len::Int)
@@ -824,10 +794,10 @@ function _resize!(w::WeightVector, len::Integer)
     # m2 .= 0 # For debugging; TODO: set to 0xdeadbeefdeadbeef to test
     m2[1] = len
     if len > old_len # grow
-        unsafe_copyto!(m2, 2, m, 2, old_len + 10797)
-        m2[old_len + 10798:len + 10797] .= 0
+        unsafe_copyto!(m2, 2, m, 2, old_len + 10828)
+        m2[old_len + 10829:len + 10828] .= 0
     else # shrink
-        unsafe_copyto!(m2, 2, m, 2, len + 10797)
+        unsafe_copyto!(m2, 2, m, 2, len + 10828)
     end
 
     compact!(m2, m)
@@ -836,9 +806,9 @@ function _resize!(w::WeightVector, len::Integer)
 end
 
 function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
-    dst_i = length_from_memory(length(dst)) + 10798
-    src_i = length_from_memory(length(src)) + 10798
-    next_free_space = src[10534]
+    dst_i = length_from_memory(length(dst)) + 10829
+    src_i = length_from_memory(length(src)) + 10829
+    next_free_space = src[10565]
 
     while src_i < next_free_space
 
@@ -863,7 +833,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         end
 
         # Trace an element of the group back to the edit info table to find the group id
-        j = target + 10797
+        j = target + 10828
         exponent = src[j] & 4095
 
         # Lookup the group in the group location table to find its length (performance optimization for copying, necessary to decide new allocated size and update pos)
@@ -892,7 +862,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         dst[j] += delta
         for k in 1:signed(group_length)-1 # TODO: add a benchmark that stresses compaction and try hoisting this bounds checking
             target = src[src_i+2k+1]
-            j = _convert(Int, target + 10797)
+            j = _convert(Int, target + 10828)
             dst[j] += delta
         end
 
@@ -904,7 +874,7 @@ function compact!(dst::Memory{UInt64}, src::Memory{UInt64})
         dst_i += 2*1<<log2_new_allocated_size
     end
     @label break_outer
-    dst[10534] = dst_i
+    dst[10565] = dst_i
 end
 
 # Conform to the AbstractArray API
