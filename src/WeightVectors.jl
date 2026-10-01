@@ -103,6 +103,9 @@ Sampling with BigInt weights is not efficient so each level also has an approxim
 which is a UInt64. These approximate weights are computed as exact_weight<<global_shift+1 if
 exact_weight is nonzero, and 0 otherwise. global_shift is a constant maintained by the
 sampler so that the sum of the approximate weights is less than 2^64 and greater than 2^32.
+It is maintained lazily: updates never change it, they only record when the approximate
+weights no longer fit in a UInt64 ("dirty"). Sampling renormalizes global_shift if the
+sampler is dirty or if the sum of the approximate weights is less than 2^32.
 
 To sample a level, we pick a random UInt64 between 1 and the sum of the approximate weights.
 Then use linear search to find the level that corresponds to (with the highest weight levels
@@ -128,12 +131,18 @@ TODO
 # 2                      max_level::Int # absolute pointer to the last element of level weights that is nonzero or 5 if all are zero.
 # 3                      shift::Int level weights are equal to significand_sums<<(exponent+shift), plus one if significand_sum is not zero
 # 4                      non_zero_weights::Int # number of nonzero weights in the sampler
-# 5                      sum(level weights)::UInt64
+# 5                      sum(level weights)::UInt64, or 0 if that sum does not fit ("dirty": the global shift is too high and rand must renormalize)
 # 6..2103                level weights::[UInt64 2098] # earlier is lower. first is exponent 0x001, last is exponent 0x832.
 # 2104..6299             significand_sums::[UInt128 2098] # sum of significands (the maximum significand contributes 0xfffffffffffff800)
 # 6300..10495            level location info::[NamedTuple{pos::Int, length::Int} 2098] indexes into sub_weights, pos is absolute into m.
 # 10496..10528           level_weights_nonzero::[Bool 2098] # map of which levels have nonzero weight (used to bump m2 efficiently when a level is zeroed out)
-# 2 unused bits
+# 10529..10530           exact_sum::UInt128 and dirty_info, only meaningful when dirty (m[5] == 0 but m[2] != 5).
+#                        m[10529] is the low word of the exact sum(level weights). m[10530] packs:
+#                        bits 0..15: the high bits of the exact sum (which is < 2098*2^64 < 2^76)
+#                        bits 16..31: m[2] just before the insertion that made the sampler dirty
+#                        bits 32..47: the level index of the insertion that made the sampler dirty
+#                        bit 62: pristine: nothing changed since that insertion
+#                        bit 63: some level may be saturated
 
 # gc info:
 # 10531                  next_free_space::Int (used to re-allocate)
@@ -181,8 +190,8 @@ Base.iszero(w::AbstractWeightVector) = w.m[2] == 5
 
 #=@inbounds=# function _rand(rng::AbstractRNG, m::Memory{UInt64})
     m5 = m[5]
-    if m5 < (UInt64(1) << 32)
-        @noinline set_global_shift_increase!(m, m5)
+    if m5 < (UInt64(1) << 32) # Too imprecise, or dirty (m5 == 0)
+        @noinline renormalize!(m)
     end
 
     @label reject
@@ -200,11 +209,8 @@ Base.iszero(w::AbstractWeightVector) = w.m[2] == 5
 
     if x >= mi # mi is the weight rounded down plus 1. If they are equal than we should refine further and possibly reject.
         # Low-probability rejection to improve accuracy from very close to perfect.
-        # This branch should typically be followed with probability < 2^-21. In cases where
-        # the probability is higher (i.e. m[5] < 2^32), _rand_slow_path will mutate m by
-        # modifying m[3] and recomputing approximate weights to increase m[5] above 2^32.
-        # This branch is still O(1) but constant factors don't matter except for in the case
-        # of repeated large swings in m[5] with calls to rand interspersed.
+        # This branch is followed with probability < 2^-21 because renormalize! above ensures
+        # that m[5] >= 2^32. This branch is still O(1) but constant factors don't matter.
         x > mi && error("This should be unreachable!")
         if @noinline _rand_slow_path(rng, m, i)
             @goto reject
@@ -321,7 +327,8 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     weight_index = _convert(Int, exponent + 5)
     significand_sum = update_significand_sum(m, weight_index, significand) # Temporarily break the "weights are accurately computed" invariant
 
-    if m[5] == 0 # if we were empty, set global shift (m[3]) so that m[5] will become ~2^40.
+    m5 = m[5]
+    if m5 == 0 && m[4] == 1 # if we were empty, set global shift (m[3]) so that m[5] will become ~2^40.
         m[3] = -24 - exponent
 
         shift = -24
@@ -331,47 +338,26 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
         m[weight_index] = weight
         m[5] = weight
     else
+        # We never decrease the global shift here. If the new weights don't fit, we mark
+        # the sampler as dirty (m[5] == 0) and let the next call to rand renormalize.
         shift = signed(exponent + m[3])
-        if Base.top_set_bit(significand_sum)+shift > 64
-            # if this would overflow, drop shift so that it renormalizes down to 48.
-            # this drops shift at least ~16 and makes the sum of weights at least ~2^48. # TODO: add an assert
-            # Base.top_set_bit(significand_sum)+shift == 48
-            # Base.top_set_bit(significand_sum)+signed(exponent + m[3]) == 48
-            # Base.top_set_bit(significand_sum)+signed(exponent) + signed(m[3]) == 48
-            # signed(m[3]) == 48 - Base.top_set_bit(significand_sum) - signed(exponent)
-            m3 = 48 - Base.top_set_bit(significand_sum) - exponent
-            # The "weights are accurately computed" invariant is broken for weight_index, but the "sum(weights) == m[5]" invariant still holds
-            # set_global_shift_decrease! will do something wrong to weight_index, but preserve the "sum(weights) == m[5]" invariant.
-            set_global_shift_decrease!(m, m3) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
-            shift = signed(exponent + m3)
-        end
-        weight = _convert(UInt64, significand_sum << shift) + 1
-
+        weight = level_weight(significand_sum, shift)
         old_weight = m[weight_index]
-        m[weight_index] = weight # The "weights are accurately computed" invariant is now restored
-        m5 = m[5] # The "sum(weights) == m[5]" invariant is broken
-        m5 -= old_weight
-        # m5 can overflow when added to `weight` only if the previous branch preventing single level overflow isn't taken
-        m5, o = Base.add_with_overflow(m5, weight) # The "sum(weights) == m5" invariant now holds, though the computation overflows
-        if o
-            # If weights overflow (>2^64) then shift down by 16 bits
-            m3 = m[3]-0x10
-            set_global_shift_decrease!(m, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
-            if weight_index > m[2] # if the new weight was not adjusted by set_global_shift_decrease!, then adjust it manually
-                shift = signed(exponent+m3)
-                new_weight = _convert(UInt64, significand_sum << shift) + 1
-
-                @assert significand_sum != 0
-                @assert m[weight_index] == weight
-
-                m[weight_index] = new_weight
-                m[5] += new_weight-weight
-            end
+        m[weight_index] = weight
+        if m5 == 0 # already dirty
+            set_exact_sum!(m, get_exact_sum(m) + (weight - old_weight), m[10530] & SATURATED_FLAG | UInt64(weight == typemax(UInt64)) << 63)
         else
-            m[5] = m5
+            m5 -= old_weight
+            m5, o = Base.add_with_overflow(m5, weight)
+            if o | (m5 == typemax(UInt64)) # this also catches a saturated level weight
+                set_exact_sum!(m, UInt128(m5) + UInt128(o) << 64, m[2] << 16 | UInt64(weight_index) << 32 | PRISTINE_FLAG | UInt64(weight == typemax(UInt64)) << 63)
+                m[5] = 0
+            else
+                m[5] = m5
+            end
         end
     end
-    m[2] = max(m[2], weight_index) # Set after insertion because update_weights! may need to update the global shift, in which case knowing the old m[2] will help it skip checking empty levels
+    m[2] = max(m[2], weight_index) # Set after insertion because if this insertion made the sampler dirty, renormalize! uses the old m[2] (stored in m[10530]) to skip checking empty levels
     level_weights_nonzero_index,level_weights_nonzero_subindex = get_level_weights_nonzero_indices(exponent)
     m[level_weights_nonzero_index] |= 0x8000000000000000 >> level_weights_nonzero_subindex
 
@@ -474,12 +460,71 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
     nothing
 end
 
-function set_global_shift_increase!(m::Memory{UInt64}, m5)
-    # If the sum of approximate weights becomes less than 2^32, then for performance reasons (to keep the low probability rejection step sufficiently low probability)
-    # Increase the shift to a reasonable level.
+# Weight of a level with the given significand_sum at the given shift, saturating at
+# typemax(UInt64) if it would not fit in 63 bits (a saturated weight always makes the
+# sampler dirty because it pushes the exact sum of level weights to at least typemax(UInt64)).
+@inline function level_weight(significand_sum::UInt128, shift::Int)
+    Base.top_set_bit(significand_sum) + shift >= 64 && return typemax(UInt64)
+    _convert(UInt64, significand_sum << shift) + 1
+end
+
+const SATURATED_FLAG = UInt64(1) << 63
+const PRISTINE_FLAG = UInt64(1) << 62
+get_exact_sum(m::Memory{UInt64}) = UInt128(m[10529]) | (UInt128(m[10530] & 0xffff) << 64)
+function set_exact_sum!(m::Memory{UInt64}, x::UInt128, dirty_info::UInt64)
+    m[10529] = x % UInt64
+    m[10530] = (x >>> 64) % UInt64 | dirty_info
+end
+
+function renormalize!(m::Memory{UInt64})
+    # Called by `rand` when m[5] < 2^32. That is either because the shift is too low for
+    # the low probability rejection step to be sufficiently low probability, in which case
+    # we increase it, or because the sampler is dirty (m[5] == 0): an insertion made the
+    # level weights overflow and we deferred decreasing the shift until now.
     m2 = signed(m[2])
     # This function is only called by `rand`, so we can assume that the weight vector is non-empty and throw if not.
     m2 == 5 && throw(ArgumentError("Cannot sample from a WeightVector when all weights are zero"))
+    m5 = m[5]
+    m3_old = m[3]
+    if m5 == 0 # dirty: the shift must decrease. The low 64 bits of the exact sum are exact, all the arithmetic below is mod 2^64 and the final sum fits, so it is exact.
+        dirty_info = m[10530]
+        exact_sum = get_exact_sum(m)
+        if dirty_info & SATURATED_FLAG == 0
+            # No level is saturated, so the exact sum tells us exactly how far to decrease
+            # the shift for the sum to land at ~2^48: no need to estimate.
+            m3 = m3_old - unsigned(Base.top_set_bit(exact_sum) - 48)
+            m[3] = m3
+            m5 = decrease_shift!(m, m2, m3_old, m3, exact_sum % UInt64)
+        elseif dirty_info & PRISTINE_FLAG != 0
+            # A single insertion saturated level i and nothing changed since. Do exactly
+            # what an eager decrease would have done at insertion time: bring level i to
+            # 48 bits, which drops the shift by at least 16 so the other levels (whose sum
+            # fit in 64 bits before) sum to at most ~2^48.
+            i = _convert(Int, dirty_info >> 32 & 0xffff)
+            old_m2 = _convert(Int, dirty_info >> 16 & 0xffff) # levels in old_m2+1:m2 other than i are empty
+            significand_sum = get_significand_sum(m, i)
+            m3 = unsigned(48 - Base.top_set_bit(significand_sum) - (i - 5))
+            m[3] = m3
+            m[i] = 0 # exclude level i from decrease_shift!
+            m5 = decrease_shift!(m, old_m2, m3_old, m3, (exact_sum - typemax(UInt64)) % UInt64)
+            m5 += update_weight!(m, i, significand_sum << signed(i-5+m3))
+        else
+            m5 = exact_sum % UInt64
+            m3 = estimate_shift(m, m2)
+            m[3] = m3
+            m5 = signed(m3) < signed(m3_old) ? decrease_shift!(m, m2, m3_old, m3, m5) : increase_shift!(m, m2, m3, m5)
+        end
+    else
+        m3 = estimate_shift(m, m2)
+        m[3] = m3
+        m5 = signed(m3) < signed(m3_old) ? decrease_shift!(m, m2, m3_old, m3, m5) : increase_shift!(m, m2, m3, m5)
+    end
+    m[5] = m5
+
+    @assert 46 <= Base.top_set_bit(m[5]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8
+end
+
+function estimate_shift(m::Memory{UInt64}, m2::Int)
     x = zero(UInt64)
     offset = 2m2+2093+2
     checkbounds(m, offset-65*2:offset-2)
@@ -500,36 +545,27 @@ function set_global_shift_increase!(m::Memory{UInt64}, m5)
     # squeeze a few more bits out of this, but targeting 46 with a window of 46 to 53 is
     # plenty good enough.
 
-    m3 = unsigned(-17 - Base.top_set_bit(x) - (m2 - 5))
-
-    set_global_shift_increase!(m, m2, m3, m5) # TODO for perf: special case all call sites to this function to take advantage of known shift direction and/or magnitude; also try outlining
-
-    @assert 46 <= Base.top_set_bit(m[5]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8
+    unsigned(-17 - Base.top_set_bit(x) - (m2 - 5))
 end
 
-function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m5) # Increase shift, on deletion of elements
-    @assert signed(m[3]) < signed(m3)
-    m[3] = m3
-    # Story:
-    # In the likely case that the weight decrease resulted in a level's weight hitting zero
-    # that level's weight is already updated and m5 adjusted accordingly TODO for perf don't adjust, pass the values around instead
-    # In any event, m5 is accurate for current weights and all weights and significand_sums's above (before) m2 are zero so we don't need to touch them
-    # Between m2 and i1, weights that were previously 1 may need to be increased. Below (past, after) i1, all weights will round up to 1 or 0 so we don't need to touch them
+#=
+Level i can only have a weight > 1 if i >= -signed(m3)-59-Base.top_set_bit(m[4]):
+weight = UInt64(significand_sum<<shift) + 1
+when is that always 1? when
+UInt64(significand_sum<<shift) == 0
+significand_sum could be as much as m[4] * 0xfffffffffffff800. When
+shift <= -Base.top_set_bit(m[4] * 0xfffffffffffff800)
+significand_sum<<shift will be zero.
+shift = signed(exponent+m3)
+shift = signed(i-4+m3)
+signed(i-5+m3) <= -Base.top_set_bit(m[4] * 0xfffffffffffff800)
+i <= -signed(m3)-Base.top_set_bit(m[4] * 0xfffffffffffff800)+5
+So for i <= signed(m3)-Base.top_set_bit(m[4] * 0xfffffffffffff800)+5 we will not need to adjust the ith weight
+A slightly stricter and simpler condition is i <= -signed(m3)-59-Base.top_set_bit(m[4])
+=#
 
-    #=
-    weight = UInt64(significand_sum<<shift) + 1
-    when is that always 1? when
-    UInt64(significand_sum<<shift) == 0
-    significand_sum could be as much as m[4] * 0xfffffffffffff800. When
-    shift <= -Base.top_set_bit(m[4] * 0xfffffffffffff800)
-    significand_sum<<shift will be zero.
-    shift = signed(exponent+m3)
-    shift = signed(i-4+m3)
-    signed(i-5+m3) <= -Base.top_set_bit(m[4] * 0xfffffffffffff800)
-    i <= -signed(m3)-Base.top_set_bit(m[4] * 0xfffffffffffff800)+5
-    So for i <= signed(m3)-Base.top_set_bit(m[4] * 0xfffffffffffff800)+5 we will not need to adjust the ith weight
-    A slightly stricter and simpler condition is i <= -signed(m3)-59-Base.top_set_bit(m[4])
-    =#
+function increase_shift!(m::Memory{UInt64}, m2::Int, m3::UInt64, m5::UInt64)
+    # Below r0, all weights were and still are 0 or 1. Recompute r0:m2 from significand sums.
     r0 = max(6, -signed(m3)-59-Base.top_set_bit(m[4]))
     r1 = m2
 
@@ -552,45 +588,68 @@ function set_global_shift_increase!(m::Memory, m2, m3::UInt64, m5) # Increase sh
         shift = signed(i-5+m3)
         m5 += update_weight!(m, i, significand_sum << shift)
     end
-
-    m[5] = m5
+    m5
 end
 
-function set_global_shift_decrease!(m::Memory, m3::UInt64, m5=m[5]) # Decrease shift, on insertion of elements
-    m3_old = m[3]
-    m[3] = m3
-    @assert signed(m3) < signed(m3_old)
+function decrease_shift!(m::Memory{UInt64}, m2::Int, m3_old::UInt64, m3::UInt64, m5::UInt64)
+    tsb4 = Base.top_set_bit(m[4])
+    i1 = -signed(m3)-59-tsb4 # this is the first index that could have weight > 1 (anything before this will have weight 1 or 0)
+    i1_old = -signed(m3_old)-59-tsb4 # anything before this is already weight 1 or 0
 
-    # In the case of adding a giant element, call this first, then add the element.
-    # In any case, this only adjusts elements at or before m[2]
-    # from the first index that previously could have had a weight > 1 to min(m[2], the first index that can't have a weight > 1) (never empty), set weights to 1 or 0
-    # from the first index that could have a weight > 1 to m[2] (possibly empty), shift weights by delta.
-    m2 = signed(m[2])
-    i1 = -signed(m3)-59-Base.top_set_bit(m[4]) # see above, this is the first index that could have weight > 1 (anything after this will have weight 1 or 0)
-    i1_old = -signed(m3_old)-59-Base.top_set_bit(m[4]) # anything before this is already weight 1 or 0
-    flatten_range = max(i1_old, 6):min(m2, i1-1)
-    recompute_range = max(i1, 6):m2
-    # From the level where one element contributes 2^64 to the level where one element contributes 1 is 64, and from there to the level where 2^64 elements contributes 1 is another 2^64.
-    @assert length(flatten_range) <= 64+Base.top_set_bit(m[4])+1
-    @assert length(recompute_range) <= 64+Base.top_set_bit(m[4])+1
-
-    checkbounds(m, flatten_range)
-    @inbounds for i in flatten_range # set nonzeros to 1
-        old_weight = m[i]
-        weight = old_weight != 0
-        m[i] = weight
-        m5 += weight-old_weight
+    # Levels in i1_old:i1-1 may have weight > 1 at the old shift, but must have weight 0 or 1 now.
+    # Normally this range is short, but because the decrease is deferred, levels far above
+    # the old m[2] may have been populated in the meantime, in which case it can span ~2000
+    # mostly empty levels and we skip them using level_weights_nonzero.
+    lo = max(i1_old, 6)
+    hi = min(m2, i1-1)
+    if hi - lo < 256
+        checkbounds(m, lo:hi)
+        @inbounds for i in lo:hi # set nonzeros to 1
+            old_weight = m[i]
+            weight = old_weight != 0
+            m[i] = weight
+            m5 += weight-old_weight
+        end
+    else
+        m5 = flatten_levels!(m, lo, hi, m5)
     end
 
+    # Levels in i1:m2 can be shifted by delta, except saturated ones which must be recomputed.
     delta = m3_old-m3
+    recompute_range = max(i1, 6):m2
     checkbounds(m, recompute_range)
     @inbounds for i in recompute_range
         old_weight = m[i]
         old_weight <= 1 && continue # in this case, the weight was and still is 0 or 1
-        m5 += update_weight!(m, i, (old_weight-1) >> delta)
+        if old_weight == typemax(UInt64) # saturated
+            m5 += update_weight!(m, i, get_significand_sum(m, i) << signed(i-5+m3))
+        else
+            m5 += update_weight!(m, i, (old_weight-1) >> delta)
+        end
     end
+    m5
+end
 
-    m[5] = m5
+# Set the weight of every nonzero level in lo:hi to 1, returning the updated m5. Walks
+# level_weights_nonzero so that empty levels are skipped 64 at a time.
+function flatten_levels!(m::Memory{UInt64}, lo::Int, hi::Int, m5::UInt64)
+    lo > hi && return m5
+    e_lo = lo - 5
+    e_hi = hi - 5
+    for k in e_lo >> 6:e_hi >> 6
+        chunk = m[10496 + k]
+        k == e_lo >> 6 && (chunk &= typemax(UInt64) >> (e_lo & 63))
+        k == e_hi >> 6 && (chunk &= typemax(UInt64) << (63 - e_hi & 63))
+        while chunk != 0
+            lz = leading_zeros(chunk)
+            chunk &= ~(0x8000000000000000 >> lz)
+            i = k << 6 + lz + 5
+            old_weight = m[i]
+            m[i] = 1
+            m5 += 1 - old_weight
+        end
+    end
+    m5
 end
 
 Base.@propagate_inbounds function update_weight!(m::Memory{UInt64}, i, shifted_significand_sum)
@@ -620,13 +679,12 @@ function _set_to_zero!(m::Memory, i::Int)
     weight_index = _convert(Int, exponent + 5)
     significand_sum = update_significand_sum(m, weight_index, -UInt128(significand))
     old_weight = m[weight_index]
-    m5 = m[5]
-    m5 -= old_weight
     if significand_sum == 0 # We zeroed out a group
         level_weights_nonzero_index,level_weights_nonzero_subindex = get_level_weights_nonzero_indices(exponent)
         chunk = m[level_weights_nonzero_index] &= ~(0x8000000000000000 >> level_weights_nonzero_subindex)
         m[weight_index] = 0
-        if m5 == 0 # There are no groups left
+        new_weight = zero(UInt64)
+        if m[4] == 0 # There are no groups left
             m[2] = 5
         else
             m2 = m[2]
@@ -642,12 +700,21 @@ function _set_to_zero!(m::Memory, i::Int)
         end
     else # We did not zero out a group
         shift = signed(exponent + m[3])
-        new_weight = _convert(UInt64, significand_sum << shift) + 1
+        new_weight = level_weight(significand_sum, shift) # Can only saturate if dirty
         m[weight_index] = new_weight
-        m5 += new_weight
     end
 
-    m[5] = m5 # This might be less than 2^32, but that's okay. If it is, and that's relevant, it will be corrected in _rand_slow_path
+    m5 = m[5]
+    if m5 == 0 # dirty (we can't be empty, we just removed an element)
+        exact_sum = get_exact_sum(m) - old_weight + new_weight
+        if exact_sum < typemax(UInt64) # the level weights fit again; no need to renormalize (this is 0 if we are now empty)
+            m[5] = exact_sum % UInt64
+        else
+            set_exact_sum!(m, exact_sum, m[10530] & SATURATED_FLAG)
+        end
+    else
+        m[5] = m5 - old_weight + new_weight # This might be less than 2^32, but that's okay. If it is, and that's relevant, it will be corrected in rand
+    end
 
     # lookup the group by exponent
     group_length_index = _convert(Int, 6299 + 2exponent)
