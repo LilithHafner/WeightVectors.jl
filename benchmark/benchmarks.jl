@@ -229,6 +229,19 @@ end
 
 SUITE["pathological 6"] = @benchmarkable pathological6_setup pathological6_update
 
+function pathological7_setup()
+    ds = DynamicDiscreteSampler()
+    push!(ds, 1, 1e-300)
+    ds
+end
+function pathological7_update(ds)
+    push!(ds, 2, 1e300)
+    rand(ds)
+    delete!(ds, 2)
+    rand(ds)
+end
+SUITE["pathological 7"] = @benchmarkable pathological7_setup pathological7_update
+
 function pathological_compaction_setup()
     w = FixedSizeWeightVector(2^20+1)
     w[1:2^19] .= 1
