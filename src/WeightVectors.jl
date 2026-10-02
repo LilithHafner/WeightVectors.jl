@@ -566,9 +566,8 @@ function decrease_shift!(m::Memory{UInt64}, m2::Int, m3_old::UInt64, m3::UInt64,
     tsb4 = Base.top_set_bit(m[4])
     i1 = -signed(m3)-59-tsb4 # this is the first index that could have weight > 1 (anything before this will have weight 1 or 0)
     i1_old = -signed(m3_old)-59-tsb4 # anything before this is already weight 1 or 0
-    # Every nonempty level has significand_sum >= 2^63, so a level that is not saturated at
-    # the old shift has i-5+m3_old <= -1. Above top, every nonempty level is saturated.
-    top = min(m2, 4-signed(m3_old))
+    # A significand_sum is less than m[4]*2^64, so no level in 6:top is saturated at the old shift.
+    top = min(m2, 4-signed(m3_old)-tsb4)
 
     # Levels in i1_old:i1-1 may have weight > 1 at the old shift, but must have weight 0 or 1 now.
     flatten_range = max(i1_old, 6):min(top, i1-1)
@@ -580,22 +579,18 @@ function decrease_shift!(m::Memory{UInt64}, m2::Int, m3_old::UInt64, m3::UInt64,
         m5 += weight-old_weight
     end
 
-    # Levels in i1:top can be shifted by delta, except saturated ones which must be recomputed.
+    # Levels in i1:top can be shifted by delta.
     delta = m3_old-m3
     recompute_range = max(i1, 6):top
     checkbounds(m, recompute_range)
     @inbounds for i in recompute_range
         old_weight = m[i]
         old_weight <= 1 && continue # in this case, the weight was and still is 0 or 1
-        if old_weight == typemax(UInt64) # saturated
-            m5 += update_weight!(m, i, get_significand_sum(m, i) << signed(i-5+m3))
-        else
-            m5 += update_weight!(m, i, (old_weight-1) >> delta)
-        end
+        m5 += update_weight!(m, i, (old_weight-1) >> delta)
     end
 
-    # Levels in top+1:m2 are empty or saturated. Recompute the nonempty ones from their
-    # significand sums (this also flattens those below i1 to 1), skipping the empty words of
+    # Levels in top+1:m2 may be saturated. Recompute the nonempty ones from their significand
+    # sums (this also flattens those below i1 to 1), skipping the empty words of
     # level_weights_nonzero.
     e = max(top+1, 6) - 5
     words = m[10531] & (typemax(UInt64) >> (e >> 6))
