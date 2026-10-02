@@ -563,7 +563,7 @@ function increase_shift!(m::Memory{UInt64}, m2::Int, m3::UInt64, m5::UInt64)
     m5
 end
 
-function decrease_shift!(m::Memory{UInt64}, m2::Int, m3_old::UInt64, m3::UInt64, m5::UInt64)
+@inline function decrease_shift!(m::Memory{UInt64}, m2::Int, m3_old::UInt64, m3::UInt64, m5::UInt64)
     tsb4 = Base.top_set_bit(m[4])
     i1 = -signed(m3)-59-tsb4 # this is the first index that could have weight > 1 (anything before this will have weight 1 or 0)
     i1_old = -signed(m3_old)-59-tsb4 # anything before this is already weight 1 or 0
@@ -640,7 +640,7 @@ function _set_to_zero!(m::Memory, i::Int)
     if significand_sum == 0 # We zeroed out a group
         level_weights_nonzero_index,level_weights_nonzero_subindex = get_level_weights_nonzero_indices(exponent)
         chunk = m[level_weights_nonzero_index] &= ~(0x8000000000000000 >> level_weights_nonzero_subindex)
-        m[10531] &= ifelse(chunk == 0, ~(0x8000000000000000 >> (level_weights_nonzero_index - 10496)), typemax(UInt64))
+        m[10531] &= ifelse(chunk == 0, ~(0x8000000000000000 >> (level_weights_nonzero_index - 10496)), typemax(UInt64)) # Branch-free because whether the word becomes empty is unpredictable
         m[weight_index] = 0
         new_weight = zero(UInt64)
         if m[4] == 0 # There are no groups left
