@@ -446,9 +446,10 @@ end
 # Weight of a level with the given significand_sum at the given shift, saturating at
 # typemax(UInt64) if it would not fit in 63 bits (a saturated weight always makes the
 # sampler dirty because it pushes the exact sum of level weights to at least typemax(UInt64)).
+# Branch-free because whether a level saturates is unpredictable while the sampler is dirty.
 @inline function level_weight(significand_sum::UInt128, shift::Int)
-    Base.top_set_bit(significand_sum) + shift >= 64 && return typemax(UInt64)
-    _convert(UInt64, significand_sum << shift) + 1
+    weight = (significand_sum << shift) % UInt64 + 1
+    ifelse(Base.top_set_bit(significand_sum) + shift >= 64, typemax(UInt64), weight)
 end
 
 get_exact_sum(m::Memory{UInt64}) = UInt128(m[10529]) | (UInt128(m[10530]) << 64)
