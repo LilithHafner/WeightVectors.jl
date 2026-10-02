@@ -447,9 +447,11 @@ end
 # typemax(UInt64) if it would not fit in 63 bits (a saturated weight always makes the
 # sampler dirty because it pushes the exact sum of level weights to at least typemax(UInt64)).
 # Branch-free because whether a level saturates is unpredictable while the sampler is dirty.
+# The level is nonempty, so significand_sum >= 2^63 and it saturates iff
+# shift >= -top_set_bit(its high word), in particular whenever shift >= 0.
 @inline function level_weight(significand_sum::UInt128, shift::Int)
-    weight = (significand_sum << shift) % UInt64 + 1
-    ifelse(Base.top_set_bit(significand_sum) + shift >= 64, typemax(UInt64), weight)
+    weight = (significand_sum >> unsigned(-shift)) % UInt64 + 1 # only used when shift < 0
+    ifelse(Base.top_set_bit((significand_sum >> 64) % UInt64) + shift >= 0, typemax(UInt64), weight)
 end
 
 get_exact_sum(m::Memory{UInt64}) = UInt128(m[10529]) | (UInt128(m[10530]) << 64)
@@ -463,7 +465,7 @@ end
 # (m[5] == 0) and it is the exact sum.
 @inline function update_level_weights_sum!(m::Memory{UInt64}, old_weight::UInt64, weight::UInt64)
     m5 = m[5]
-    sum = (m5 == 0 ? get_exact_sum(m) : UInt128(m5)) - old_weight + weight # m5 == 0 can't mean empty: we only update nonempty samplers
+    sum = (m5 == 0 ? get_exact_sum(m) - old_weight : UInt128(m5 - old_weight)) + weight # m5 == 0 can't mean empty: we only update nonempty samplers
     if sum < typemax(UInt64) # this is 0 if we are now empty
         m[5] = sum % UInt64
     else
@@ -486,7 +488,7 @@ function renormalize!(m::Memory{UInt64})
     m[3] = m3
     if m5 == 0 # dirty: the shift must decrease. The low 64 bits of the exact sum are exact, all the arithmetic below is mod 2^64 and the final sum fits, so it is exact.
         @assert signed(m3) < signed(m3_old) # The exact sum of level weights is >= 2^64 at the old shift
-        m5 = decrease_shift!(m, m2, m3_old, m3, get_exact_sum(m) % UInt64)
+        m5 = decrease_shift!(m, m2, m3_old, m3, m[10529]) # the low 64 bits of the exact sum
     else # m5 < 2^32: the shift must increase
         @assert signed(m3_old) < signed(m3)
         m5 = increase_shift!(m, m2, m3, m5)
@@ -604,7 +606,7 @@ end
             lz = leading_zeros(chunk)
             chunk ⊻= 0x8000000000000000 >> lz
             i = k << 6 + lz + 5
-            m5 += update_weight!(m, i, get_significand_sum(m, i) << signed(i-5+m3))
+            m5 += update_weight!(m, i, get_significand_sum(m, i) >> unsigned(5-i-signed(m3))) # the new shift is negative
         end
     end
     m5
