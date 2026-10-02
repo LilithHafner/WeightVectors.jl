@@ -496,7 +496,7 @@ function renormalize!(m::Memory{UInt64})
     @assert 46 <= Base.top_set_bit(m[5]) <= 53 # Could be a higher because of the rounding up, but this should never bump top set bit by more than about 8
 end
 
-function estimate_shift(m::Memory{UInt64}, m2::Int)
+@inline function estimate_shift(m::Memory{UInt64}, m2::Int)
     x = zero(UInt64)
     offset = 2m2+2093+2
     checkbounds(m, offset-65*2:offset-2)
@@ -640,7 +640,7 @@ function _set_to_zero!(m::Memory, i::Int)
     if significand_sum == 0 # We zeroed out a group
         level_weights_nonzero_index,level_weights_nonzero_subindex = get_level_weights_nonzero_indices(exponent)
         chunk = m[level_weights_nonzero_index] &= ~(0x8000000000000000 >> level_weights_nonzero_subindex)
-        chunk == 0 && (m[10531] &= ~(0x8000000000000000 >> (level_weights_nonzero_index - 10496)))
+        m[10531] &= ifelse(chunk == 0, ~(0x8000000000000000 >> (level_weights_nonzero_index - 10496)), typemax(UInt64))
         m[weight_index] = 0
         new_weight = zero(UInt64)
         if m[4] == 0 # There are no groups left
