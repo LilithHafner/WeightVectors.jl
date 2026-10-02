@@ -137,8 +137,8 @@ TODO
 # 6300..10495            level location info::[NamedTuple{pos::Int, length::Int} 2098] indexes into sub_weights, pos is absolute into m.
 # 10496..10528           level_weights_nonzero::[Bool 2098] # map of which levels have nonzero weight (used to bump m2 efficiently when a level is zeroed out)
 # 10529..10530           exact_sum::UInt128 # exact sum(level weights), only meaningful when dirty (m[5] == 0 but m[2] != 5)
-# 10531                  saturated_levels::Int # number of saturated levels (level weight typemax(UInt64)), always 0 when not dirty
-# 10532..10564           level_weights_saturated::[Bool 2098] # map of which levels are saturated, laid out like level_weights_nonzero, all zero when not dirty
+# 10531..10563           level_weights_saturated::[Bool 2098] # map of which levels are saturated, laid out like level_weights_nonzero, all zero when not dirty
+# 10564                  level_weights_saturated_words::[Bool 33] # map of which words of level_weights_saturated are nonzero, zero when not dirty
 
 # gc info:
 # 10565                  next_free_space::Int (used to re-allocate)
@@ -349,7 +349,6 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
             if o | (m5 == typemax(UInt64)) # this also catches a saturated level weight
                 set_exact_sum!(m, UInt128(m5) + UInt128(o) << 64)
                 if weight == typemax(UInt64) # the only saturated level (m[10531:10564] are zero when not dirty)
-                    m[10531] = 1
                     toggle_saturated!(m, weight_index)
                 end
                 m[5] = 0
@@ -475,17 +474,19 @@ function set_exact_sum!(m::Memory{UInt64}, x::UInt128)
     m[10530] = (x >>> 64) % UInt64
 end
 
-# Update the number of saturated levels and the saturated map after the weight of level i
-# changed from old_weight to weight.
+# Update the saturated map after the weight of level i changed from old_weight to weight.
 function update_saturated_levels!(m::Memory{UInt64}, i::Int, old_weight::UInt64, weight::UInt64)
-    was_saturated = old_weight == typemax(UInt64)
-    is_saturated = weight == typemax(UInt64)
-    was_saturated == is_saturated && return
-    m[10531] += ifelse(is_saturated, 1, -1)
-    toggle_saturated!(m, i)
+    (old_weight == typemax(UInt64)) == (weight == typemax(UInt64)) || toggle_saturated!(m, i)
     nothing
 end
-toggle_saturated!(m::Memory{UInt64}, i::Int) = (e = i - 5; m[10532 + e >> 6] ⊻= 0x8000000000000000 >> (e & 63))
+function toggle_saturated!(m::Memory{UInt64}, i::Int)
+    e = i - 5
+    k = e >> 6
+    chunk = m[10531 + k] ⊻ (0x8000000000000000 >> (e & 63))
+    m[10531 + k] = chunk
+    bit = 0x8000000000000000 >> k
+    m[10564] = ifelse(chunk == 0, m[10564] & ~bit, m[10564] | bit)
+end
 
 function renormalize!(m::Memory{UInt64})
     # Called by `rand` when m[5] < 2^32. That is either because the shift is too low for
@@ -497,30 +498,13 @@ function renormalize!(m::Memory{UInt64})
     m2 == 5 && throw(ArgumentError("Cannot sample from a WeightVector when all weights are zero"))
     m5 = m[5]
     m3_old = m[3]
+    m3 = estimate_shift(m, m2)
+    m[3] = m3
     if m5 == 0 # dirty: the shift must decrease. The low 64 bits of the exact sum are exact, all the arithmetic below is mod 2^64 and the final sum fits, so it is exact.
-        exact_sum = get_exact_sum(m)
-        n_saturated = _convert(Int, m[10531])
-        # The levels that are not saturated sum to exactly exact_sum - n_saturated*typemax(UInt64).
-        # Decrease the shift enough for each saturated level to land at 48 bits and for the
-        # other levels to sum to at most ~2^48. This needs no estimate, and if a level is
-        # saturated its significand_sum << shift was >= 2^64, so this decreases the shift
-        # by at least 16 (if none is, the exact sum was >= 2^64).
-        delta = Base.top_set_bit(exact_sum - n_saturated * UInt128(typemax(UInt64))) - 48
-        i = m2
-        for _ in 1:n_saturated
-            i = last_set_level(m, 10532, i, 6)
-            delta = max(delta, Base.top_set_bit(get_significand_sum(m, i)) + signed(i - 5 + m3_old) - 48)
-            i -= 1
-        end
-        m3 = m3_old - unsigned(delta)
         @assert signed(m3) < signed(m3_old) # The exact sum of level weights is >= 2^64 at the old shift
-        m[3] = m3
-        m5 = decrease_shift!(m, m2, m3_old, m3, exact_sum % UInt64, n_saturated)
-        m[10531] = 0 # no level is saturated anymore (decrease_shift! cleared the saturated map)
+        m5 = decrease_shift!(m, m2, m3_old, m3, get_exact_sum(m) % UInt64)
     else # m5 < 2^32: the shift must increase
-        m3 = estimate_shift(m, m2)
         @assert signed(m3_old) < signed(m3)
-        m[3] = m3
         m5 = increase_shift!(m, m2, m3, m5)
     end
     m[5] = m5
@@ -595,7 +579,7 @@ function increase_shift!(m::Memory{UInt64}, m2::Int, m3::UInt64, m5::UInt64)
     m5
 end
 
-function decrease_shift!(m::Memory{UInt64}, m2::Int, m3_old::UInt64, m3::UInt64, m5::UInt64, n_saturated::Int)
+function decrease_shift!(m::Memory{UInt64}, m2::Int, m3_old::UInt64, m3::UInt64, m5::UInt64)
     tsb4 = Base.top_set_bit(m[4])
     i1 = -signed(m3)-59-tsb4 # this is the first index that could have weight > 1 (anything before this will have weight 1 or 0)
     i1_old = -signed(m3_old)-59-tsb4 # anything before this is already weight 1 or 0
@@ -630,31 +614,37 @@ function decrease_shift!(m::Memory{UInt64}, m2::Int, m3_old::UInt64, m3::UInt64,
 
     # Levels in top+1:m2 are empty or saturated. Recompute the saturated ones from their
     # significand sums (this also flattens those below i1 to 1), and clear the saturated map
-    # (the saturated levels in the window were recomputed above).
-    i = m2
-    for _ in 1:n_saturated
-        i = last_set_level(m, 10532, i, 6)
-        toggle_saturated!(m, i)
-        i > top && (m5 += update_weight!(m, i, get_significand_sum(m, i) << signed(i-5+m3)))
-        i -= 1
+    # a word at a time, skipping the empty ones (the saturated levels in the window were
+    # recomputed above).
+    words = m[10564]
+    m[10564] = 0
+    while words != 0
+        k = leading_zeros(words)
+        words ⊻= 0x8000000000000000 >> k
+        chunk = m[10531 + k]
+        m[10531 + k] = 0
+        while chunk != 0
+            lz = leading_zeros(chunk)
+            chunk ⊻= 0x8000000000000000 >> lz
+            i = k << 6 + lz + 5
+            i > top && (m5 += update_weight!(m, i, get_significand_sum(m, i) << signed(i-5+m3)))
+        end
     end
     m5
 end
 
-# The highest level in lo:hi whose bit is set in the level map starting at base
-# (level_weights_nonzero or level_weights_saturated), or lo-1 if there is none.
-function last_set_level(m::Memory{UInt64}, base::Int, hi::Int, lo::Int)
+# The highest nonempty level in lo:hi, or lo-1 if there is none.
+function last_nonzero_level(m::Memory{UInt64}, hi::Int, lo::Int)
     e = hi - 5
     k = e >> 6
-    chunk = m[base + k] & (typemax(UInt64) << (63 - e & 63))
+    chunk = m[10496 + k] & (typemax(UInt64) << (63 - e & 63))
     while chunk == 0
         k -= 1
         k << 6 + 68 < lo && return lo-1 # all levels in this chunk are below lo
-        chunk = m[base + k]
+        chunk = m[10496 + k]
     end
     max(lo-1, k << 6 + 63 - trailing_zeros(chunk) + 5)
 end
-last_nonzero_level(m::Memory{UInt64}, hi::Int, lo::Int) = last_set_level(m, 10496, hi, lo) # the highest nonempty level in lo:hi
 
 Base.@propagate_inbounds function update_weight!(m::Memory{UInt64}, i, shifted_significand_sum)
     weight = _convert(UInt64, shifted_significand_sum) + 1
