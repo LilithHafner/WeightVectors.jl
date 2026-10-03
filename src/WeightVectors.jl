@@ -598,14 +598,13 @@ end
     e = max(top+1, 6) - 5
     words = m[10531] & (typemax(UInt64) >> (e >> 6))
     while words != 0
-        k = leading_zeros(words)
-        words ⊻= 0x8000000000000000 >> k
+        k = 63 - trailing_zeros(words)
+        words &= words - 1 # clear the lowest set bit
         chunk = m[10496 + k]
         k == e >> 6 && (chunk &= typemax(UInt64) >> (e & 63))
         while chunk != 0
-            lz = leading_zeros(chunk)
-            chunk ⊻= 0x8000000000000000 >> lz
-            i = k << 6 + lz + 5
+            i = k << 6 + 68 - trailing_zeros(chunk)
+            chunk &= chunk - 1
             m5 += update_weight!(m, i, get_significand_sum(m, i) >> unsigned(5-i-signed(m3))) # the new shift is negative
         end
     end
