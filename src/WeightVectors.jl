@@ -453,7 +453,7 @@ end
 # The level is nonempty, so significand_sum >= 2^63 and it saturates whenever shift > 0.
 @inline function level_weight(significand_sum::UInt128, shift::Int)
     shifted_significand_sum = significand_sum >> unsigned(-shift) # only used when shift <= 0
-    ifelse(shift > 0, typemax(UInt64), min(shifted_significand_sum, UInt128(typemax(UInt64)-1)) % UInt64 + 1)
+    ifelse(shift > 0, typemax(UInt64), min(shifted_significand_sum + 1, typemax(UInt64)) % UInt64)
 end
 
 get_exact_sum(m::Memory{UInt64}) = UInt128(m[10529]) | (UInt128(m[10530]) << 64)
