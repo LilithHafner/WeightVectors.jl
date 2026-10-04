@@ -446,14 +446,14 @@ function _set_from_zero!(m::Memory, v::Float64, i::Int)
 end
 
 # Weight of a level with the given significand_sum at the given shift, saturating at
-# typemax(UInt64) if it would not fit in 63 bits (a saturated weight always makes the
-# sampler dirty because it pushes the exact sum of level weights to at least typemax(UInt64)).
+# typemax(UInt64) if it does not fit. A saturated weight makes the exact sum of level weights
+# exceed typemax(UInt64), so the sampler dirty, unless its level is the only nonempty one, in
+# which case its weight does not matter for sampling.
 # Branch-free because whether a level saturates is unpredictable while the sampler is dirty.
-# The level is nonempty, so significand_sum >= 2^63 and it saturates iff
-# shift >= -top_set_bit(its high word), in particular whenever shift >= 0.
+# The level is nonempty, so significand_sum >= 2^63 and it saturates whenever shift > 0.
 @inline function level_weight(significand_sum::UInt128, shift::Int)
-    weight = (significand_sum >> unsigned(-shift)) % UInt64 + 1 # only used when shift < 0
-    ifelse(Base.top_set_bit((significand_sum >> 64) % UInt64) + shift >= 0, typemax(UInt64), weight)
+    shifted_significand_sum = significand_sum >> unsigned(-shift) # only used when shift <= 0
+    ifelse(shift > 0, typemax(UInt64), min(shifted_significand_sum, UInt128(typemax(UInt64)-1)) % UInt64 + 1)
 end
 
 get_exact_sum(m::Memory{UInt64}) = UInt128(m[10529]) | (UInt128(m[10530]) << 64)
@@ -463,12 +463,12 @@ function set_exact_sum!(m::Memory{UInt64}, x::UInt128)
 end
 
 # Replace old_weight by weight in the sum of level weights. That sum is m[5] while it fits
-# (a saturated level weight always makes it not fit), and otherwise the sampler is dirty
-# (m[5] == 0) and it is the exact sum.
+# (a saturated level weight makes it not fit, unless it is the only nonempty level), and
+# otherwise the sampler is dirty (m[5] == 0) and it is the exact sum.
 @inline function update_level_weights_sum!(m::Memory{UInt64}, old_weight::UInt64, weight::UInt64)
     m5 = m[5]
     sum = (m5 == 0 ? get_exact_sum(m) - old_weight : UInt128(m5 - old_weight)) + weight # m5 == 0 can't mean empty: we only update nonempty samplers
-    if sum < typemax(UInt64) # this is 0 if we are now empty
+    if sum <= typemax(UInt64) # this is 0 if we are now empty
         m[5] = sum % UInt64
     else
         set_exact_sum!(m, sum)
@@ -662,7 +662,7 @@ function _set_to_zero!(m::Memory, i::Int)
         end
     else # We did not zero out a group
         shift = signed(exponent + m[3])
-        new_weight = level_weight(significand_sum, shift) # Can only saturate if dirty
+        new_weight = level_weight(significand_sum, shift) # Can only saturate if it was already saturated
         m[weight_index] = new_weight
     end
 
